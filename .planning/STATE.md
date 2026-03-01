@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 
 ## Current Position
 
-Phase: 2 of 9 (Knowledge Base) + Phase 3 (Validation Infrastructure) running in parallel
-Plan: Phase 2: 2 of 3 complete | Phase 3: 2 of 3 complete
-Status: Completed 02-01 -- Core knowledge base (MASTER + models + views + security + manifest)
-Last activity: 2026-03-02 -- Completed 02-01 (Core KB: MASTER + 4 category files)
+Phase: 2 of 9 (Knowledge Base) COMPLETE + Phase 3 (Validation Infrastructure) running in parallel
+Plan: Phase 2: 3 of 3 complete | Phase 3: 2 of 3 complete
+Status: Completed 02-03 -- KB extensibility, agent wiring, install.sh updated
+Last activity: 2026-03-02 -- Completed 02-03 (Custom rules + agent KB wiring)
 
-Progress: [████░░░░░░] 36%
+Progress: [████░░░░░░] 41%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
-- Average duration: 4.4 min
+- Total plans completed: 9
+- Average duration: 4.3 min
 - Total execution time: 0.6 hours
 
 **By Phase:**
@@ -29,11 +29,11 @@ Progress: [████░░░░░░] 36%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01 | 4 | 13 min | 3.25 min |
-| 02 | 2 | 13 min | 6.5 min |
+| 02 | 3 | 18 min | 6.0 min |
 | 03 | 2 | 11 min | 5.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-04 (4 min), 03-01 (5 min), 03-02 (6 min), 02-02 (6 min), 02-01 (7 min)
+- Last 5 plans: 03-01 (5 min), 03-02 (6 min), 02-02 (6 min), 02-01 (7 min), 02-03 (5 min)
 - Trend: Consistent
 
 *Updated after each plan completion*
@@ -78,6 +78,11 @@ Recent decisions affecting current work:
 - [Validation]: Regex alternation pattern for module-not-found parsing (quoted vs unquoted)
 - [Validation]: Always-teardown guarantee via finally blocks in Docker runner
 - [Validation]: Graceful degradation when Docker unavailable (return empty/failure results, no exceptions)
+- [Knowledge]: Custom rules extend defaults, never override shipped rules
+- [Knowledge]: Format-only validation for custom rules (headings, code blocks, line count)
+- [Knowledge]: Knowledge base installed via symlink (same pattern as agents)
+- [Knowledge]: validate-kb defaults to custom/ only; --all flag validates shipped + custom
+- [Knowledge]: All 6 agents wired to KB via @include references to ~/.claude/odoo-gen/knowledge/
 
 ### Pending Todos
 
@@ -92,5 +97,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Completed 02-01-PLAN.md -- Core knowledge base files
-Resume file: 02-03-PLAN.md (Custom rules extensibility + agent KB wiring)
+Stopped at: Completed 02-03-PLAN.md -- Phase 2 (Knowledge Base) complete
+Resume file: Phase 3 Plan 3 or Phase 4 (next available phase)

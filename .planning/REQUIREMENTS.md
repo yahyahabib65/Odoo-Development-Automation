@@ -89,8 +89,8 @@ These capabilities come from GSD. Our work is wiring them to Odoo-specific workf
 
 - [x] **KNOW-01**: System loads Odoo-specific knowledge base before generation (coding patterns, ORM conventions, version-specific syntax)
 - [x] **KNOW-02**: Knowledge base includes OCA coding standards, pylint-odoo rules, and common pitfall avoidance patterns
-- [ ] **KNOW-03**: Knowledge base includes version-specific references (Odoo 17.0 API, field types, view syntax changes)
-- [ ] **KNOW-04**: Knowledge base is extensible — team can add custom skills/patterns via GSD skills system
+- [x] **KNOW-03**: Knowledge base includes version-specific references (Odoo 17.0 API, field types, view syntax changes)
+- [x] **KNOW-04**: Knowledge base is extensible — team can add custom skills/patterns via GSD skills system
 
 ### Step 9: Code Generation
 
@@ -204,8 +204,8 @@ Deferred to future release. Tracked but not in current roadmap.
 | EXT-05 | Phase 1: GSD Extension + Odoo Foundation | Complete |
 | KNOW-01 | Phase 2: Knowledge Base | Complete |
 | KNOW-02 | Phase 2: Knowledge Base | Complete |
-| KNOW-03 | Phase 2: Knowledge Base | Pending |
-| KNOW-04 | Phase 2: Knowledge Base | Pending |
+| KNOW-03 | Phase 2: Knowledge Base | Complete |
+| KNOW-04 | Phase 2: Knowledge Base | Complete |
 | QUAL-01 | Phase 3: Validation Infrastructure | Complete |
 | QUAL-02 | Phase 3: Validation Infrastructure | Complete |
 | QUAL-03 | Phase 3: Validation Infrastructure | Complete |
