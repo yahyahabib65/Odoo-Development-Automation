@@ -159,7 +159,38 @@ else
 fi
 
 # ==============================================================================
-# Step 7: Write Manifest for Tracking
+# Step 7: Install Knowledge Base
+# ==============================================================================
+
+info "Installing knowledge base..."
+
+KB_SOURCE="$ODOO_GEN_DIR/knowledge"
+KB_TARGET="$HOME/.claude/odoo-gen/knowledge"
+
+if [ -d "$KB_SOURCE" ]; then
+    # Remove existing knowledge directory (symlink or real dir) to ensure clean state
+    if [ -L "$KB_TARGET" ] || [ -d "$KB_TARGET" ]; then
+        rm -rf "$KB_TARGET"
+    fi
+
+    # Create parent directory if needed
+    mkdir -p "$(dirname "$KB_TARGET")"
+
+    # Symlink the knowledge directory (same pattern as agents: keep files in extension dir)
+    ln -sf "$KB_SOURCE" "$KB_TARGET"
+
+    # Ensure custom/ subdirectory exists so users can add files without creating it
+    mkdir -p "$KB_SOURCE/custom"
+
+    KB_FILE_COUNT=$(ls "$KB_SOURCE/"*.md 2>/dev/null | wc -l)
+    success "Knowledge base installed: $KB_TARGET/ ($KB_FILE_COUNT shipped files)"
+else
+    warn "No knowledge/ directory found in $ODOO_GEN_DIR -- skipping knowledge base installation"
+    warn "Knowledge base will be installed when knowledge files are created."
+fi
+
+# ==============================================================================
+# Step 8: Write Manifest for Tracking
 # ==============================================================================
 
 info "Writing installation manifest..."
@@ -205,7 +236,7 @@ MANIFEST_EOF
 success "Manifest written to $MANIFEST_FILE"
 
 # ==============================================================================
-# Step 8: Verify Installation
+# Step 9: Verify Installation
 # ==============================================================================
 
 info "Verifying installation..."
@@ -221,7 +252,7 @@ else
 fi
 
 # ==============================================================================
-# Success Summary
+# Step 10: Success Summary
 # ==============================================================================
 
 echo ""
@@ -234,6 +265,7 @@ echo -e "  ${BOLD}Venv:${NC}       $ODOO_GEN_DIR/.venv"
 echo -e "  ${BOLD}Wrapper:${NC}    $ODOO_GEN_DIR/bin/odoo-gen-utils"
 echo -e "  ${BOLD}Commands:${NC}   $COMMANDS_TARGET/ ($COMMAND_COUNT registered)"
 echo -e "  ${BOLD}Agents:${NC}     $AGENTS_TARGET/ ($AGENT_COUNT symlinked)"
+echo -e "  ${BOLD}Knowledge:${NC}  $KB_TARGET/"
 echo -e "  ${BOLD}Manifest:${NC}   $MANIFEST_FILE"
 echo ""
 

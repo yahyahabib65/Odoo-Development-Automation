@@ -157,6 +157,18 @@ For each file to generate:
 
 If `odoo-gen-utils` is not available (e.g., Python package not yet installed), fall back to generating files directly using the Write tool, following the same templates and conventions.
 
+## Knowledge Base
+
+Load the following knowledge base files for comprehensive Odoo 17.0 rules and patterns. These extend the inline rules above with detailed WRONG/CORRECT examples and version-specific guidance.
+
+@~/.claude/odoo-gen/knowledge/MASTER.md
+@~/.claude/odoo-gen/knowledge/models.md
+@~/.claude/odoo-gen/knowledge/views.md
+@~/.claude/odoo-gen/knowledge/security.md
+@~/.claude/odoo-gen/knowledge/manifest.md
+
+If custom rule files exist in `~/.claude/odoo-gen/knowledge/custom/`, load the matching files (e.g., `custom/models.md` for model generation) to apply team-specific conventions alongside the shipped rules.
+
 ## Reference
 
 @~/.claude/odoo-gen/workflows/scaffold.md
