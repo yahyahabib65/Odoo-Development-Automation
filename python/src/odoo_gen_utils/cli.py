@@ -16,6 +16,16 @@ from odoo_gen_utils.renderer import (
     render_module,
     render_template,
 )
+from odoo_gen_utils.validation import (  # noqa: F401
+    ValidationReport,
+    check_docker_available,
+    diagnose_errors,
+    docker_install_module,
+    docker_run_tests,
+    format_report_json,
+    format_report_markdown,
+    run_pylint_odoo,
+)
 
 
 @click.group()
@@ -242,3 +252,88 @@ def validate_kb(scope: str) -> None:
 
     if has_errors:
         raise SystemExit(1)
+
+
+@main.command()
+@click.argument("module_path", type=click.Path(exists=True))
+@click.option("--pylint-only", is_flag=True, help="Run only pylint-odoo (skip Docker)")
+@click.option("--json", "json_output", is_flag=True, help="Output JSON report (machine-readable)")
+@click.option("--pylintrc", type=click.Path(exists=True), help="Path to .pylintrc-odoo config file")
+def validate(
+    module_path: str,
+    pylint_only: bool,
+    json_output: bool,
+    pylintrc: str | None,
+) -> None:
+    """Validate an Odoo module against OCA quality standards.
+
+    Runs pylint-odoo static analysis and optionally Docker-based installation
+    and test execution. Produces a structured report with violations, install
+    result, test results, and actionable error diagnosis.
+    """
+    mod_path = Path(module_path).resolve()
+
+    # Validate manifest exists
+    manifest = mod_path / "__manifest__.py"
+    if not manifest.exists():
+        click.echo(f"Error: No __manifest__.py found in {mod_path}", err=True)
+        sys.exit(1)
+
+    module_name = mod_path.name
+
+    # Auto-detect .pylintrc-odoo in module directory if not provided
+    pylintrc_path = Path(pylintrc) if pylintrc else None
+    if pylintrc_path is None:
+        candidate = mod_path / ".pylintrc-odoo"
+        if candidate.exists():
+            pylintrc_path = candidate
+
+    # Step 1: Run pylint-odoo
+    violations = run_pylint_odoo(mod_path, pylintrc_path=pylintrc_path)
+
+    install_result = None
+    test_results: tuple = ()
+    docker_available = True
+    diagnosis: tuple[str, ...] = ()
+    error_logs: list[str] = []
+
+    if not pylint_only:
+        # Step 2: Check Docker and run install
+        docker_available = check_docker_available()
+        if docker_available:
+            install_result = docker_install_module(mod_path)
+            if install_result.log_output:
+                error_logs.append(install_result.log_output)
+
+            # Step 3: Run tests if install succeeded
+            if install_result.success:
+                test_results = docker_run_tests(mod_path)
+
+            # Step 4: Diagnose any error logs
+            combined_logs = "\n".join(error_logs)
+            if combined_logs.strip():
+                diagnosis = diagnose_errors(combined_logs)
+
+    # Build report
+    report = ValidationReport(
+        module_name=module_name,
+        pylint_violations=violations,
+        install_result=install_result,
+        test_results=test_results,
+        diagnosis=diagnosis,
+        docker_available=docker_available,
+    )
+
+    # Output
+    if json_output:
+        click.echo(json.dumps(format_report_json(report), indent=2))
+    else:
+        click.echo(format_report_markdown(report))
+
+    # Exit code: 0 if clean, 1 if any issues
+    has_issues = bool(violations) or (
+        install_result is not None and not install_result.success
+    ) or any(not tr.passed for tr in test_results)
+
+    if has_issues:
+        sys.exit(1)
