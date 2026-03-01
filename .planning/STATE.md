@@ -56,6 +56,10 @@ Recent decisions affecting current work:
 - [Templates]: Combined form+tree+search views into single per-model view file for render_module
 - [Templates]: Single menu.xml for all models (cleaner OCA structure)
 - [Package]: Hatchling build backend for pyproject.toml-native packaging
+- [Agents]: Symlinks for agent registration (ln -sf) instead of copy -- keeps agents in extension dir
+- [Agents]: odoo-scaffold agent includes comprehensive Odoo 17.0 specifics to prevent LLM hallucinations
+- [Security]: defaults.json api_keys uses $ENV_VAR references resolved at runtime -- never stores secrets
+- [Infra]: Wrapper script at bin/odoo-gen-utils resolves venv path portably across platforms
 
 ### Pending Todos
 
@@ -70,5 +74,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-01
-Stopped at: Completed 01-03-PLAN.md (Python Utility Package)
+Stopped at: Re-executed 01-01-PLAN.md (agent files were missing from prior run)
 Resume file: .planning/phases/01-gsd-extension/01-04-PLAN.md
