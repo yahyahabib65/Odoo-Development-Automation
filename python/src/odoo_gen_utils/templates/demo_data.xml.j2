@@ -5,28 +5,30 @@
 {% for model in models %}
     <!-- Demo records for {{ model.description | default(model.name) }} -->
 {% for i in range(3) %}
-    <record id="demo_{{ model.name | to_xml_id }}_{{ loop.index }}" model="{{ model.name }}">
+{% set record_num = loop.index %}
+{% set record_idx = loop.index0 %}
+    <record id="demo_{{ model.name | to_xml_id }}_{{ record_num }}" model="{{ model.name }}">
 {% for field in model.fields %}
 {% if field.type not in ('One2many', 'Many2many', 'Many2one') %}
 {% if field.type == 'Char' %}
-        <field name="{{ field.name }}">Sample {{ field.string | default(field.name | replace('_', ' ') | title) }} {{ loop.parent.loop.index }}</field>
+        <field name="{{ field.name }}">Sample {{ field.string | default(field.name | replace('_', ' ') | title) }} {{ record_num }}</field>
 {% elif field.type == 'Integer' %}
-        <field name="{{ field.name }}">{{ loop.parent.loop.index * 10 }}</field>
+        <field name="{{ field.name }}">{{ record_num * 10 }}</field>
 {% elif field.type == 'Float' %}
-        <field name="{{ field.name }}">{{ loop.parent.loop.index * 10.5 }}</field>
+        <field name="{{ field.name }}">{{ record_num * 10.5 }}</field>
 {% elif field.type == 'Boolean' %}
-        <field name="{{ field.name }}" eval="{{ loop.parent.loop.index == 1 }}"/>
+        <field name="{{ field.name }}" eval="{{ record_num == 1 }}"/>
 {% elif field.type == 'Text' %}
-        <field name="{{ field.name }}">Sample description for record {{ loop.parent.loop.index }}.</field>
+        <field name="{{ field.name }}">Sample description for record {{ record_num }}.</field>
 {% elif field.type == 'Html' %}
-        <field name="{{ field.name }}">&lt;p&gt;Sample HTML content for record {{ loop.parent.loop.index }}.&lt;/p&gt;</field>
+        <field name="{{ field.name }}">&lt;p&gt;Sample HTML content for record {{ record_num }}.&lt;/p&gt;</field>
 {% elif field.type == 'Date' %}
-        <field name="{{ field.name }}">2024-0{{ loop.parent.loop.index }}-15</field>
+        <field name="{{ field.name }}">2024-0{{ record_num }}-15</field>
 {% elif field.type == 'Datetime' %}
-        <field name="{{ field.name }}">2024-0{{ loop.parent.loop.index }}-15 10:00:00</field>
+        <field name="{{ field.name }}">2024-0{{ record_num }}-15 10:00:00</field>
 {% elif field.type == 'Selection' %}
 {% if field.selection %}
-        <field name="{{ field.name }}">{{ field.selection[(loop.parent.loop.index0) % field.selection | length][0] }}</field>
+        <field name="{{ field.name }}">{{ field.selection[record_idx % field.selection | length][0] }}</field>
 {% endif %}
 {% endif %}
 {% endif %}
