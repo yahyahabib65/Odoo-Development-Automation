@@ -66,8 +66,8 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 02-01-PLAN.md -- MASTER.md + core category files (models, views, security, manifest)
-- [ ] 02-02-PLAN.md -- Remaining category files (testing, actions, data, i18n, controllers, wizards, inheritance)
+- [x] 02-01-PLAN.md -- MASTER.md + core category files (models, views, security, manifest)
+- [x] 02-02-PLAN.md -- Remaining category files (testing, actions, data, i18n, controllers, wizards, inheritance)
 - [ ] 02-03-PLAN.md -- Custom rules extensibility, agent KB wiring, install.sh update
 
 ### Phase 3: Validation Infrastructure
@@ -190,8 +190,8 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. GSD Extension + Odoo Foundation | 4/4 | Complete | 2026-03-01 |
-| 2. Knowledge Base | 0/3 | Planned | - |
-| 3. Validation Infrastructure | 0/2 | Not started | - |
+| 2. Knowledge Base | 2/3 | In Progress | - |
+| 3. Validation Infrastructure | 2/2 | In Progress | - |
 | 4. Input & Specification | 0/1 | Not started | - |
 | 5. Core Code Generation | 0/3 | Not started | - |
 | 6. Security & Test Generation | 0/2 | Not started | - |
