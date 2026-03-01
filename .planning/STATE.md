@@ -6,34 +6,34 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 
 **Core value:** Compress months of repetitive Odoo module development into days by extending GSD's orchestration with Odoo-specialized agents, knowledge, and validation.
 **Architecture:** GSD extension (not standalone CLI)
-**Current focus:** Phase 3 - Validation Infrastructure
+**Current focus:** Phase 2 - Knowledge Base + Phase 3 - Validation Infrastructure (parallel)
 
 ## Current Position
 
-Phase: 3 of 9 (Validation Infrastructure)
-Plan: 2 of 3 complete
-Status: Executing Phase 3 -- Plan 02 complete, Plan 03 next
-Last activity: 2026-03-01 -- Completed 03-02 (Docker validation infrastructure)
+Phase: 2 of 9 (Knowledge Base) + Phase 3 (Validation Infrastructure) running in parallel
+Plan: Phase 2: 2 of 3 complete | Phase 3: 2 of 3 complete
+Status: Completed 02-01 -- Core knowledge base (MASTER + models + views + security + manifest)
+Last activity: 2026-03-02 -- Completed 02-01 (Core KB: MASTER + 4 category files)
 
-Progress: [███░░░░░░░] 27%
+Progress: [████░░░░░░] 36%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6
-- Average duration: 3.7 min
-- Total execution time: 0.4 hours
+- Total plans completed: 8
+- Average duration: 4.4 min
+- Total execution time: 0.6 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01 | 4 | 13 min | 3.25 min |
-| 02 | 1 | 6 min | 6.0 min |
+| 02 | 2 | 13 min | 6.5 min |
 | 03 | 2 | 11 min | 5.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-03 (3 min), 01-04 (4 min), 03-01 (5 min), 03-02 (6 min)
+- Last 5 plans: 01-04 (4 min), 03-01 (5 min), 03-02 (6 min), 02-02 (6 min), 02-01 (7 min)
 - Trend: Consistent
 
 *Updated after each plan completion*
@@ -68,6 +68,13 @@ Recent decisions affecting current work:
 - [Validation]: Tuples (not lists) for frozen dataclass fields -- immutability compliance
 - [Validation]: noqa F401 on __init__.py re-exports to prevent ruff from stripping public API
 - [Validation]: Recursive tuple-to-list conversion needed for JSON serialization of dataclasses
+- [Knowledge]: Each knowledge file follows consistent Rule + WRONG + CORRECT + Why format with Changed in 17.0 section
+- [Knowledge]: TransactionCase as primary test base class (SavepointCase deprecated in 17.0)
+- [Knowledge]: tree (not list) in view_mode for Odoo 17.0
+- [Knowledge]: All three inheritance patterns documented: _inherit, _inherits, _name+_inherit
+- [Knowledge]: Jinja2 template syntax for email templates in data.md (Odoo 17.0 default)
+- [Knowledge]: pylint-odoo rules in compact table format (Rule | Trigger | Fix) to save context budget
+- [Knowledge]: models.md trimmed from 646 to 482 lines by consolidating examples while preserving all rules
 - [Validation]: Regex alternation pattern for module-not-found parsing (quoted vs unquoted)
 - [Validation]: Always-teardown guarantee via finally blocks in Docker runner
 - [Validation]: Graceful degradation when Docker unavailable (return empty/failure results, no exceptions)
