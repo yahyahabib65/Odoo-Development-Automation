@@ -55,7 +55,7 @@ These capabilities come from GSD. Our work is wiring them to Odoo-specific workf
 - [x] **EXT-02**: Extension registers all odoo-gen commands with GSD command system
 - [ ] **EXT-03**: Extension adds Odoo-specific configuration fields (odoo_version, edition, output_dir, api_keys) to GSD config
 - [ ] **EXT-04**: Extension provides Odoo-specific agent definitions that GSD can spawn
-- [ ] **EXT-05**: Extension includes Python utility package (installable via `uv`/`pip`) for template rendering, validation, and search
+- [x] **EXT-05**: Extension includes Python utility package (installable via `uv`/`pip`) for template rendering, validation, and search
 
 ### Step 1-2: Input & Interaction
 
@@ -201,7 +201,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | EXT-02 | Phase 1: GSD Extension + Odoo Foundation | Complete |
 | EXT-03 | Phase 1: GSD Extension + Odoo Foundation | Pending |
 | EXT-04 | Phase 1: GSD Extension + Odoo Foundation | Pending |
-| EXT-05 | Phase 1: GSD Extension + Odoo Foundation | Pending |
+| EXT-05 | Phase 1: GSD Extension + Odoo Foundation | Complete |
 | KNOW-01 | Phase 2: Knowledge Base | Pending |
 | KNOW-02 | Phase 2: Knowledge Base | Pending |
 | KNOW-03 | Phase 2: Knowledge Base | Pending |
