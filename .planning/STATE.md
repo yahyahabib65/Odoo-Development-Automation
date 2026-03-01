@@ -6,23 +6,23 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 
 **Core value:** Compress months of repetitive Odoo module development into days by extending GSD's orchestration with Odoo-specialized agents, knowledge, and validation.
 **Architecture:** GSD extension (not standalone CLI)
-**Current focus:** Phase 2 - Knowledge Base + Phase 3 - Validation Infrastructure (parallel)
+**Current focus:** Phase 4 - Input & Specification (Phases 2 and 3 complete)
 
 ## Current Position
 
-Phase: 2 of 9 (Knowledge Base) COMPLETE + Phase 3 (Validation Infrastructure) running in parallel
-Plan: Phase 2: 3 of 3 complete | Phase 3: 2 of 3 complete
-Status: Completed 02-03 -- KB extensibility, agent wiring, install.sh updated
-Last activity: 2026-03-02 -- Completed 02-03 (Custom rules + agent KB wiring)
+Phase: 4 of 9 (Input & Specification) -- Phases 2 and 3 COMPLETE
+Plan: Phase 2: 3 of 3 complete | Phase 3: 3 of 3 complete
+Status: Completed 03-03 -- Error diagnosis, CLI integration, agent/command updates
+Last activity: 2026-03-02 -- Completed 03-03 (Error patterns + validate CLI + agent updates)
 
-Progress: [████░░░░░░] 41%
+Progress: [█████░░░░░] 45%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
-- Average duration: 4.3 min
-- Total execution time: 0.6 hours
+- Total plans completed: 10
+- Average duration: 4.5 min
+- Total execution time: 0.7 hours
 
 **By Phase:**
 
@@ -30,10 +30,10 @@ Progress: [████░░░░░░] 41%
 |-------|-------|-------|----------|
 | 01 | 4 | 13 min | 3.25 min |
 | 02 | 3 | 18 min | 6.0 min |
-| 03 | 2 | 11 min | 5.5 min |
+| 03 | 3 | 17 min | 5.7 min |
 
 **Recent Trend:**
-- Last 5 plans: 03-01 (5 min), 03-02 (6 min), 02-02 (6 min), 02-01 (7 min), 02-03 (5 min)
+- Last 5 plans: 03-02 (6 min), 02-02 (6 min), 02-01 (7 min), 02-03 (5 min), 03-03 (6 min)
 - Trend: Consistent
 
 *Updated after each plan completion*
@@ -83,6 +83,10 @@ Recent decisions affecting current work:
 - [Knowledge]: Knowledge base installed via symlink (same pattern as agents)
 - [Knowledge]: validate-kb defaults to custom/ only; --all flag validates shipped + custom
 - [Knowledge]: All 6 agents wired to KB via @include references to ~/.claude/odoo-gen/knowledge/
+- [Validation]: Module-level caching for error patterns (avoid repeated JSON file I/O)
+- [Validation]: IGNORECASE | MULTILINE regex flags for robust log matching
+- [Validation]: Unrecognized errors fall back to raw traceback (not silent failure)
+- [Validation]: validate CLI exit code 1 for any violations/failures, 0 only when fully clean
 
 ### Pending Todos
 
@@ -97,5 +101,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Completed 02-03-PLAN.md -- Phase 2 (Knowledge Base) complete
-Resume file: Phase 3 Plan 3 or Phase 4 (next available phase)
+Stopped at: Completed 03-03-PLAN.md -- Phase 3 (Validation Infrastructure) complete
+Resume file: Phase 4 (Input & Specification)

@@ -141,7 +141,7 @@ These capabilities come from GSD. Our work is wiring them to Odoo-specific workf
 - [x] **QUAL-04**: System installs the generated module on the Docker Odoo instance and reports install success/failure
 - [x] **QUAL-05**: System runs the generated tests on the Docker Odoo instance and reports pass/fail results
 - [ ] **QUAL-06**: System generates i18n `.pot` file for translatable strings
-- [ ] **QUAL-07**: System parses Odoo error logs on validation failure and provides actionable diagnosis (which file, what broke, suggested fix)
+- [x] **QUAL-07**: System parses Odoo error logs on validation failure and provides actionable diagnosis (which file, what broke, suggested fix)
 - [x] **QUAL-08**: All generated code targets Odoo 17.0 API exclusively (no mixing of deprecated API patterns)
 - [ ] **QUAL-09**: System attempts to auto-fix pylint-odoo violations and re-validate before escalating to human
 - [ ] **QUAL-10**: System attempts to auto-fix Docker install failures (missing dependencies, XML errors) and re-validate before escalating to human
@@ -211,7 +211,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | QUAL-03 | Phase 3: Validation Infrastructure | Complete |
 | QUAL-04 | Phase 3: Validation Infrastructure | Complete |
 | QUAL-05 | Phase 3: Validation Infrastructure | Complete |
-| QUAL-07 | Phase 3: Validation Infrastructure | Pending |
+| QUAL-07 | Phase 3: Validation Infrastructure | Complete |
 | QUAL-08 | Phase 3: Validation Infrastructure | Complete |
 | INPT-01 | Phase 4: Input & Specification | Pending |
 | INPT-02 | Phase 4: Input & Specification | Pending |
