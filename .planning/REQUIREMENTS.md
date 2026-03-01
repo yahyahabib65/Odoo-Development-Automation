@@ -62,7 +62,7 @@ These capabilities come from GSD. Our work is wiring them to Odoo-specific workf
 - [x] **INPT-01**: User can describe a module need in natural language via GSD command
 - [x] **INPT-02**: System asks structured follow-up questions to fill gaps in the description (models, fields, views, inheritance, user groups)
 - [x] **INPT-03**: System parses user input into a structured module specification (model names, field types, relationships, views needed, workflow states)
-- [ ] **INPT-04**: User can review and approve the parsed specification before generation begins
+- [x] **INPT-04**: User can review and approve the parsed specification before generation begins
 
 ### Step 4-7: Search & Reuse
 
@@ -216,7 +216,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | INPT-01 | Phase 4: Input & Specification | Complete |
 | INPT-02 | Phase 4: Input & Specification | Complete |
 | INPT-03 | Phase 4: Input & Specification | Complete |
-| INPT-04 | Phase 4: Input & Specification | Pending |
+| INPT-04 | Phase 4: Input & Specification | Complete |
 | CODG-01 | Phase 5: Core Code Generation | Pending |
 | CODG-02 | Phase 5: Core Code Generation | Pending |
 | CODG-03 | Phase 5: Core Code Generation | Pending |

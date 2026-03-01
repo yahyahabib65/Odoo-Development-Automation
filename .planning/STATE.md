@@ -6,9 +6,9 @@ status: unknown
 last_updated: "2026-03-01T21:11:05.185Z"
 progress:
   total_phases: 9
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 12
-  completed_plans: 11
+  completed_plans: 12
 ---
 
 # Project State
@@ -19,23 +19,23 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 
 **Core value:** Compress months of repetitive Odoo module development into days by extending GSD's orchestration with Odoo-specialized agents, knowledge, and validation.
 **Architecture:** GSD extension (not standalone CLI)
-**Current focus:** Phase 4 - Input & Specification (Phases 2 and 3 complete)
+**Current focus:** Phase 5 - Core Code Generation (Phases 1-4 complete)
 
 ## Current Position
 
-Phase: 4 of 9 (Input & Specification) -- Plan 1 of 2 COMPLETE
-Plan: 1 of 2 complete in Phase 4
-Status: Completed 04-01 -- Specification workflow, plan command, dual-mode agent
-Last activity: 2026-03-02 -- Completed 04-01 (Spec workflow + plan command + agent update)
+Phase: 4 of 9 (Input & Specification) -- COMPLETE
+Plan: 2 of 2 complete in Phase 4
+Status: Phase 4 COMPLETE -- All input/specification plans done, checkpoint approved
+Last activity: 2026-03-02 -- Completed 04-02 (Approval flow, spec rendering, user review)
 
-Progress: [██████░░░░] 50%
+Progress: [██████░░░░] 55%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 11
-- Average duration: 4.5 min
-- Total execution time: 0.8 hours
+- Total plans completed: 12
+- Average duration: 4.4 min
+- Total execution time: 0.9 hours
 
 **By Phase:**
 
@@ -44,10 +44,10 @@ Progress: [██████░░░░] 50%
 | 01 | 4 | 13 min | 3.25 min |
 | 02 | 3 | 18 min | 6.0 min |
 | 03 | 3 | 17 min | 5.7 min |
-| 04 | 1 | 5 min | 5.0 min |
+| 04 | 2 | 9 min | 4.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-01 (7 min), 02-03 (5 min), 03-03 (6 min), 03-02 (6 min), 04-01 (5 min)
+- Last 5 plans: 02-03 (5 min), 03-03 (6 min), 03-02 (6 min), 04-01 (5 min), 04-02 (4 min)
 - Trend: Consistent
 
 *Updated after each plan completion*
@@ -107,6 +107,10 @@ Recent decisions affecting current work:
 - [Spec]: Extended JSON spec schema backward-compatible with render-module (all new fields optional with null defaults)
 - [Agents]: odoo-scaffold dual-mode: Quick Mode via /odoo-gen:new, Specification Mode via /odoo-gen:plan
 - [Agents]: Agent KB expanded from 5 to 12 files for domain-specific question generation
+- [Spec]: JSON-first rendering -- spec.json is source of truth, markdown summary is derived view
+- [Spec]: Approval gate blocks generation -- no downstream process uses spec until user explicitly approves
+- [Spec]: Targeted follow-up on changes -- 1-3 focused questions about flagged sections only
+- [Spec]: 3-round iteration limit advisory (not hard stop) to prevent interrogation fatigue
 
 ### Pending Todos
 
@@ -121,5 +125,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Completed 04-01-PLAN.md -- Spec workflow, plan command, dual-mode agent
-Resume file: Phase 4 Plan 2 (04-02-PLAN.md)
+Stopped at: Completed 04-02-PLAN.md -- Phase 4 complete (approval flow, checkpoint approved)
+Resume file: Phase 5 Plan 1 (05-01-PLAN.md) -- needs planning
