@@ -1,21 +1,33 @@
 """Validation infrastructure for Odoo module quality checks."""
 
-from odoo_gen_utils.validation.pylint_runner import parse_pylint_output  # noqa: F401
-from odoo_gen_utils.validation.pylint_runner import run_pylint_odoo  # noqa: F401
-from odoo_gen_utils.validation.report import format_report_json  # noqa: F401
-from odoo_gen_utils.validation.report import format_report_markdown  # noqa: F401
-from odoo_gen_utils.validation.types import InstallResult  # noqa: F401
-from odoo_gen_utils.validation.types import TestResult  # noqa: F401
-from odoo_gen_utils.validation.types import ValidationReport  # noqa: F401
-from odoo_gen_utils.validation.types import Violation  # noqa: F401
+from odoo_gen_utils.validation.docker_runner import (
+    check_docker_available,
+    docker_install_module,
+    docker_run_tests,
+    get_compose_file,
+)
+from odoo_gen_utils.validation.log_parser import (
+    extract_traceback,
+    parse_install_log,
+    parse_test_log,
+)
+from odoo_gen_utils.validation.types import (
+    InstallResult,
+    TestResult,
+    ValidationReport,
+    Violation,
+)
 
 __all__ = [
     "InstallResult",
     "TestResult",
     "ValidationReport",
     "Violation",
-    "format_report_json",
-    "format_report_markdown",
-    "parse_pylint_output",
-    "run_pylint_odoo",
+    "check_docker_available",
+    "docker_install_module",
+    "docker_run_tests",
+    "extract_traceback",
+    "get_compose_file",
+    "parse_install_log",
+    "parse_test_log",
 ]
