@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 
 ## Current Position
 
-Phase: 1 of 9 (GSD Extension + Odoo Foundation)
-Plan: 3 of 4 complete (next: 01-04-PLAN.md)
-Status: Executing Phase 1
-Last activity: 2026-03-01 -- Completed 01-03 (Python Utility Package)
+Phase: 1 of 9 (GSD Extension + Odoo Foundation) -- COMPLETE
+Plan: 4 of 4 complete
+Status: Phase 1 Complete -- ready for Phase 2
+Last activity: 2026-03-01 -- Completed 01-04 (Scaffold Workflows + E2E Integration)
 
-Progress: [██░░░░░░░░] 15%
+Progress: [██░░░░░░░░] 20%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
+- Total plans completed: 4
 - Average duration: 3 min
-- Total execution time: 0.15 hours
+- Total execution time: 0.2 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01 | 3 | 9 min | 3 min |
+| 01 | 4 | 13 min | 3.25 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01, 01-02 (3 min), 01-03 (3 min)
+- Last 5 plans: 01-01, 01-02 (3 min), 01-03 (3 min), 01-04 (4 min)
 - Trend: Consistent
 
 *Updated after each plan completion*
@@ -60,6 +60,9 @@ Recent decisions affecting current work:
 - [Agents]: odoo-scaffold agent includes comprehensive Odoo 17.0 specifics to prevent LLM hallucinations
 - [Security]: defaults.json api_keys uses $ENV_VAR references resolved at runtime -- never stores secrets
 - [Infra]: Wrapper script at bin/odoo-gen-utils resolves venv path portably across platforms
+- [Workflows]: Scaffold workflow defines 4 phases: input parsing, spec confirmation, generation (odoo-gen-utils), post-generation
+- [Workflows]: Help workflow uses inline table with Active/Planned status labels
+- [Templates]: Chatter section in form views conditional on 'mail' in depends
 
 ### Pending Todos
 
@@ -74,5 +77,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-01
-Stopped at: Re-executed 01-01-PLAN.md (agent files were missing from prior run)
-Resume file: .planning/phases/01-gsd-extension/01-04-PLAN.md
+Stopped at: Completed 01-04-PLAN.md -- Phase 1 complete
+Resume file: Phase 2 planning (02-01-PLAN.md)

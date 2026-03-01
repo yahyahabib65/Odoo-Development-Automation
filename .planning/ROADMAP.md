@@ -22,7 +22,7 @@ Nine phases cover all 68 Odoo-specific requirements (plus 13 inherited from GSD)
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-- [ ] **Phase 1: GSD Extension + Odoo Foundation** — Extension structure, command registration, Odoo config, agent definitions, Python utility package with Jinja2 scaffold engine
+- [x] **Phase 1: GSD Extension + Odoo Foundation** — Extension structure, command registration, Odoo config, agent definitions, Python utility package with Jinja2 scaffold engine
 - [ ] **Phase 2: Knowledge Base** — Odoo 17 coding patterns, OCA standards, pylint-odoo rules, version-specific references, extensible skill system
 - [ ] **Phase 3: Validation Infrastructure** — pylint-odoo integration, Docker-based Odoo 17.0 environment, module install testing, quality reporting
 - [ ] **Phase 4: Input & Specification** — Natural language module description, structured Odoo follow-up questions, spec parsing, user approval flow
@@ -48,10 +48,10 @@ Nine phases cover all 68 Odoo-specific requirements (plus 13 inherited from GSD)
 **Plans**: 4 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Extension structure, install.sh, config defaults, and agent definitions
+- [x] 01-01-PLAN.md — Extension structure, install.sh, config defaults, and agent definitions
 - [x] 01-02-PLAN.md — All 12 /odoo-gen:* command registrations
-- [ ] 01-03-PLAN.md — Python utility package with CLI, renderer, and Jinja2 templates
-- [ ] 01-04-PLAN.md — Scaffold workflow, help workflow, and end-to-end integration verification
+- [x] 01-03-PLAN.md — Python utility package with CLI, renderer, and Jinja2 templates
+- [x] 01-04-PLAN.md — Scaffold workflow, help workflow, and end-to-end integration verification
 
 ### Phase 2: Knowledge Base
 **Goal**: Odoo agents have access to comprehensive coding patterns, OCA standards, and version-specific references that prevent common mistakes during generation
@@ -187,7 +187,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. GSD Extension + Odoo Foundation | 0/4 | Planned | - |
+| 1. GSD Extension + Odoo Foundation | 4/4 | Complete | 2026-03-01 |
 | 2. Knowledge Base | 0/1 | Not started | - |
 | 3. Validation Infrastructure | 0/2 | Not started | - |
 | 4. Input & Specification | 0/1 | Not started | - |
