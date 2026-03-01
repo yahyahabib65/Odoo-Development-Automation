@@ -1,0 +1,29 @@
+{# manifest.py.j2 -- Odoo __manifest__.py module descriptor #}
+{
+    "name": "{{ module_title }}",
+    "version": "{{ odoo_version }}.1.0.0",
+    "author": "{{ author }}",
+    "website": "{{ website }}",
+    "license": "{{ license | default('LGPL-3') }}",
+    "category": "{{ category | default('Uncategorized') }}",
+    "summary": "{{ summary }}",
+    "depends": [
+{% for dep in depends %}
+        "{{ dep }}",
+{% endfor %}
+    ],
+    "data": [
+        "security/security.xml",
+        "security/ir.model.access.csv",
+{% for vf in view_files %}
+        "views/{{ vf }}",
+{% endfor %}
+    ],
+    "demo": [
+        "demo/demo_data.xml",
+    ],
+    "development_status": "Alpha",
+    "application": {{ application | default(True) }},
+    "installable": True,
+    "auto_install": False,
+}

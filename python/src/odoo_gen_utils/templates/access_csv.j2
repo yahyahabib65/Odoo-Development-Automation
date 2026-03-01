@@ -1,0 +1,6 @@
+{# access_csv.j2 -- ir.model.access.csv with per-model CRUD permissions #}
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+{% for model in models %}
+access_{{ model.name | to_python_var }}_user,{{ model.name }}.user,{{ model.name | model_ref }},{{ module_technical_name }}.group_{{ module_technical_name }}_user,1,1,1,0
+access_{{ model.name | to_python_var }}_manager,{{ model.name }}.manager,{{ model.name | model_ref }},{{ module_technical_name }}.group_{{ module_technical_name }}_manager,1,1,1,1
+{% endfor %}

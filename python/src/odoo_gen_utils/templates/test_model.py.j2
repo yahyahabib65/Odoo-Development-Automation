@@ -1,0 +1,60 @@
+{# test_model.py.j2 -- Odoo test case for a model using TransactionCase #}
+from odoo.tests.common import TransactionCase
+
+
+class Test{{ model_name | to_class }}(TransactionCase):
+    """Test cases for the {{ model_description }} model."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.test_record = cls.env["{{ model_name }}"].create({
+{% for field in required_fields %}
+{% if field.type == 'Char' %}
+            "{{ field.name }}": "Test {{ field.string | default(field.name | replace('_', ' ') | title) }}",
+{% elif field.type == 'Integer' %}
+            "{{ field.name }}": 1,
+{% elif field.type == 'Float' %}
+            "{{ field.name }}": 1.0,
+{% elif field.type == 'Boolean' %}
+            "{{ field.name }}": True,
+{% elif field.type == 'Text' %}
+            "{{ field.name }}": "Test {{ field.string | default(field.name | replace('_', ' ') | title) }} content",
+{% elif field.type == 'Html' %}
+            "{{ field.name }}": "<p>Test content</p>",
+{% elif field.type == 'Date' %}
+            "{{ field.name }}": "2024-01-01",
+{% elif field.type == 'Datetime' %}
+            "{{ field.name }}": "2024-01-01 00:00:00",
+{% elif field.type == 'Selection' %}
+{% if field.selection %}
+            "{{ field.name }}": "{{ field.selection[0][0] }}",
+{% endif %}
+{% elif field.type == 'Many2one' %}
+            "{{ field.name }}": cls.env.ref("base.main_company").id,
+{% else %}
+            "{{ field.name }}": "Test value",
+{% endif %}
+{% endfor %}
+        })
+
+    def test_create(self):
+        """Test that a {{ model_description }} record can be created."""
+        self.assertTrue(self.test_record.id, "Record should have been created successfully")
+
+    def test_read(self):
+        """Test that {{ model_description }} fields are readable."""
+        record = self.test_record
+{% for field in required_fields %}
+        self.assertIsNotNone(record.{{ field.name }}, "Field '{{ field.name }}' should be readable")
+{% endfor %}
+
+{% for field in fields %}
+{% if field.name == 'name' %}
+    def test_name_get(self):
+        """Test that name_get returns the expected display name."""
+        result = self.test_record.name_get()
+        self.assertTrue(result, "name_get should return a result")
+        self.assertEqual(result[0][0], self.test_record.id)
+{% endif %}
+{% endfor %}
