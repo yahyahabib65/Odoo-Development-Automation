@@ -329,80 +329,199 @@ Before proceeding to Phase 4, verify the spec:
 
 ## Phase 4: Present Specification for Approval
 
-Render the spec as a human-readable markdown summary and present it for user review.
+Generate the spec.json FIRST (Phase 3 output), then render a markdown summary FROM the JSON. The markdown is a view of the JSON, not an independent document. This prevents spec-markdown desync.
 
-### Presentation Format
+### Step 4.1: Render Markdown Summary
 
-Render the spec.json as structured markdown with these sections:
+Transform the spec.json into a human-readable markdown summary. The markdown MUST be generated from the JSON fields -- never maintain them independently.
+
+**Markdown Summary Format:**
 
 ```markdown
 ## Module Specification: {module_title}
 
-**Technical Name:** `{module_name}`
-**Category:** {category}
-**License:** {license}
-**Odoo Version:** {odoo_version}
-**Summary:** {summary}
+### Overview
+| Property | Value |
+|----------|-------|
+| Technical Name | `{module_name}` |
+| Title | {module_title} |
+| Summary | {summary} |
+| Category | {category} |
+| License | {license} |
+| Odoo Version | {odoo_version} |
+| Application | {yes/no based on application boolean} |
 
 ### Dependencies
-
-{comma-separated list of depends}
+{depends list as comma-separated, e.g., `base`, `mail`, `stock`}
 
 ### Models
 
-#### {model.description} (`{model.name}`)
-
+#### {model_description} (`{model_name}`)
 {If _inherit is set: "Extends: `{_inherit}`"}
-{If inherit_mixins is non-empty: "Mixins: {comma-separated mixins}"}
+{If inherit_mixins is non-empty: "Mixins: {comma-separated list}"}
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| {field.name} | {field.type} | {Yes/No} | {default or -} | {field.help} |
+| {name} | {type} | {Yes/No} | {default or -} | {help} |
+| ... | ... | ... | ... | ... |
 
 {If workflow_states is non-empty:}
-**Workflow:** {state1} -> {state2} -> {state3}
+**Workflow States:** {state1} -> {state2} -> {state3}
 
-{If constraints is non-empty:}
-**Constraints:** {list constraints}
+{If constraints or sql_constraints are non-empty:}
+**Constraints:**
+- {constraint description}
 
-#### {next model...}
+{Repeat for each model}
+
+### Relationships
+{For each Many2one/One2many/Many2many field across all models:}
+- `{model1}` -> `{model2}` via `{field_name}` ({field_type})
+
+### Views
+{For each model:}
+- **{model_description}**: {view types joined by ", "} (e.g., Form, Tree, Search)
 
 ### Security Groups
+| Group | Label | Permissions | Inherits From |
+|-------|-------|-------------|---------------|
+| {group_name} | {label} | {R/W/C/U summary} | {implied_ids or -} |
 
-| Group | Permissions |
-|-------|-------------|
-| {group.label} | {read/write/create/unlink permissions} |
+{If workflow_states exist for any model:}
+### Workflow States
+{For each model with states:}
+**{model_description}:**
+{State diagram as text: Draft -> Confirmed -> Done}
+{Note which groups can trigger transitions, if specified}
 
 ### Menu Structure
-
 - {root_menu}
   - {sub_menu_1}
   - {sub_menu_2}
 
-### Views
-
-{For each model: form + tree + search}
-
 ### Demo Data
+{demo_data_hints as bullet list}
 
-{demo_data_hints list}
+### Inferred Defaults (Review These)
+The following were inferred from your description and standard Odoo patterns:
+{List every default that was inferred, not explicitly stated by user:}
+- Field `{name}` on `{model}` inferred as {type} (reason: keyword "{keyword}" pattern)
+- Dependency `{dep}` added because description mentions {trigger}
+- Security groups set to default User/Manager hierarchy
+- {Any other inference: default values, widget choices, tracking settings, etc.}
+{This section MUST be present and MUST list all inferences -- nothing is silently assumed}
 ```
 
-### Approval Options
+**Rendering Rules:**
 
-After presenting the summary, provide three options:
+1. Iterate `spec.models[]` to build the Models and Relationships sections
+2. For Relationships, scan all models' fields for types `Many2one`, `One2many`, `Many2many` and render each as a relationship line
+3. For Views, use `spec.views[]` and join the `types` array with ", " (capitalize each: form -> Form)
+4. For Security Groups, map `permissions` object to a compact string: R (read), W (write), C (create), U (unlink) -- e.g., "R/W/C" for user, "R/W/C/U" for manager
+5. The Inferred Defaults section MUST list every field, dependency, or configuration that was not explicitly requested by the user but was added by the system
 
-1. **Approve** -- "If this looks correct, say **approve** and I will commit the spec.json as the generation contract."
-2. **Request changes** -- "Tell me what to change (e.g., 'add a priority field to work orders', 'remove the assignment model', 'change the workflow to Draft -> Review -> Approved -> Done') and I will update the spec."
-3. **Edit directly** -- "You can describe modifications in natural language and I will update the spec accordingly."
+### Step 4.2: Present for User Review
 
-**Wait for user response before proceeding.**
+After rendering the markdown summary, present it to the user followed by the review options:
 
-- On **approve**: Write `spec.json` to `./module_name/spec.json` and commit to git as the generation contract.
-- On **request changes**: Update the spec based on feedback, re-run validation checks, and re-present for approval.
-- On **edit directly**: Apply the user's described modifications, re-validate, and re-present.
+```
+---
 
-This approval step is a **generation gate** -- no code generation begins until the user explicitly approves the specification.
+**Please review the specification above.**
+
+Options:
+1. **Approve** - Proceed with this specification (spec.json will be committed to git)
+2. **Request Changes** - Tell me what to modify (I'll ask targeted follow-up questions)
+3. **Edit Directly** - Describe your edits in plain text (I'll update the spec accordingly)
+```
+
+**Wait for user response before proceeding.** Do not auto-approve. Do not continue to code generation.
+
+### Step 4.3: Handle User Response
+
+**If user approves** (says "approve", "yes", "looks good", "1", "proceed", "confirm", "approved"):
+
+1. Write spec.json to `./module_name/spec.json` (create the directory if it does not exist)
+2. Commit to git:
+   ```bash
+   mkdir -p ./module_name
+   # Write spec.json to ./module_name/spec.json
+   git add ./module_name/spec.json
+   git commit -m "spec(module_name): approved module specification
+
+   Module: module_title
+   Models: model1, model2, ...
+   "
+   ```
+3. Report the result:
+   ```
+   Specification approved and committed.
+
+   Spec file: ./module_name/spec.json
+   Commit: {git hash}
+
+   Next steps:
+   - To generate the module from this spec: /odoo-gen:new module_name
+     (Once Phase 5 is active, generation will use this spec automatically)
+   - To modify the spec later: /odoo-gen:plan module_name
+   - To validate a generated module: /odoo-gen:validate ./module_name/
+   ```
+
+**If user requests changes** (says "changes", "modify", "2", "request changes", or describes what to change):
+
+1. Parse which parts of the spec the user wants changed
+2. Ask 1-3 TARGETED follow-up questions about only the changed sections:
+   - If models change: "You want to [add/remove/rename] [model]. What fields should [model] have?"
+   - If fields change: "For [model].[field], should it be [type]? Required? Any default value?"
+   - If workflow changes: "What states should [model] have? What triggers each transition?"
+   - If dependencies change: "Adding [dep] dependency. This gives access to [what]. Is that what you need?"
+   - If security changes: "Should [group] have [permission] access? What about [other group]?"
+   - If views change: "Which fields should appear in the [tree/form/search] view for [model]?"
+3. Update the spec.json based on user's answers
+4. Re-render the markdown summary from the updated JSON
+5. Present for approval again (loop back to Step 4.2)
+
+**If user edits directly** (says "edit", "3", or provides specific edits):
+
+1. Parse the user's edit instructions (natural language)
+2. Apply changes directly to the spec.json
+3. Re-run validation checks from Phase 3 on the updated spec
+4. Re-render the markdown summary showing changes
+5. Present for approval again (loop back to Step 4.2)
+
+### Step 4.4: Iteration Limit
+
+Track the number of review-and-revise cycles. After 3 rounds of changes (whether via "Request Changes" or "Edit Directly"), suggest:
+
+```
+We've iterated 3 times on this specification. If it still needs significant changes,
+consider starting fresh with `/odoo-gen:plan` and a more detailed description that
+includes the specific requirements up front.
+
+You can still approve the current version, or continue editing if the changes are minor.
+```
+
+Continue allowing edits after the suggestion -- this is advisory, not a hard stop.
+
+### Step 4.5: Error Handling
+
+- **spec.json write failure** (permission error, disk full): Report the error clearly. Suggest an alternative path: "Could not write to `./module_name/spec.json`. Try creating the directory manually: `mkdir -p ./module_name`". The spec data is still in memory and can be retried.
+
+- **git commit failure** (not a repo, git not installed, staging error): Report the error. Confirm that spec.json was still saved locally: "Git commit failed, but spec.json has been saved to `./module_name/spec.json`. You can commit it manually: `git add ./module_name/spec.json && git commit -m 'spec: module_name'`"
+
+- **Ambiguous user response** (unclear if approving, changing, or editing): Ask for clarification. Default to the "Request Changes" interpretation to avoid premature approval: "I wasn't sure if you want to approve or make changes. Could you clarify? Say **approve** to proceed, or describe what you'd like to change."
+
+### Key Rules
+
+1. **Generate JSON first, markdown from JSON**: Never maintain the spec and summary independently. The JSON is the source of truth; the markdown is a derived view.
+
+2. **Show ALL inferred defaults**: The "Inferred Defaults (Review These)" section MUST list every assumption -- field types inferred from keywords, dependencies added from description patterns, default security groups, default field values, widget choices, tracking settings. Nothing is silently assumed.
+
+3. **Approval blocks generation**: No downstream process (scaffold workflow, code generation, module creation) can use the spec until it is approved and committed. The approval step is a hard gate.
+
+4. **spec.json is the contract**: The markdown summary is for human review only. The JSON file at `./module_name/spec.json` is what code generation reads. If there is ever a conflict between what the markdown showed and what the JSON contains, the JSON is authoritative.
+
+5. **Backward compatibility**: The spec.json MUST be loadable by `odoo-gen-utils render-module --spec-file`. All fields beyond the Phase 1 render-module format are optional with `null` or empty defaults. An old-format spec will still work.
 
 ---
 
