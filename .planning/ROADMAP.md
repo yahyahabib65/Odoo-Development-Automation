@@ -49,7 +49,7 @@ Nine phases cover all 68 Odoo-specific requirements (plus 13 inherited from GSD)
 
 Plans:
 - [ ] 01-01-PLAN.md — Extension structure, install.sh, config defaults, and agent definitions
-- [ ] 01-02-PLAN.md — All 12 /odoo-gen:* command registrations
+- [x] 01-02-PLAN.md — All 12 /odoo-gen:* command registrations
 - [ ] 01-03-PLAN.md — Python utility package with CLI, renderer, and Jinja2 templates
 - [ ] 01-04-PLAN.md — Scaffold workflow, help workflow, and end-to-end integration verification
 

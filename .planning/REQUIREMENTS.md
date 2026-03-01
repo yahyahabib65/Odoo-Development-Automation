@@ -1,44 +1,68 @@
 # Requirements: Agentic Odoo Module Development Workflow
 
 **Defined:** 2026-03-01
-**Core Value:** Compress months of repetitive Odoo module development into days by leveraging existing open-source modules and coordinating AI agents, so developers focus on business logic and design decisions.
+**Revised:** 2026-03-01 (architecture pivot to GSD extension)
+**Core Value:** Compress months of repetitive Odoo module development into days by extending GSD's orchestration with Odoo-specialized agents, knowledge, and validation.
 
 ## Workflow Sequence
 
-The 12-step user workflow that defines the system's end-to-end flow:
+The 12-step user workflow. The user interacts via their AI coding assistant (Claude Code, Gemini, Codex, OpenCode) with GSD + odoo-gen extension installed.
 
 ```
  1. NL Input         — User describes module need in natural language
- 2. Follow-up        — System asks structured questions to fill gaps
+ 2. Follow-up        — System asks Odoo-specific questions to fill gaps
  3. Spec Parsing     — System generates structured module spec → user approves
  4. Module Search    — System semantically searches GitHub/OCA for similar modules
  5. Match Review     — System presents matches with scores and gap analysis
- 6. Spec Refinement  — User adjusts spec based on what exists (e.g., "OCA handles X, I just need Y")
+ 6. Spec Refinement  — User adjusts spec based on what exists
  7. Path Selection   — User picks: fork a match OR build from scratch
- 8. Prior Art Load   — System loads Odoo knowledge base (erp_claude skills, OCA patterns, version conventions)
+ 8. Prior Art Load   — System loads Odoo knowledge base (OCA patterns, version conventions)
  9. Stage Generation — Models → Views → Security → Logic → Tests → Manifest/Data → README
-10. Human Review     — Checkpoint after each generation stage (approve/change/reject)
+10. Human Review     — GSD checkpoint after each generation stage (approve/change/reject)
 11. Validation       — pylint-odoo + Docker install + test execution
 12. Fix Loop         — Auto-fix what it can, surface remaining issues for human resolution
 ```
 
+## Requirement Categories
+
+Requirements are split into two categories:
+- **GSD-INHERITED**: Provided by GSD orchestration layer. We configure and wire them, not build them.
+- **ODOO-SPECIFIC**: Pure Odoo domain work that we build from scratch.
+
 ## v1 Requirements
 
-Requirements for initial release. Each maps to roadmap phases.
+### GSD-Inherited (13 requirements — configured, not built)
+
+These capabilities come from GSD. Our work is wiring them to Odoo-specific workflows.
+
+- [x] **GSD-01**: Command invocation via AI coding assistant (GSD command registration system)
+- [x] **GSD-02**: Rich terminal output — colored text, tables, progress indicators (GSD + AI assistant UI)
+- [x] **GSD-03**: Configuration file for default settings (GSD `.planning/config.json` extended with Odoo fields)
+- [x] **GSD-04**: Help text and usage descriptions for all commands (GSD command metadata)
+- [x] **GSD-05**: Checkpoint-based human review — pause after each stage for approval (GSD checkpoint pattern)
+- [x] **GSD-06**: Approve, request changes, or reject at each checkpoint (GSD feedback loop)
+- [x] **GSD-07**: Incorporate feedback and regenerate rejected sections (GSD revision pattern)
+- [x] **GSD-08**: State persistence — resume interrupted generation (GSD STATE.md)
+- [x] **GSD-09**: Extensible knowledge base — team adds custom skills/patterns (GSD skills system)
+- [x] **GSD-10**: Context management — fresh context per agent, prevent hallucination (GSD core feature)
+- [x] **GSD-11**: Wave-based parallel execution for independent tasks (GSD execute-phase)
+- [x] **GSD-12**: Git integration — atomic commits per task (GSD git patterns)
+- [x] **GSD-13**: Agent spawning with specialized roles (GSD Task tool + agent definitions)
+
+### Step 1: Extension Setup (NEW — replaces old CLI-01..04)
+
+- [ ] **EXT-01**: odoo-gen extension installs into `~/.claude/` alongside GSD with a single clone + setup command
+- [x] **EXT-02**: Extension registers all odoo-gen commands with GSD command system
+- [ ] **EXT-03**: Extension adds Odoo-specific configuration fields (odoo_version, edition, output_dir, api_keys) to GSD config
+- [ ] **EXT-04**: Extension provides Odoo-specific agent definitions that GSD can spawn
+- [ ] **EXT-05**: Extension includes Python utility package (installable via `uv`/`pip`) for template rendering, validation, and search
 
 ### Step 1-2: Input & Interaction
 
-- [ ] **INPT-01**: User can describe a module need in natural language via CLI command
+- [ ] **INPT-01**: User can describe a module need in natural language via GSD command
 - [ ] **INPT-02**: System asks structured follow-up questions to fill gaps in the description (models, fields, views, inheritance, user groups)
 - [ ] **INPT-03**: System parses user input into a structured module specification (model names, field types, relationships, views needed, workflow states)
 - [ ] **INPT-04**: User can review and approve the parsed specification before generation begins
-
-### Step 1: CLI Interface
-
-- [ ] **CLI-01**: User can invoke the tool via CLI commands (e.g., `odoo-gen new`, `odoo-gen search`, `odoo-gen validate`)
-- [ ] **CLI-02**: CLI displays rich terminal output (colored text, tables, progress indicators)
-- [ ] **CLI-03**: CLI supports configuration file for default settings (target Odoo version, output directory, preferred edition)
-- [ ] **CLI-04**: CLI provides help text and usage examples for all commands
 
 ### Step 4-7: Search & Reuse
 
@@ -66,7 +90,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **KNOW-01**: System loads Odoo-specific knowledge base before generation (coding patterns, ORM conventions, version-specific syntax)
 - [ ] **KNOW-02**: Knowledge base includes OCA coding standards, pylint-odoo rules, and common pitfall avoidance patterns
 - [ ] **KNOW-03**: Knowledge base includes version-specific references (Odoo 17.0 API, field types, view syntax changes)
-- [ ] **KNOW-04**: Knowledge base is extensible — team can add custom skills/patterns that the system uses during generation
+- [ ] **KNOW-04**: Knowledge base is extensible — team can add custom skills/patterns via GSD skills system
 
 ### Step 9: Code Generation
 
@@ -79,7 +103,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **CODG-07**: System generates wizard (TransientModel) files when the module spec includes multi-step user flows
 - [ ] **CODG-08**: All generated Python code follows OCA coding standards (PEP 8, 120 char line length, proper import ordering)
 - [ ] **CODG-09**: All generated XML uses correct Odoo 17.0 syntax (e.g., `<list>` not `<tree>`, inline `invisible`/`readonly` expressions not `attrs`)
-- [ ] **CODG-10**: System generates a README.md explaining the module purpose, installation, configuration, role assignment (via Settings → Users), and usage
+- [ ] **CODG-10**: System generates a README.md explaining the module purpose, installation, configuration, role assignment, and usage
 
 ### Step 9: Security Generation
 
@@ -100,12 +124,14 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Step 10: Human Review
 
+*Note: GSD provides the checkpoint mechanism (GSD-05, GSD-06, GSD-07). These requirements specify WHERE checkpoints occur in the Odoo workflow.*
+
 - [ ] **REVW-01**: System pauses for human review after model generation (fields, relationships, constraints)
 - [ ] **REVW-02**: System pauses for human review after view generation (form, list, search XML)
 - [ ] **REVW-03**: System pauses for human review after security generation (groups, ACLs, record rules)
 - [ ] **REVW-04**: System pauses for human review after business logic generation (computed fields, workflows, CRUD overrides)
-- [ ] **REVW-05**: User can approve, request changes, or reject at each checkpoint
-- [ ] **REVW-06**: System incorporates user feedback and regenerates the rejected section
+- [ ] **REVW-05**: User can approve, request changes, or reject at each checkpoint (wired to GSD-06)
+- [ ] **REVW-06**: System incorporates user feedback and regenerates the rejected section (wired to GSD-07)
 
 ### Step 11-12: Quality & Validation
 
@@ -127,7 +153,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **VERS-03**: System offers Community-compatible alternatives when Enterprise dependencies are detected
 - [ ] **VERS-04**: System supports generating modules for Odoo 18.0 in addition to 17.0
 - [ ] **VERS-05**: System uses version-specific templates and syntax rules per target version
-- [ ] **VERS-06**: User can specify target Odoo version via CLI flag or configuration
+- [ ] **VERS-06**: User can specify target Odoo version via config or command parameter
 
 ## v2 Requirements
 
@@ -145,46 +171,52 @@ Deferred to future release. Tracked but not in current roadmap.
 - **INTL-02**: System generates incremental diffs at each stage for fine-grained review
 - **INTL-03**: System auto-resolves `__manifest__.py` dependencies by analyzing inherited models and referenced groups
 
-## Out of Scope
+### Agent Optimization (informed by Agent Lightning)
 
-Explicitly excluded. Documented to prevent scope creep.
+- **AOPT-01**: System captures generation traces (what was generated, what passed/failed validation)
+- **AOPT-02**: System uses feedback loops to improve generation prompts over time
+- **AOPT-03**: System optimizes per-agent performance based on success metrics
+
+## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Web UI / browser interface | Massive scope increase; users are developers who live in terminals. CLI-only for v1. |
-| Real-time collaborative editing | Single-user CLI workflow; 1-2 modules/week doesn't justify collaboration tooling |
-| Autonomous deployment to production | ERP modules affect live business data; auto-deploying AI-generated code is reckless |
-| Visual form/view designer | Building a visual Odoo view editor is a standalone project; XML generation is sufficient |
-| Module marketplace / sharing | Distribution and quality control are tangential; OCA already serves this role |
-| Full business logic without human review | "Silent failure" is the worst outcome in ERP; business logic must be human-reviewed |
-| General-purpose code assistant | A module generator and a coding assistant are different products; stay focused |
-| Post-install setup wizard | Standard Odoo Settings → Users UI is sufficient for role assignment |
+| Standalone CLI tool (pip install) | We extend GSD; the AI coding assistant IS the interface |
+| Web UI / browser interface | Users interact via AI coding assistant terminal |
+| Building our own orchestration | GSD provides this — proven, tested, maintained |
+| Real-time collaborative editing | Single-user workflow via AI coding assistant |
+| Autonomous deployment to production | ERP modules affect live business data; human deploys |
+| Visual form/view designer | XML generation via agents is sufficient |
+| Module marketplace / sharing | OCA already serves this role |
+| Full business logic without human review | Silent failure in ERP is worst outcome |
+| General-purpose code assistant | Module generator, not coding assistant |
+| Post-install setup wizard | Standard Odoo Settings → Users UI suffices |
 
 ## Traceability
 
-Which phases cover which requirements. Updated during roadmap creation.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CLI-01 | Phase 1: CLI Foundation | Pending |
-| CLI-02 | Phase 1: CLI Foundation | Pending |
-| CLI-03 | Phase 1: CLI Foundation | Pending |
-| CLI-04 | Phase 1: CLI Foundation | Pending |
-| QUAL-01 | Phase 2: Validation Infrastructure | Pending |
-| QUAL-02 | Phase 2: Validation Infrastructure | Pending |
-| QUAL-03 | Phase 2: Validation Infrastructure | Pending |
-| QUAL-04 | Phase 2: Validation Infrastructure | Pending |
-| QUAL-05 | Phase 2: Validation Infrastructure | Pending |
-| QUAL-07 | Phase 2: Validation Infrastructure | Pending |
-| QUAL-08 | Phase 2: Validation Infrastructure | Pending |
-| INPT-01 | Phase 3: Input and Specification | Pending |
-| INPT-02 | Phase 3: Input and Specification | Pending |
-| INPT-03 | Phase 3: Input and Specification | Pending |
-| INPT-04 | Phase 3: Input and Specification | Pending |
-| KNOW-01 | Phase 4: Knowledge Base | Pending |
-| KNOW-02 | Phase 4: Knowledge Base | Pending |
-| KNOW-03 | Phase 4: Knowledge Base | Pending |
-| KNOW-04 | Phase 4: Knowledge Base | Pending |
+| GSD-01..13 | Inherited (all phases) | Inherited |
+| EXT-01 | Phase 1: GSD Extension + Odoo Foundation | Pending |
+| EXT-02 | Phase 1: GSD Extension + Odoo Foundation | Complete |
+| EXT-03 | Phase 1: GSD Extension + Odoo Foundation | Pending |
+| EXT-04 | Phase 1: GSD Extension + Odoo Foundation | Pending |
+| EXT-05 | Phase 1: GSD Extension + Odoo Foundation | Pending |
+| KNOW-01 | Phase 2: Knowledge Base | Pending |
+| KNOW-02 | Phase 2: Knowledge Base | Pending |
+| KNOW-03 | Phase 2: Knowledge Base | Pending |
+| KNOW-04 | Phase 2: Knowledge Base | Pending |
+| QUAL-01 | Phase 3: Validation Infrastructure | Pending |
+| QUAL-02 | Phase 3: Validation Infrastructure | Pending |
+| QUAL-03 | Phase 3: Validation Infrastructure | Pending |
+| QUAL-04 | Phase 3: Validation Infrastructure | Pending |
+| QUAL-05 | Phase 3: Validation Infrastructure | Pending |
+| QUAL-07 | Phase 3: Validation Infrastructure | Pending |
+| QUAL-08 | Phase 3: Validation Infrastructure | Pending |
+| INPT-01 | Phase 4: Input & Specification | Pending |
+| INPT-02 | Phase 4: Input & Specification | Pending |
+| INPT-03 | Phase 4: Input & Specification | Pending |
+| INPT-04 | Phase 4: Input & Specification | Pending |
 | CODG-01 | Phase 5: Core Code Generation | Pending |
 | CODG-02 | Phase 5: Core Code Generation | Pending |
 | CODG-03 | Phase 5: Core Code Generation | Pending |
@@ -195,50 +227,53 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CODG-08 | Phase 5: Core Code Generation | Pending |
 | CODG-09 | Phase 5: Core Code Generation | Pending |
 | CODG-10 | Phase 5: Core Code Generation | Pending |
-| SECG-01 | Phase 6: Security and Test Generation | Pending |
-| SECG-02 | Phase 6: Security and Test Generation | Pending |
-| SECG-03 | Phase 6: Security and Test Generation | Pending |
-| SECG-04 | Phase 6: Security and Test Generation | Pending |
-| SECG-05 | Phase 6: Security and Test Generation | Pending |
-| TEST-01 | Phase 6: Security and Test Generation | Pending |
-| TEST-02 | Phase 6: Security and Test Generation | Pending |
-| TEST-03 | Phase 6: Security and Test Generation | Pending |
-| TEST-04 | Phase 6: Security and Test Generation | Pending |
-| TEST-05 | Phase 6: Security and Test Generation | Pending |
-| TEST-06 | Phase 6: Security and Test Generation | Pending |
-| REVW-01 | Phase 7: Human Review and Quality Loops | Pending |
-| REVW-02 | Phase 7: Human Review and Quality Loops | Pending |
-| REVW-03 | Phase 7: Human Review and Quality Loops | Pending |
-| REVW-04 | Phase 7: Human Review and Quality Loops | Pending |
-| REVW-05 | Phase 7: Human Review and Quality Loops | Pending |
-| REVW-06 | Phase 7: Human Review and Quality Loops | Pending |
-| QUAL-06 | Phase 7: Human Review and Quality Loops | Pending |
-| QUAL-09 | Phase 7: Human Review and Quality Loops | Pending |
-| QUAL-10 | Phase 7: Human Review and Quality Loops | Pending |
-| SRCH-01 | Phase 8: Search and Fork-Extend | Pending |
-| SRCH-02 | Phase 8: Search and Fork-Extend | Pending |
-| SRCH-03 | Phase 8: Search and Fork-Extend | Pending |
-| SRCH-04 | Phase 8: Search and Fork-Extend | Pending |
-| SRCH-05 | Phase 8: Search and Fork-Extend | Pending |
-| REFN-01 | Phase 8: Search and Fork-Extend | Pending |
-| REFN-02 | Phase 8: Search and Fork-Extend | Pending |
-| REFN-03 | Phase 8: Search and Fork-Extend | Pending |
-| FORK-01 | Phase 8: Search and Fork-Extend | Pending |
-| FORK-02 | Phase 8: Search and Fork-Extend | Pending |
-| FORK-03 | Phase 8: Search and Fork-Extend | Pending |
-| FORK-04 | Phase 8: Search and Fork-Extend | Pending |
-| VERS-01 | Phase 9: Edition and Version Support | Pending |
-| VERS-02 | Phase 9: Edition and Version Support | Pending |
-| VERS-03 | Phase 9: Edition and Version Support | Pending |
-| VERS-04 | Phase 9: Edition and Version Support | Pending |
-| VERS-05 | Phase 9: Edition and Version Support | Pending |
-| VERS-06 | Phase 9: Edition and Version Support | Pending |
+| SECG-01 | Phase 6: Security & Test Generation | Pending |
+| SECG-02 | Phase 6: Security & Test Generation | Pending |
+| SECG-03 | Phase 6: Security & Test Generation | Pending |
+| SECG-04 | Phase 6: Security & Test Generation | Pending |
+| SECG-05 | Phase 6: Security & Test Generation | Pending |
+| TEST-01 | Phase 6: Security & Test Generation | Pending |
+| TEST-02 | Phase 6: Security & Test Generation | Pending |
+| TEST-03 | Phase 6: Security & Test Generation | Pending |
+| TEST-04 | Phase 6: Security & Test Generation | Pending |
+| TEST-05 | Phase 6: Security & Test Generation | Pending |
+| TEST-06 | Phase 6: Security & Test Generation | Pending |
+| REVW-01 | Phase 7: Human Review & Quality Loops | Pending |
+| REVW-02 | Phase 7: Human Review & Quality Loops | Pending |
+| REVW-03 | Phase 7: Human Review & Quality Loops | Pending |
+| REVW-04 | Phase 7: Human Review & Quality Loops | Pending |
+| REVW-05 | Phase 7: Human Review & Quality Loops | Pending |
+| REVW-06 | Phase 7: Human Review & Quality Loops | Pending |
+| QUAL-06 | Phase 7: Human Review & Quality Loops | Pending |
+| QUAL-09 | Phase 7: Human Review & Quality Loops | Pending |
+| QUAL-10 | Phase 7: Human Review & Quality Loops | Pending |
+| SRCH-01 | Phase 8: Search & Fork-Extend | Pending |
+| SRCH-02 | Phase 8: Search & Fork-Extend | Pending |
+| SRCH-03 | Phase 8: Search & Fork-Extend | Pending |
+| SRCH-04 | Phase 8: Search & Fork-Extend | Pending |
+| SRCH-05 | Phase 8: Search & Fork-Extend | Pending |
+| REFN-01 | Phase 8: Search & Fork-Extend | Pending |
+| REFN-02 | Phase 8: Search & Fork-Extend | Pending |
+| REFN-03 | Phase 8: Search & Fork-Extend | Pending |
+| FORK-01 | Phase 8: Search & Fork-Extend | Pending |
+| FORK-02 | Phase 8: Search & Fork-Extend | Pending |
+| FORK-03 | Phase 8: Search & Fork-Extend | Pending |
+| FORK-04 | Phase 8: Search & Fork-Extend | Pending |
+| VERS-01 | Phase 9: Edition & Version Support | Pending |
+| VERS-02 | Phase 9: Edition & Version Support | Pending |
+| VERS-03 | Phase 9: Edition & Version Support | Pending |
+| VERS-04 | Phase 9: Edition & Version Support | Pending |
+| VERS-05 | Phase 9: Edition & Version Support | Pending |
+| VERS-06 | Phase 9: Edition & Version Support | Pending |
 
 **Coverage:**
-- v1 requirements: 67 total
-- Mapped to phases: 67
+- GSD-inherited: 13 (free)
+- Odoo-specific (EXT): 5 (new)
+- Odoo-specific (carried forward): 63
+- Total v1: 81 (13 inherited + 68 built)
+- Mapped to phases: 68 built requirements mapped
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-01*
-*Last updated: 2026-03-01 after roadmap phase mapping*
+*Revised: 2026-03-01 — architecture pivot to GSD extension, added EXT-01..05, recategorized GSD-01..13*
