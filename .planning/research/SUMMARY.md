@@ -1,33 +1,59 @@
 # Project Research Summary
 
 **Project:** Odoo Module Automation (odoo-gen)
-**Domain:** Multi-agent AI orchestration for automated Odoo 17.0 module code generation
+**Domain:** GSD extension for automated Odoo 17.0 module code generation
 **Researched:** 2026-03-01
+**Revised:** 2026-03-01 (architecture pivot to GSD extension)
 **Confidence:** MEDIUM-HIGH
+
+## Architecture Update (2026-03-01)
+
+**IMPORTANT:** This research was originally conducted for a standalone Python CLI tool. The architecture has since pivoted to a GSD (Get Shit Done) extension. Key changes:
+
+- **No standalone CLI**: GSD provides the command system, state, checkpoints, agent spawning
+- **No Typer/Rich**: GSD + AI coding assistant handles the interface
+- **No custom orchestration**: GSD's wave-based execution replaces asyncio subprocess management
+- **Python utilities still needed**: Jinja2 rendering, pylint-odoo, Docker validation, ChromaDB search
+- **New prior art**: 7 additional repos analyzed (see PRIOR_ART.md)
+
+The stack recommendations, feature analysis, architecture patterns, and pitfalls remain valid — they inform what we build ON TOP OF GSD. The "how we build" changed; the "what we build" for Odoo is the same.
 
 ## Executive Summary
 
-This project is a CLI tool that uses multiple AI coding agents (Claude Code, Codex CLI, Gemini CLI) to automate the creation of production-ready Odoo 17.0 modules. Experts in this space build such systems as deterministic pipelines with human checkpoints -- not as conversational multi-agent debates. The key architectural insight is that these AI CLI tools are subprocesses, not API-based agents, so heavyweight frameworks like CrewAI and LangGraph are the wrong abstraction. A thin custom orchestrator using Python asyncio subprocess management is the correct pattern, validated by multiple open-source projects (MCO, claude-octopus, parallel-code). Pydantic-AI handles the structured LLM interactions (intent parsing, spec generation) where typed output matters; the CLI subprocesses handle the actual file generation where they excel.
+This project is a GSD extension that specializes the GSD orchestration framework for automated Odoo 17.0 module development. GSD provides the orchestration layer (context management, state persistence, hallucination prevention, checkpoint coordination, agent spawning). We build Odoo-specific agents, knowledge base, validation tools, and generation workflows on top.
 
-The recommended approach is to build in five phases, starting with foundation (CLI + scaffolding + validation) before adding intelligence (agents + search). The critical constraint shaping every decision is Odoo 17's Python version lock: 3.10-3.12 only. Python 3.13+ will silently break Odoo validation. The stack is Python 3.12, uv for package management, Typer for CLI, Pydantic for data models, sentence-transformers + ChromaDB for semantic module search, Docker SDK for Odoo validation, and Jinja2 for code templating. Every component is production-ready with verified versions.
+The original research identified that heavyweight frameworks like CrewAI and LangGraph are the wrong abstraction for CLI-based AI agents. GSD validates this finding — it is a lightweight orchestration layer that coordinates AI coding assistants (Claude Code, Gemini, Codex, OpenCode) through markdown-based state and fresh context windows per task, not through complex API-based agent frameworks.
 
-The top risks are: (1) Odoo version confusion in generated code -- LLMs mix APIs from different Odoo versions, producing modules that install but behave incorrectly; (2) the "god agent" anti-pattern -- a single monolithic agent cannot reliably produce 10-20 interconnected files with correct cross-references; (3) Docker validation giving false confidence -- tests that pass against an empty database with admin user do not prove the module works in production; and (4) context window overflow silently degrading output quality as module complexity grows. All four are preventable with the architectural patterns identified in research: version-pinned prompts, single-responsibility agents with schema-based context passing, realistic Docker test environments, and maker-checker loops.
+The critical constraint remains Odoo 17's Python version lock: 3.10-3.12 only. Python 3.13+ will silently break Odoo validation. Python utilities (template rendering, validation, search) must use Python 3.12.
+
+The top risks remain: (1) Odoo version confusion in generated code, (2) the "god agent" anti-pattern, (3) Docker validation false confidence, and (4) context window overflow. GSD directly mitigates risk #4 (fresh context per agent). The other three require Odoo-specific solutions built in our extension.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The stack is mature and well-verified. Python 3.12 is the hard constraint (maximum version Odoo 17 supports; minimum version for modern library compatibility). uv replaces the entire pip/poetry/pyenv toolchain with a single Rust-based tool that is 10-100x faster. The stack splits into four functional groups: CLI (Typer + Rich), orchestration (asyncio + Pydantic-AI), search (sentence-transformers + ChromaDB + PyGithub), and validation (Docker SDK + pylint-odoo).
+The stack is split into two layers: GSD extension (inherited, not built) and Python utilities (built by us).
 
-**Core technologies:**
+**Layer 1: GSD Extension (INHERITED)**
+- **GSD framework** -- Orchestration, context management, state, checkpoints, agent spawning
+- **AI coding assistant** -- Claude Code, Gemini, Codex, OpenCode (user's choice)
+- **Markdown-based state** -- .planning/ directory structure, STATE.md, PLAN.md, config.json
+
+**Layer 2: Python Utilities (WE BUILD)**
 - **Python 3.12** -- Runtime. Maximum Odoo 17 supported version. 3.13+ breaks Odoo.
-- **uv** -- Package/project manager. Replaces pip+poetry+pyenv+virtualenv. 10-100x faster.
-- **Typer + Rich** -- CLI framework + terminal UI. Auto-generated help, rich progress bars, syntax highlighting.
-- **Pydantic + Pydantic-AI** -- Data validation + structured LLM output. Type-safe module specs and agent responses.
-- **asyncio (stdlib)** -- Subprocess orchestration. Spawns CLI agents with timeout control and streaming.
-- **sentence-transformers + ChromaDB** -- Local semantic search. Offline, free, sufficient for thousands of modules.
-- **PyGithub** -- GitHub API access for module discovery. Typed models, pagination, rate limit handling.
-- **Docker SDK + pylint-odoo** -- Validation pipeline. Real Odoo 17 installation testing + OCA quality linting.
+- **uv** -- Package/project manager. 10-100x faster than pip/poetry.
+- **Pydantic** -- Data validation. Type-safe module specs.
+- **Jinja2** -- Code templating. Module scaffolding with template inheritance.
+- **sentence-transformers + ChromaDB** -- Local semantic search (Phase 8). Offline, free.
+- **PyGithub** -- GitHub API access for module discovery (Phase 8).
+- **Docker SDK + pylint-odoo** -- Validation pipeline (Phase 3). Real Odoo 17 installation testing.
+- **Ruff** -- Linter + formatter for generated Python code.
+
+**Removed from stack (provided by GSD):**
+- ~~Typer + Rich~~ -- GSD command system + AI assistant UI
+- ~~asyncio subprocess orchestration~~ -- GSD agent spawning
+- ~~Custom state management~~ -- GSD STATE.md
+- ~~pydantic-settings[toml]~~ -- GSD config.json
 - **Jinja2** -- Code templating. Module scaffolding with template inheritance.
 - **Ruff** -- Linter + formatter. Replaces Flake8+Black+isort. 150x faster.
 
@@ -102,7 +128,9 @@ The system is a five-layer architecture: CLI (user interface), Orchestration (pi
 
 7. **Fork-and-extend producing unmaintainable code** -- AI rewrites core methods instead of using Odoo inheritance (`_inherit`, xpath). Merge conflicts with upstream become impossible. Prevention: 40% modification threshold (exceed it = build from scratch), enforce inheritance patterns, track fork divergence. Address in Phase 4.
 
-## Implications for Roadmap
+## Implications for Roadmap (SUPERSEDED — see .planning/ROADMAP.md for current 9-phase plan)
+
+> **WARNING:** The 5-phase plan below was written for the standalone CLI architecture. It has been SUPERSEDED by the 9-phase GSD-extension roadmap in `.planning/ROADMAP.md`. The domain insights (pitfalls, dependencies, research flags) are still valid but the phase structure and stack references (Typer, Rich) are outdated.
 
 Based on combined research, here is the suggested phase structure. The ordering is driven by three principles: (1) dependencies (you cannot validate what you have not generated), (2) risk front-loading (tackle the hardest unknowns early), and (3) incremental value delivery (each phase produces a usable artifact).
 

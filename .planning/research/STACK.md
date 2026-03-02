@@ -1,5 +1,7 @@
 # Stack Research
 
+> **ARCHITECTURE UPDATE (2026-03-01):** This research was conducted for a standalone Python CLI architecture. The project has since pivoted to a **GSD extension**. Typer, Rich, asyncio subprocess orchestration, pydantic-settings, and custom state management are NO LONGER NEEDED — GSD provides these. Python 3.12, Jinja2, pylint-odoo, Docker SDK, ChromaDB, sentence-transformers, and Ruff remain relevant as our Python utility layer. See `.planning/ROADMAP.md` for the current architecture.
+
 **Domain:** Multi-agent AI orchestration for Odoo module code generation
 **Researched:** 2026-03-01
 **Confidence:** MEDIUM-HIGH (verified via PyPI, GitHub, official docs; some agent-orchestration patterns are emerging/unstable)
