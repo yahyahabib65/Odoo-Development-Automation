@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-02T15:58:36.418Z"
+last_updated: "2026-03-02T16:02:53Z"
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 15
-  completed_plans: 14
+  completed_plans: 15
 ---
 
 # Project State
@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 ## Current Position
 
 Phase: 5 of 9 (Core Code Generation) -- IN PROGRESS
-Plan: 1 of 5 complete in Phase 5 (05-01)
-Status: Phase 5 Plan 01 COMPLETE -- Jinja2 rendering engine extended with computed/sequence/wizard/state-field support
-Last activity: 2026-03-02 -- Completed 05-01 (renderer.py, model.py.j2, view_form.xml.j2, 4 new templates)
+Plan: 2 of 5 complete in Phase 5 (05-02)
+Status: Phase 5 Plan 02 COMPLETE -- Three AI agents fully activated (odoo-model-gen, odoo-view-gen, odoo-test-gen)
+Last activity: 2026-03-02 -- Completed 05-02 (agents/odoo-model-gen.md, odoo-view-gen.md, odoo-test-gen.md)
 
-Progress: [███████░░░] 62%
+Progress: [████████░░] 67%
 
 ## Performance Metrics
 
@@ -54,6 +54,7 @@ Progress: [███████░░░] 62%
 
 | Phase 05 P03 | 3 min | 2 tasks | 3 files |
 | Phase 05 P01 | 7 | 2 tasks | 10 files |
+| Phase 05 P02 | 2 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -119,6 +120,9 @@ Recent decisions affecting current work:
 - [Phase 05-03]: CODG-09 corrected: Odoo 17.0 uses tree not list (list is Odoo 18+ only); CODG-10 corrected to README.rst (OCA standard)
 - [Phase 05]: Jinja2 StrictUndefined requires field.compute is defined check for optional spec keys
 - [Phase 05]: Canonical manifest ordering: security -> sequences -> data -> views -> wizard views
+- [Phase 05-02]: odoo-model-gen uses Write tool to rewrite ENTIRE model file (not patch stubs inline)
+- [Phase 05-02]: odoo-view-gen Wave 2 only enriches <header> action buttons; kanban deferred to Phase 7
+- [Phase 05-02]: odoo-test-gen Phase 5 scope is computed/constraint/onchange only; CRUD + access rights deferred to Phase 6
 
 ### Pending Todos
 
@@ -133,5 +137,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Completed 05-01-PLAN.md (Jinja2 rendering engine extension: computed/sequence/wizard/state-field support)
-Resume file: No active checkpoint -- 05-01 fully complete, continue with 05-02
+Stopped at: Completed 05-02-PLAN.md (AI agents layer: odoo-model-gen two-pass rewrite, odoo-view-gen state buttons, odoo-test-gen Phase 5 scope)
+Resume file: No active checkpoint -- 05-02 fully complete, continue with 05-03
