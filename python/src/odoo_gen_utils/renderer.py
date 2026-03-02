@@ -9,6 +9,10 @@ from typing import Any
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 
+# Sequence field names that trigger ir.sequence generation.
+SEQUENCE_FIELD_NAMES: frozenset[str] = frozenset({"reference", "ref", "number", "code", "sequence"})
+
+
 def _model_ref(name: str) -> str:
     """Convert Odoo dot-notation model name to external ID format.
 
@@ -109,6 +113,17 @@ def get_template_dir() -> Path:
 def _build_model_context(spec: dict[str, Any], model: dict[str, Any]) -> dict[str, Any]:
     """Build the template context for a single model from the module spec.
 
+    Extends the base context with Phase 5 keys:
+    - computed_fields: fields with compute= key
+    - onchange_fields: fields with onchange= key
+    - constrained_fields: fields with constrains= key
+    - sequence_fields: Char fields with sequence names and required=True
+    - sequence_field_names: list version of SEQUENCE_FIELD_NAMES for template use
+    - state_field: the state/status Selection field or None
+    - wizards: list of wizard specs from spec root
+    - has_computed: bool
+    - has_sequence_fields: bool
+
     Args:
         spec: Full module specification dictionary.
         model: Single model dictionary from spec["models"].
@@ -119,10 +134,30 @@ def _build_model_context(spec: dict[str, Any], model: dict[str, Any]) -> dict[st
     model_var = _to_python_var(model["name"])
     model_xml_id = _to_xml_id(model["name"])
 
-    required_fields = [f for f in model.get("fields", []) if f.get("required")]
+    fields = model.get("fields", [])
+    required_fields = [f for f in fields if f.get("required")]
     has_constraints = any(
-        f.get("constraints") for f in model.get("fields", [])
+        f.get("constraints") for f in fields
     ) or bool(model.get("sql_constraints"))
+
+    # Phase 5 extensions ---------------------------------------------------
+    computed_fields = [f for f in fields if f.get("compute")]
+    onchange_fields = [f for f in fields if f.get("onchange")]
+    constrained_fields = [f for f in fields if f.get("constrains")]
+    sequence_fields = [
+        f for f in fields
+        if f.get("type") == "Char"
+        and f.get("name") in SEQUENCE_FIELD_NAMES
+        and f.get("required")
+    ]
+    state_field = next(
+        (
+            f for f in fields
+            if f.get("name") in ("state", "status") and f.get("type") == "Selection"
+        ),
+        None,
+    )
+    wizards = spec.get("wizards", [])
 
     return {
         "module_name": spec["module_name"],
@@ -140,12 +175,63 @@ def _build_model_context(spec: dict[str, Any], model: dict[str, Any]) -> dict[st
         "model_description": model.get("description", model["name"]),
         "model_var": model_var,
         "model_xml_id": model_xml_id,
-        "fields": model.get("fields", []),
+        "fields": fields,
         "required_fields": required_fields,
         "has_constraints": has_constraints,
         "sql_constraints": model.get("sql_constraints", []),
         "inherit": model.get("inherit"),
+        # Phase 5 keys
+        "computed_fields": computed_fields,
+        "onchange_fields": onchange_fields,
+        "constrained_fields": constrained_fields,
+        "sequence_fields": sequence_fields,
+        "sequence_field_names": list(SEQUENCE_FIELD_NAMES),
+        "state_field": state_field,
+        "wizards": wizards,
+        "has_computed": bool(computed_fields),
+        "has_sequence_fields": bool(sequence_fields),
     }
+
+
+def _compute_manifest_data(
+    spec: dict[str, Any],
+    data_files: list[str],
+    wizard_view_files: list[str],
+) -> list[str]:
+    """Compute the canonical manifest data file list.
+
+    Canonical load order:
+    1. security/security.xml
+    2. security/ir.model.access.csv
+    3. data files (sequences.xml first, then data.xml)
+    4. per-model view files (*_views.xml, *_action.xml)
+    5. views/menu.xml
+    6. wizard view files (*_wizard_form.xml)
+
+    Args:
+        spec: Full module specification dictionary.
+        data_files: List of data file paths relative to module root (e.g., ["data/sequences.xml"]).
+        wizard_view_files: List of wizard view file paths (e.g., ["views/confirm_wizard_wizard_form.xml"]).
+
+    Returns:
+        Ordered list of file paths for the manifest data section.
+    """
+    manifest_files: list[str] = [
+        "security/security.xml",
+        "security/ir.model.access.csv",
+    ]
+
+    manifest_files.extend(data_files)
+
+    for model in spec.get("models", []):
+        model_var = _to_python_var(model["name"])
+        manifest_files.append(f"views/{model_var}_views.xml")
+        manifest_files.append(f"views/{model_var}_action.xml")
+
+    manifest_files.append("views/menu.xml")
+    manifest_files.extend(wizard_view_files)
+
+    return manifest_files
 
 
 def _compute_view_files(spec: dict[str, Any]) -> list[str]:
@@ -155,7 +241,7 @@ def _compute_view_files(spec: dict[str, Any]) -> list[str]:
         spec: Full module specification dictionary.
 
     Returns:
-        List of view file relative paths (e.g., ["views/item_views.xml", ...]).
+        List of view file relative paths (e.g., ["item_views.xml", ...]).
     """
     view_files = []
     for model in spec.get("models", []):
@@ -171,7 +257,8 @@ def render_module(spec: dict[str, Any], template_dir: Path, output_dir: Path) ->
 
     Produces the full OCA directory structure:
         __manifest__.py, __init__.py, models/, views/, security/,
-        tests/, demo/, static/description/, README.rst
+        tests/, demo/, static/description/, README.rst,
+        data/ (sequences.xml + data.xml), wizards/ (if spec has wizards)
 
     Args:
         spec: Module specification dictionary with module_name, models, etc.
@@ -187,7 +274,35 @@ def render_module(spec: dict[str, Any], template_dir: Path, output_dir: Path) ->
     created_files: list[Path] = []
 
     models = spec.get("models", [])
-    view_files = _compute_view_files(spec)
+    spec_wizards = spec.get("wizards", [])
+    has_wizards = bool(spec_wizards)
+
+    # Detect sequence fields across all models
+    models_with_sequences = [
+        m for m in models
+        if any(
+            f.get("type") == "Char"
+            and f.get("name") in SEQUENCE_FIELD_NAMES
+            and f.get("required")
+            for f in m.get("fields", [])
+        )
+    ]
+    has_sequences = bool(models_with_sequences)
+
+    # Compute data files for manifest (canonical order)
+    data_files: list[str] = []
+    if has_sequences:
+        data_files.append("data/sequences.xml")
+    data_files.append("data/data.xml")
+
+    # Compute wizard view files for manifest
+    wizard_view_files: list[str] = []
+    for wizard in spec_wizards:
+        wizard_xml_id = _to_xml_id(wizard["name"])
+        wizard_view_files.append(f"views/{wizard_xml_id}_wizard_form.xml")
+
+    # Compute manifest file list with canonical ordering
+    all_manifest_files = _compute_manifest_data(spec, data_files, wizard_view_files)
 
     # -- Shared context for module-level templates --
     module_context = {
@@ -203,15 +318,18 @@ def render_module(spec: dict[str, Any], template_dir: Path, output_dir: Path) ->
         "depends": spec.get("depends", ["base"]),
         "application": spec.get("application", True),
         "models": models,
-        "view_files": view_files,
+        "view_files": _compute_view_files(spec),
+        "manifest_files": all_manifest_files,
+        "has_wizards": has_wizards,
+        "spec_wizards": spec_wizards,
     }
 
-    # 1. __manifest__.py
+    # 1. __manifest__.py (uses updated manifest_files with canonical ordering)
     created_files.append(
         render_template(env, "manifest.py.j2", module_dir / "__manifest__.py", module_context)
     )
 
-    # 2. Root __init__.py
+    # 2. Root __init__.py (conditionally imports wizards)
     created_files.append(
         render_template(env, "init_root.py.j2", module_dir / "__init__.py", module_context)
     )
@@ -256,12 +374,97 @@ def render_module(spec: dict[str, Any], template_dir: Path, output_dir: Path) ->
         render_template(env, "access_csv.j2", module_dir / "security" / "ir.model.access.csv", module_context)
     )
 
-    # 8. tests/__init__.py
+    # 8. data/data.xml (always emit as stub)
+    data_xml_path = module_dir / "data" / "data.xml"
+    data_xml_path.parent.mkdir(parents=True, exist_ok=True)
+    data_xml_path.write_text(
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        "<odoo>\n"
+        "    <!-- Static data records go here -->\n"
+        "</odoo>\n",
+        encoding="utf-8",
+    )
+    created_files.append(data_xml_path)
+
+    # 9. data/sequences.xml (if any model has sequence fields)
+    if has_sequences:
+        # Build sequences context: all sequence models + their sequence fields
+        sequences_ctx = {
+            **module_context,
+            "sequence_models": [
+                {
+                    "model": m,
+                    "model_var": _to_python_var(m["name"]),
+                    "sequence_fields": [
+                        f for f in m.get("fields", [])
+                        if f.get("type") == "Char"
+                        and f.get("name") in SEQUENCE_FIELD_NAMES
+                        and f.get("required")
+                    ],
+                }
+                for m in models_with_sequences
+            ],
+        }
+        created_files.append(
+            render_template(
+                env,
+                "sequences.xml.j2",
+                module_dir / "data" / "sequences.xml",
+                sequences_ctx,
+            )
+        )
+
+    # 10. Wizard files (if spec has wizards)
+    if has_wizards:
+        # wizards/__init__.py
+        wizards_ctx = {**module_context}
+        created_files.append(
+            render_template(
+                env,
+                "init_wizards.py.j2",
+                module_dir / "wizards" / "__init__.py",
+                wizards_ctx,
+            )
+        )
+
+        # Per-wizard files
+        for wizard in spec_wizards:
+            wizard_var = _to_python_var(wizard["name"])
+            wizard_xml_id = _to_xml_id(wizard["name"])
+            wizard_ctx = {
+                **module_context,
+                "wizard": wizard,
+                "wizard_var": wizard_var,
+                "wizard_xml_id": wizard_xml_id,
+                "wizard_class": _to_class(wizard["name"]),
+            }
+
+            # wizards/<wizard_var>.py
+            created_files.append(
+                render_template(
+                    env,
+                    "wizard.py.j2",
+                    module_dir / "wizards" / f"{wizard_var}.py",
+                    wizard_ctx,
+                )
+            )
+
+            # views/<wizard_xml_id>_wizard_form.xml
+            created_files.append(
+                render_template(
+                    env,
+                    "wizard_form.xml.j2",
+                    module_dir / "views" / f"{wizard_xml_id}_wizard_form.xml",
+                    wizard_ctx,
+                )
+            )
+
+    # 11. tests/__init__.py
     created_files.append(
         render_template(env, "init_tests.py.j2", module_dir / "tests" / "__init__.py", module_context)
     )
 
-    # 9. Per-model test files
+    # 12. Per-model test files
     for model in models:
         model_ctx = _build_model_context(spec, model)
         model_var = _to_python_var(model["name"])
@@ -271,12 +474,12 @@ def render_module(spec: dict[str, Any], template_dir: Path, output_dir: Path) ->
             )
         )
 
-    # 10. demo/demo_data.xml
+    # 13. demo/demo_data.xml
     created_files.append(
         render_template(env, "demo_data.xml.j2", module_dir / "demo" / "demo_data.xml", module_context)
     )
 
-    # 11. static/description/index.html
+    # 14. static/description/index.html
     static_dir = module_dir / "static" / "description"
     static_dir.mkdir(parents=True, exist_ok=True)
     index_html = static_dir / "index.html"
@@ -287,7 +490,7 @@ def render_module(spec: dict[str, Any], template_dir: Path, output_dir: Path) ->
     )
     created_files.append(index_html)
 
-    # 12. README.rst
+    # 15. README.rst
     created_files.append(
         render_template(env, "readme.rst.j2", module_dir / "README.rst", module_context)
     )
