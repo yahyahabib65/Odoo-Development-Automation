@@ -9,6 +9,7 @@ from pathlib import Path
 import click
 
 from odoo_gen_utils import __version__
+from odoo_gen_utils.i18n_extractor import extract_translatable_strings, generate_pot
 from odoo_gen_utils.kb_validator import validate_kb_directory, validate_kb_file
 from odoo_gen_utils.renderer import (
     create_renderer,
@@ -252,6 +253,32 @@ def validate_kb(scope: str) -> None:
 
     if has_errors:
         raise SystemExit(1)
+
+
+@main.command("extract-i18n")
+@click.argument("module_path", type=click.Path(exists=True))
+def extract_i18n(module_path: str) -> None:
+    """Extract translatable strings and generate i18n .pot file.
+
+    Scans Python files for _() calls and XML files for string= attributes.
+    Writes MODULE_NAME.pot to MODULE_PATH/i18n/.
+    """
+    mod_path = Path(module_path).resolve()
+    module_name = mod_path.name
+
+    try:
+        strings = extract_translatable_strings(mod_path)
+        pot_content = generate_pot(module_name, strings)
+
+        i18n_dir = mod_path / "i18n"
+        i18n_dir.mkdir(parents=True, exist_ok=True)
+        pot_path = i18n_dir / f"{module_name}.pot"
+        pot_path.write_text(pot_content, encoding="utf-8")
+
+        click.echo(f"Extracted {len(strings)} translatable strings to {pot_path}")
+    except Exception as exc:
+        click.echo(f"Error extracting i18n strings: {exc}", err=True)
+        sys.exit(1)
 
 
 @main.command()
