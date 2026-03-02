@@ -183,8 +183,10 @@ reference = fields.Char(
     required=True,
     default=_default_reference,
     readonly=True,
-    states={"draft": [("readonly", False)]},
+    copy=False,
 )
+# NOTE: states= parameter is REMOVED in Odoo 17.0.
+# To make field editable in draft, use view-level: readonly="state != 'draft'"
 ```
 
 **Deferred to Phase 7:** `ir.cron`, `mail.template` data records
