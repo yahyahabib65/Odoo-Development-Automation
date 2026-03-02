@@ -112,12 +112,12 @@ Plans:
   3. System generates XML view files (form, list, search), action files, and menu files that correctly reference generated models and fields
   4. All generated Python follows OCA coding standards (PEP 8, 120 char lines, proper import ordering) and all XML uses Odoo 17.0 syntax
   5. System generates wizard files, data files, init files, and a README as needed by the module spec
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 05-01: TBD
-- [ ] 05-02: TBD
-- [ ] 05-03: TBD
+- [ ] 05-01-PLAN.md — Renderer extensions + new Jinja2 templates (computed stubs, sequences, wizards, statusbar)
+- [ ] 05-02-PLAN.md — Agent activation: odoo-model-gen, odoo-view-gen, odoo-test-gen full system prompts
+- [ ] 05-03-PLAN.md — generate.md workflow + spec.md trigger hook + REQUIREMENTS.md wording fixes
 
 ### Phase 6: Security & Test Generation
 **Goal**: Every generated module has complete security infrastructure and a meaningful test suite that verifies real behavior
@@ -204,3 +204,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 ---
 *Roadmap created: 2026-03-01*
 *Revised: 2026-03-01 — architecture pivot to GSD extension*
+*Revised: 2026-03-02 — Phase 5 plans defined*
