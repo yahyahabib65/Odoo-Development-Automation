@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-02T15:52:49.657Z"
+last_updated: "2026-03-02T15:58:36.418Z"
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 15
-  completed_plans: 13
+  completed_plans: 14
 ---
 
 # Project State
@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 ## Current Position
 
 Phase: 5 of 9 (Core Code Generation) -- IN PROGRESS
-Plan: 3 of 5 complete in Phase 5
-Status: Phase 5 Plan 03 COMPLETE -- generate.md orchestration workflow created and wired
-Last activity: 2026-03-02 -- Completed 05-03 (generate.md two-wave workflow, spec.md hook, REQUIREMENTS.md fixes)
+Plan: 1 of 5 complete in Phase 5 (05-01)
+Status: Phase 5 Plan 01 COMPLETE -- Jinja2 rendering engine extended with computed/sequence/wizard/state-field support
+Last activity: 2026-03-02 -- Completed 05-01 (renderer.py, model.py.j2, view_form.xml.j2, 4 new templates)
 
-Progress: [███████░░░] 60%
+Progress: [███████░░░] 62%
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Progress: [███████░░░] 60%
 *Updated after each plan completion*
 
 | Phase 05 P03 | 3 min | 2 tasks | 3 files |
+| Phase 05 P01 | 7 | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -116,6 +117,8 @@ Recent decisions affecting current work:
 - [Phase 05-03]: generate.md trigger placed in spec.md Step 4.3 AFTER spec commit and BEFORE report step
 - [Phase 05-03]: Wave 1 sequential guard: all odoo-model-gen tasks complete before Wave 2 spawns (view-gen reads completed model files)
 - [Phase 05-03]: CODG-09 corrected: Odoo 17.0 uses tree not list (list is Odoo 18+ only); CODG-10 corrected to README.rst (OCA standard)
+- [Phase 05]: Jinja2 StrictUndefined requires field.compute is defined check for optional spec keys
+- [Phase 05]: Canonical manifest ordering: security -> sequences -> data -> views -> wizard views
 
 ### Pending Todos
 
@@ -130,5 +133,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Completed 05-03-PLAN.md (generate.md two-wave workflow + spec.md hook + REQUIREMENTS.md fixes)
-Resume file: No active checkpoint -- 05-03 fully complete, continue with 05-04
+Stopped at: Completed 05-01-PLAN.md (Jinja2 rendering engine extension: computed/sequence/wizard/state-field support)
+Resume file: No active checkpoint -- 05-01 fully complete, continue with 05-02

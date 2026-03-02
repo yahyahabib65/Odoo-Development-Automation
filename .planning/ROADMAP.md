@@ -115,7 +115,7 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 05-01-PLAN.md — Renderer extensions + new Jinja2 templates (computed stubs, sequences, wizards, statusbar)
+- [x] 05-01-PLAN.md — Renderer extensions + new Jinja2 templates (computed stubs, sequences, wizards, statusbar)
 - [ ] 05-02-PLAN.md — Agent activation: odoo-model-gen, odoo-view-gen, odoo-test-gen full system prompts
 - [ ] 05-03-PLAN.md — generate.md workflow + spec.md trigger hook + REQUIREMENTS.md wording fixes
 
