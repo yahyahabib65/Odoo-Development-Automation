@@ -146,8 +146,8 @@ These capabilities come from GSD. Our work is wiring them to Odoo-specific workf
 - [x] **QUAL-06**: System generates i18n `.pot` file for translatable strings
 - [x] **QUAL-07**: System parses Odoo error logs on validation failure and provides actionable diagnosis (which file, what broke, suggested fix)
 - [x] **QUAL-08**: All generated code targets Odoo 17.0 API exclusively (no mixing of deprecated API patterns)
-- [ ] **QUAL-09**: System attempts to auto-fix pylint-odoo violations and re-validate before escalating to human
-- [ ] **QUAL-10**: System attempts to auto-fix Docker install failures (missing dependencies, XML errors) and re-validate before escalating to human
+- [x] **QUAL-09**: System attempts to auto-fix pylint-odoo violations and re-validate before escalating to human
+- [x] **QUAL-10**: System attempts to auto-fix Docker install failures (missing dependencies, XML errors) and re-validate before escalating to human
 
 ### Edition & Version Support
 
@@ -248,8 +248,8 @@ Deferred to future release. Tracked but not in current roadmap.
 | REVW-05 | Phase 7: Human Review & Quality Loops | Complete |
 | REVW-06 | Phase 7: Human Review & Quality Loops | Complete |
 | QUAL-06 | Phase 7: Human Review & Quality Loops | Complete |
-| QUAL-09 | Phase 7: Human Review & Quality Loops | Pending |
-| QUAL-10 | Phase 7: Human Review & Quality Loops | Pending |
+| QUAL-09 | Phase 7: Human Review & Quality Loops | Complete |
+| QUAL-10 | Phase 7: Human Review & Quality Loops | Complete |
 | SRCH-01 | Phase 8: Search & Fork-Extend | Pending |
 | SRCH-02 | Phase 8: Search & Fork-Extend | Pending |
 | SRCH-03 | Phase 8: Search & Fork-Extend | Pending |
