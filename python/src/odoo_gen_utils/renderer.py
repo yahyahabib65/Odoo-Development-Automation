@@ -159,6 +159,12 @@ def _build_model_context(spec: dict[str, Any], model: dict[str, Any]) -> dict[st
     )
     wizards = spec.get("wizards", [])
 
+    # Phase 6: multi-company field detection
+    has_company_field = any(
+        f.get("name") == "company_id" and f.get("type") == "Many2one"
+        for f in fields
+    )
+
     return {
         "module_name": spec["module_name"],
         "module_title": spec.get("module_title", spec["module_name"].replace("_", " ").title()),
@@ -190,6 +196,9 @@ def _build_model_context(spec: dict[str, Any], model: dict[str, Any]) -> dict[st
         "wizards": wizards,
         "has_computed": bool(computed_fields),
         "has_sequence_fields": bool(sequence_fields),
+        # Phase 6 keys
+        "has_company_field": has_company_field,
+        "workflow_states": model.get("workflow_states", []),
     }
 
 
@@ -197,21 +206,24 @@ def _compute_manifest_data(
     spec: dict[str, Any],
     data_files: list[str],
     wizard_view_files: list[str],
+    has_company_modules: bool = False,
 ) -> list[str]:
     """Compute the canonical manifest data file list.
 
     Canonical load order:
     1. security/security.xml
     2. security/ir.model.access.csv
-    3. data files (sequences.xml first, then data.xml)
-    4. per-model view files (*_views.xml, *_action.xml)
-    5. views/menu.xml
-    6. wizard view files (*_wizard_form.xml)
+    3. security/record_rules.xml (only if has_company_modules)
+    4. data files (sequences.xml first, then data.xml)
+    5. per-model view files (*_views.xml, *_action.xml)
+    6. views/menu.xml
+    7. wizard view files (*_wizard_form.xml)
 
     Args:
         spec: Full module specification dictionary.
         data_files: List of data file paths relative to module root (e.g., ["data/sequences.xml"]).
         wizard_view_files: List of wizard view file paths (e.g., ["views/confirm_wizard_wizard_form.xml"]).
+        has_company_modules: Whether any model has a company_id Many2one field.
 
     Returns:
         Ordered list of file paths for the manifest data section.
@@ -220,6 +232,8 @@ def _compute_manifest_data(
         "security/security.xml",
         "security/ir.model.access.csv",
     ]
+    if has_company_modules:
+        manifest_files.append("security/record_rules.xml")
 
     manifest_files.extend(data_files)
 
@@ -289,6 +303,26 @@ def render_module(spec: dict[str, Any], template_dir: Path, output_dir: Path) ->
     ]
     has_sequences = bool(models_with_sequences)
 
+    # Detect models with company_id field (Phase 6 record rules)
+    models_with_company_field = [
+        m for m in models
+        if any(
+            f.get("name") == "company_id" and f.get("type") == "Many2one"
+            for f in m.get("fields", [])
+        )
+    ]
+    has_company_modules = bool(models_with_company_field)
+
+    # Enrich model dicts with has_company_field for template access
+    enriched_models = []
+    for m in models:
+        m_copy = dict(m)
+        m_copy["has_company_field"] = any(
+            f.get("name") == "company_id" and f.get("type") == "Many2one"
+            for f in m.get("fields", [])
+        )
+        enriched_models.append(m_copy)
+
     # Compute data files for manifest (canonical order)
     data_files: list[str] = []
     if has_sequences:
@@ -302,7 +336,7 @@ def render_module(spec: dict[str, Any], template_dir: Path, output_dir: Path) ->
         wizard_view_files.append(f"views/{wizard_xml_id}_wizard_form.xml")
 
     # Compute manifest file list with canonical ordering
-    all_manifest_files = _compute_manifest_data(spec, data_files, wizard_view_files)
+    all_manifest_files = _compute_manifest_data(spec, data_files, wizard_view_files, has_company_modules=has_company_modules)
 
     # -- Shared context for module-level templates --
     module_context = {
@@ -373,6 +407,21 @@ def render_module(spec: dict[str, Any], template_dir: Path, output_dir: Path) ->
     created_files.append(
         render_template(env, "access_csv.j2", module_dir / "security" / "ir.model.access.csv", module_context)
     )
+
+    # 7b. security/record_rules.xml (if any model has company_id field)
+    if has_company_modules:
+        record_rules_ctx = {
+            **module_context,
+            "models": enriched_models,
+        }
+        created_files.append(
+            render_template(
+                env,
+                "record_rules.xml.j2",
+                module_dir / "security" / "record_rules.xml",
+                record_rules_ctx,
+            )
+        )
 
     # 8. data/data.xml (always emit as stub)
     data_xml_path = module_dir / "data" / "data.xml"
