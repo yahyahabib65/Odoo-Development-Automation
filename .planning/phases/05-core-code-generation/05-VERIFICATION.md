@@ -1,12 +1,12 @@
 ---
 phase: 05-core-code-generation
 verified: 2026-03-02T00:00:00Z
-status: gaps_found
-score: 19/20 must-haves verified
-re_verification: null
+status: verified
+score: 20/20 must-haves verified
+re_verification: "2026-03-02T17:00:00Z"
 gaps:
   - truth: "REQUIREMENTS.md traceability table marks CODG-04, CODG-05, CODG-06, CODG-07 as Pending despite full implementation"
-    status: partial
+    status: resolved
     reason: "Plan 05-01 claimed CODG-05, CODG-06, CODG-07 and the renderer generates action/menu XML (CODG-04), __init__.py files (CODG-05), data/sequences files (CODG-06), and wizard files (CODG-07). The requirements body text has [ ] (unchecked) and the traceability table says 'Pending' for all four. Only the declarative implementation is present — the REQUIREMENTS.md completion status was never updated."
     artifacts:
       - path: ".planning/REQUIREMENTS.md"

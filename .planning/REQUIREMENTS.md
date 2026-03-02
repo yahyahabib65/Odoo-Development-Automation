@@ -223,10 +223,10 @@ Deferred to future release. Tracked but not in current roadmap.
 | CODG-01 | Phase 5: Core Code Generation | Complete |
 | CODG-02 | Phase 5: Core Code Generation | Complete |
 | CODG-03 | Phase 5: Core Code Generation | Complete |
-| CODG-04 | Phase 5: Core Code Generation | Pending |
-| CODG-05 | Phase 5: Core Code Generation | Pending |
-| CODG-06 | Phase 5: Core Code Generation | Pending |
-| CODG-07 | Phase 5: Core Code Generation | Pending |
+| CODG-04 | Phase 5: Core Code Generation | Complete |
+| CODG-05 | Phase 5: Core Code Generation | Complete |
+| CODG-06 | Phase 5: Core Code Generation | Complete |
+| CODG-07 | Phase 5: Core Code Generation | Complete |
 | CODG-08 | Phase 5: Core Code Generation | Complete |
 | CODG-09 | Phase 5: Core Code Generation | Complete |
 | CODG-10 | Phase 5: Core Code Generation | Complete |

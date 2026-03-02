@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from python.src.odoo_gen_utils.renderer import (
+from odoo_gen_utils.renderer import (
     _build_model_context,
     get_template_dir,
     render_module,
