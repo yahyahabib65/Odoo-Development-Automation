@@ -62,25 +62,31 @@ has_company_field = any(
 **No override mechanism in v1.** If a model has a `company_id` field, it gets record rules.
 Edge cases deferred to Phase 7.
 
-**Domain pattern — use `company_ids` (plural):**
+**Domain pattern — use `company_ids` (OCA shorthand):**
 ```xml
 <record id="rule_{{ model_var }}_company" model="ir.rule">
     <field name="name">{{ model_title }}: Company</field>
     <field name="model_id" ref="{{ model_ref }}"/>
     <field name="global" eval="True"/>
-    <field name="domain_force">[('company_id', 'in', user.company_ids.ids)]</field>
+    <field name="domain_force">[('company_id', 'in', company_ids)]</field>
 </record>
 ```
 
-**Why `company_ids` not `company_id`:** Supports multi-branch (users belonging to multiple
-companies). Standard OCA pattern for Odoo 17.0 multi-company modules.
+**Why `company_ids` (shorthand, not `user.company_ids.ids`):** In Odoo 17.0 record rule
+evaluation context, `company_ids` is a pre-defined shorthand equivalent to `user.company_ids.ids`.
+It is the OCA-preferred form — concise, readable, and confirmed correct by RESEARCH.md Pattern 2.
+Both forms are functionally identical; `company_ids` is locked as the authoritative form for this
+project.
+
+**Supports multi-branch:** Users belonging to multiple companies can see records from all their
+companies. Admin/root bypass is Odoo's built-in superuser behaviour.
 
 **Rule scope:** Global rule (`<field name="global" eval="True"/>`) — no group restriction.
-Applies to all users. Admin/root bypass is Odoo's built-in superuser behaviour.
+Applies to all users.
 
 **New template:** `python/src/odoo_gen_utils/templates/record_rules.xml.j2`
 **New renderer key:** `has_company_field` in `_build_model_context()` return dict
-**Manifest:** `record_rules.xml` added to `data` section after `sequences.xml` / `data.xml`,
+**Manifest:** `record_rules.xml` added to `data` section after `ir.model.access.csv`,
 before view files.
 
 ---
@@ -211,6 +217,7 @@ as a standalone agent for:
 
 **`_build_model_context()` new keys:**
 - `has_company_field` — bool: True if model has Many2one `company_id` field to res.company
+- `workflow_states` — list: from `model.get("workflow_states", [])` (consumed by test_model.py.j2)
 
 **`render_module()` new output:**
 - `security/record_rules.xml` — if any model has `has_company_field=True`
@@ -240,7 +247,7 @@ views/{wizard}_wizard_form.xml (per wizard)
         <field name="name">{{ model.name }}: Company</field>
         <field name="model_id" ref="{{ model.name | model_ref }}"/>
         <field name="global" eval="True"/>
-        <field name="domain_force">[('company_id', 'in', user.company_ids.ids)]</field>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
     </record>
 {% endfor %}
 </odoo>
