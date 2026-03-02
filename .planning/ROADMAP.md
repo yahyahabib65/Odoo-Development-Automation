@@ -145,11 +145,12 @@ Plans:
   3. System generates an i18n `.pot` file for all translatable strings in the module
   4. When pylint-odoo violations are found, system attempts auto-fix and re-validates before escalating remaining issues to the user
   5. When Docker install or test failures occur, system attempts auto-fix and re-validates before escalating
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 07-01: TBD
-- [ ] 07-02: TBD
+- [ ] 07-01-PLAN.md — TDD: i18n static extractor (ast + xml.etree.ElementTree) with extract-i18n CLI command (QUAL-06)
+- [ ] 07-02-PLAN.md — generate.md checkpoint wiring: CP-1, CP-2, CP-3 with regeneration logic and i18n step (REVW-01..06)
+- [ ] 07-03-PLAN.md — Pylint + Docker auto-fix loops with max 2 cycles and grouped escalation (QUAL-09, QUAL-10)
 
 ### Phase 8: Search & Fork-Extend
 **Goal**: User can search for existing Odoo modules, see how they overlap with their need, and fork-and-extend a match instead of building from scratch
@@ -197,7 +198,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 4. Input & Specification | 2/2 | Complete | 2026-03-02 |
 | 5. Core Code Generation | 2/3 | In Progress|  |
 | 6. Security & Test Generation | 2/2 | Complete | 2026-03-02 |
-| 7. Human Review & Quality Loops | 0/2 | Not started | - |
+| 7. Human Review & Quality Loops | 0/3 | Not started | - |
 | 8. Search & Fork-Extend | 0/3 | Not started | - |
 | 9. Edition & Version Support | 0/2 | Not started | - |
 
@@ -206,3 +207,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 *Revised: 2026-03-01 — architecture pivot to GSD extension*
 *Revised: 2026-03-02 — Phase 5 plans defined*
 *Revised: 2026-03-02 — Phase 6 plans defined (06-01, 06-02)*
+*Revised: 2026-03-03 — Phase 7 plans defined (07-01, 07-02, 07-03)*
