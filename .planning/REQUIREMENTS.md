@@ -96,14 +96,17 @@ These capabilities come from GSD. Our work is wiring them to Odoo-specific workf
 
 - [ ] **CODG-01**: System generates complete `__manifest__.py` with correct version prefix, dependencies, data file references, and metadata
 - [ ] **CODG-02**: System generates Python model files with real fields, computed fields, onchange handlers, constraints, and CRUD overrides
+<!-- NOTE: CRUD overrides (create/write/unlink) deferred to Phase 7 per CONTEXT.md Decision A.
+     Phase 5 delivers: fields, computed fields (@api.depends), onchange (@api.onchange),
+     and Python constraints (@api.constrains). -->
 - [ ] **CODG-03**: System generates XML view files (form, list, search views) that reference the generated models and fields correctly
 - [ ] **CODG-04**: System generates action and menu XML files that wire views to the Odoo UI
 - [ ] **CODG-05**: System generates `__init__.py` files with correct import chains for all Python modules
 - [ ] **CODG-06**: System generates data files (sequences, default configuration) where the module spec requires them
 - [ ] **CODG-07**: System generates wizard (TransientModel) files when the module spec includes multi-step user flows
 - [ ] **CODG-08**: All generated Python code follows OCA coding standards (PEP 8, 120 char line length, proper import ordering)
-- [ ] **CODG-09**: All generated XML uses correct Odoo 17.0 syntax (e.g., `<list>` not `<tree>`, inline `invisible`/`readonly` expressions not `attrs`)
-- [ ] **CODG-10**: System generates a README.md explaining the module purpose, installation, configuration, role assignment, and usage
+- [ ] **CODG-09**: All generated XML uses correct Odoo 17.0 syntax (e.g., `<tree>` not `<list>` — `<list>` is Odoo 18+ only, inline `invisible`/`readonly` expressions not `attrs`)
+- [ ] **CODG-10**: System generates a README.rst explaining the module purpose, installation, configuration, role assignment, and usage (OCA standard is .rst, not .md)
 
 ### Step 9: Security Generation
 

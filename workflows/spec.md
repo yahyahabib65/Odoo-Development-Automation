@@ -454,7 +454,16 @@ Options:
    Models: {model1}, {model2}, ...
    "
    ```
-3. Report the result:
+3. **Trigger code generation** — Execute the generate.md workflow:
+   - Set `$MODULE_NAME` = `{module_name}` (from spec)
+   - Set `$SPEC_PATH` = `./{module_name}/spec.json`
+   - Set `$OUTPUT_DIR` = current working directory
+   - Follow all steps in `@workflows/generate.md` to completion
+
+   This is the automated generation pipeline. The spec commit (step 2 above) is the
+   contract; generate.md reads that contract and produces the module code.
+
+4. Report the result:
    ```
    Specification approved and committed.
 
@@ -462,10 +471,9 @@ Options:
    Commit: {git_hash}
 
    Next steps:
-   - To generate the module from this spec: /odoo-gen:new {module_name}
-     (Once Phase 5 is active, generation will use this spec automatically)
-   - To modify the spec later: /odoo-gen:plan {module_name}
-   - To validate a generated module: /odoo-gen:validate ./{module_name}/
+   - To re-run generation: /odoo-gen:plan {module_name}
+   - To validate the generated module: /odoo-gen:validate ./{module_name}/
+   - To modify the spec: edit ./{module_name}/spec.json and re-run
    ```
 
 **If user requests changes** (says "changes", "modify", "2", "request changes", or describes what to change):
