@@ -5,7 +5,9 @@ patterns, re-validates, and escalates remaining issues in a grouped
 file:line + suggestion format.
 
 QUAL-09: pylint auto-fix (5 fixable codes, max 2 cycles)
-QUAL-10: Docker auto-fix (4 fixable patterns, max 2 cycles)
+QUAL-10: Docker auto-fix (5 fixable patterns, max 2 cycles)
+AFIX-01: missing mail.thread auto-fix
+AFIX-02: unused import auto-fix
 """
 
 from __future__ import annotations
@@ -37,6 +39,7 @@ FIXABLE_DOCKER_PATTERNS: frozenset[str] = frozenset({
     "missing_acl",
     "missing_import",
     "manifest_load_order",
+    "missing_mail_thread",
 })
 
 # Map of renamed field parameters (old -> new) for W8111
@@ -64,6 +67,7 @@ _DOCKER_PATTERN_KEYWORDS: dict[str, tuple[str, ...]] = {
     "missing_acl": ("access control", "acl", "ir.model.access", "access rights", "no access rule"),
     "missing_import": ("no module named", "importerror", "modulenotfounderror", "could not be imported"),
     "manifest_load_order": ("action", "act_window", "does not exist", "external id not found"),
+    "missing_mail_thread": ("mail.thread", "oe_chatter", "chatter", "mail.activity.mixin", "message_follower_ids"),
 }
 
 
@@ -390,3 +394,229 @@ def format_escalation(violations: tuple[Violation, ...]) -> str:
                 lines.append(f"  -> {v.suggestion}")
 
     return "\n".join(lines)
+
+
+# -------------------------------------------------------------------------
+# Module-level auto-fix: missing mail.thread (AFIX-01)
+# -------------------------------------------------------------------------
+
+# Chatter indicators in XML view files
+_CHATTER_INDICATORS: tuple[str, ...] = (
+    "oe_chatter",
+    "<chatter",
+    "message_follower_ids",
+    "message_ids",
+)
+
+
+def _has_chatter_references(module_path: Path) -> bool:
+    """Check whether any XML file in views/ contains chatter indicators."""
+    views_dir = module_path / "views"
+    if not views_dir.is_dir():
+        return False
+
+    for xml_file in views_dir.glob("*.xml"):
+        content = xml_file.read_text(encoding="utf-8")
+        if any(indicator in content for indicator in _CHATTER_INDICATORS):
+            return True
+
+    return False
+
+
+def _has_mail_thread_inherit(model_content: str) -> bool:
+    """Check whether model content already contains mail.thread inheritance."""
+    return "mail.thread" in model_content
+
+
+def _find_model_file(module_path: Path) -> Path | None:
+    """Find the first .py file in models/ that defines _name."""
+    models_dir = module_path / "models"
+    if not models_dir.is_dir():
+        return None
+
+    for py_file in sorted(models_dir.glob("*.py")):
+        if py_file.name == "__init__.py":
+            continue
+        content = py_file.read_text(encoding="utf-8")
+        if "_name" in content and "_name =" in content:
+            return py_file
+
+    return None
+
+
+def fix_missing_mail_thread(module_path: Path) -> bool:
+    """Detect and fix missing mail.thread inheritance when chatter XML exists.
+
+    Scans XML files in views/ for chatter indicators (oe_chatter, <chatter/>,
+    message_follower_ids, message_ids). If found, checks whether the model
+    already inherits from mail.thread. If not, inserts the _inherit line
+    after _description.
+
+    Args:
+        module_path: Root path of the Odoo module.
+
+    Returns:
+        True if fix was applied, False if not needed or not applicable.
+    """
+    if not _has_chatter_references(module_path):
+        return False
+
+    model_file = _find_model_file(module_path)
+    if model_file is None:
+        return False
+
+    content = model_file.read_text(encoding="utf-8")
+
+    if _has_mail_thread_inherit(content):
+        return False
+
+    # Insert _inherit after _description line
+    lines = content.split("\n")
+    description_idx: int | None = None
+
+    for idx, line in enumerate(lines):
+        if "_description" in line and "=" in line:
+            description_idx = idx
+            break
+
+    if description_idx is None:
+        return False
+
+    # Detect the indentation from the _description line
+    desc_line = lines[description_idx]
+    indent = ""
+    for ch in desc_line:
+        if ch in (" ", "\t"):
+            indent += ch
+        else:
+            break
+
+    inherit_line = f"{indent}_inherit = ['mail.thread', 'mail.activity.mixin']"
+
+    new_lines = list(lines)
+    new_lines.insert(description_idx + 1, inherit_line)
+    new_content = "\n".join(new_lines)
+
+    model_file.write_text(new_content, encoding="utf-8")
+    return True
+
+
+# -------------------------------------------------------------------------
+# Module-level auto-fix: unused imports (AFIX-02)
+# -------------------------------------------------------------------------
+
+# Known import names to check for usage -- targeted at template patterns
+_IMPORT_USAGE_PATTERNS: dict[str, tuple[str, ...]] = {
+    "api": ("@api.", "api."),
+    "ValidationError": ("ValidationError",),
+    "AccessError": ("AccessError",),
+    "_": ("_(",),
+}
+
+
+def fix_unused_imports(file_path: Path) -> bool:
+    """Detect and remove unused imports in a generated Python file.
+
+    Targeted at common template patterns: unused ValidationError, unused api,
+    unused _. Uses AST to find import statements, then scans file text for
+    usage of each imported name.
+
+    Args:
+        file_path: Path to the Python file to check.
+
+    Returns:
+        True if any imports were removed, False if no changes needed.
+    """
+    content = file_path.read_text(encoding="utf-8")
+    if not content.strip():
+        return False
+
+    try:
+        tree = ast.parse(content)
+    except SyntaxError:
+        return False
+
+    changes_made = False
+    lines = content.split("\n")
+
+    # Process import statements in reverse order to preserve line numbers
+    import_nodes: list[ast.ImportFrom] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            import_nodes.append(node)
+
+    # Sort by line number descending so we can modify lines without shifting
+    import_nodes.sort(key=lambda n: n.lineno, reverse=True)
+
+    for node in import_nodes:
+        if not node.names:
+            continue
+
+        line_idx = node.lineno - 1
+        if line_idx < 0 or line_idx >= len(lines):
+            continue
+
+        original_line = lines[line_idx]
+
+        # Build the text after import lines (everything except the import line itself)
+        # to check for usage
+        text_after_import = "\n".join(
+            line for i, line in enumerate(lines) if i != line_idx
+        )
+
+        names_to_keep: list[str] = []
+        names_to_remove: list[str] = []
+
+        for alias in node.names:
+            name = alias.asname if alias.asname else alias.name
+
+            # Check usage: look for the name in the rest of the file
+            if name in _IMPORT_USAGE_PATTERNS:
+                patterns = _IMPORT_USAGE_PATTERNS[name]
+                is_used = any(pattern in text_after_import for pattern in patterns)
+            else:
+                # For unknown names, assume used (conservative)
+                is_used = True
+
+            if is_used:
+                names_to_keep.append(name)
+            else:
+                names_to_remove.append(name)
+
+        if not names_to_remove:
+            continue
+
+        changes_made = True
+
+        if not names_to_keep:
+            # Remove the entire import line
+            lines[line_idx] = ""
+        else:
+            # Rebuild the import line with only kept names
+            module = node.module or ""
+            new_import = f"from {module} import {', '.join(names_to_keep)}"
+            # Preserve leading indentation
+            leading_space = ""
+            for ch in original_line:
+                if ch in (" ", "\t"):
+                    leading_space += ch
+                else:
+                    break
+            lines[line_idx] = leading_space + new_import
+
+    if not changes_made:
+        return False
+
+    # Clean up empty lines left by removed imports (remove consecutive blank lines)
+    new_lines: list[str] = []
+    prev_empty = False
+    for line in lines:
+        is_empty = line.strip() == ""
+        if is_empty and prev_empty:
+            continue
+        new_lines.append(line)
+        prev_empty = is_empty
+
+    new_content = "\n".join(new_lines)
+    file_path.write_text(new_content, encoding="utf-8")
+    return True

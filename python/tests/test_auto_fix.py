@@ -45,10 +45,11 @@ class TestConstants:
         assert len(FIXABLE_PYLINT_CODES) == 5
         assert FIXABLE_PYLINT_CODES == frozenset({"W8113", "W8111", "C8116", "W8150", "C8107"})
 
-    def test_fixable_docker_patterns_contains_exactly_four(self):
-        assert len(FIXABLE_DOCKER_PATTERNS) == 4
+    def test_fixable_docker_patterns_contains_exactly_five(self):
+        assert len(FIXABLE_DOCKER_PATTERNS) == 5
         assert FIXABLE_DOCKER_PATTERNS == frozenset({
-            "xml_parse_error", "missing_acl", "missing_import", "manifest_load_order",
+            "xml_parse_error", "missing_acl", "missing_import",
+            "manifest_load_order", "missing_mail_thread",
         })
 
     def test_max_fix_cycles_is_two(self):
