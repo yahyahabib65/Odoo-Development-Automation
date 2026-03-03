@@ -13,6 +13,8 @@ from odoo_gen_utils.auto_fix import format_escalation, run_pylint_fix_loop
 from odoo_gen_utils.i18n_extractor import extract_translatable_strings, generate_pot
 from odoo_gen_utils.kb_validator import validate_kb_directory, validate_kb_file
 from odoo_gen_utils.search import build_oca_index, get_github_token, get_index_status
+from odoo_gen_utils.search.analyzer import analyze_module, format_analysis_text
+from odoo_gen_utils.search.fork import clone_oca_module, setup_companion_dir
 from odoo_gen_utils.search.index import DEFAULT_DB_PATH
 from odoo_gen_utils.search.query import (
     format_results_json,
@@ -535,3 +537,100 @@ def search_modules_cmd(
         click.echo(format_results_json(results))
     else:
         click.echo(format_results_text(results))
+
+
+@main.command("extend-module")
+@click.argument("module_name")
+@click.option("--repo", required=True, help="OCA repo name (e.g., sale-workflow)")
+@click.option(
+    "--output-dir",
+    default=".",
+    type=click.Path(),
+    help="Output directory for cloned + companion modules",
+)
+@click.option(
+    "--spec-file",
+    type=click.Path(exists=True),
+    help="Refined spec JSON for the extension module",
+)
+@click.option("--branch", default="17.0", help="Git branch to clone (default: 17.0)")
+@click.option("--json", "json_output", is_flag=True, help="Output analysis as JSON")
+def extend_module_cmd(
+    module_name: str,
+    repo: str,
+    output_dir: str,
+    spec_file: str | None,
+    branch: str,
+    json_output: bool,
+) -> None:
+    """Clone an OCA module and set up a companion extension module.
+
+    Performs git sparse checkout to clone only the target module from an OCA
+    repository, analyzes its structure (models, fields, views, security),
+    and creates a companion {module}_ext directory for delta code.
+
+    If --spec-file is provided, copies the refined spec to both
+    {module}_ext/spec.json and overwrites the original spec.json path
+    (REFN-03: refined spec is the new source of truth).
+    """
+    out_path = Path(output_dir).resolve()
+
+    # Step 1: Clone the module via sparse checkout
+    click.echo(f"Cloning {repo}/{module_name} (branch {branch})...")
+    try:
+        cloned_path = clone_oca_module(repo, module_name, out_path, branch=branch)
+    except Exception as exc:
+        click.echo(f"Error cloning module: {exc}", err=True)
+        sys.exit(1)
+
+    click.echo(f"Cloned to: {cloned_path}")
+
+    # Step 2: Analyze the module structure
+    click.echo("Analyzing module structure...")
+    try:
+        analysis = analyze_module(cloned_path)
+    except FileNotFoundError as exc:
+        click.echo(f"Error analyzing module: {exc}", err=True)
+        sys.exit(1)
+
+    # Step 3: Set up companion directory
+    companion_path = setup_companion_dir(cloned_path)
+    click.echo(f"Companion module: {companion_path}")
+
+    # Step 4: Handle spec file (REFN-03)
+    if spec_file:
+        spec_path = Path(spec_file).resolve()
+        spec_content = spec_path.read_text(encoding="utf-8")
+
+        # Save to companion module
+        ext_spec = companion_path / "spec.json"
+        ext_spec.write_text(spec_content, encoding="utf-8")
+        click.echo(f"Spec saved to: {ext_spec}")
+
+        # Overwrite original spec.json (REFN-03: refined spec is source of truth)
+        spec_path.write_text(spec_content, encoding="utf-8")
+        click.echo(f"Original spec overwritten: {spec_path}")
+
+    # Step 5: Print analysis
+    if json_output:
+        import dataclasses
+
+        analysis_dict = dataclasses.asdict(analysis)
+        # Convert tuples to lists for JSON serialization
+        analysis_dict["model_names"] = list(analysis.model_names)
+        for model, field_names in analysis_dict["model_fields"].items():
+            analysis_dict["model_fields"][model] = list(field_names)
+        analysis_dict["security_groups"] = list(analysis.security_groups)
+        analysis_dict["data_files"] = list(analysis.data_files)
+        for model, types in analysis_dict["view_types"].items():
+            analysis_dict["view_types"][model] = list(types)
+        click.echo(json.dumps(analysis_dict, indent=2))
+    else:
+        click.echo("")
+        click.echo(format_analysis_text(analysis))
+
+    # Step 6: Print output paths
+    click.echo("")
+    click.echo("Output:")
+    click.echo(f"  Original module: {cloned_path}")
+    click.echo(f"  Companion module: {companion_path}")
