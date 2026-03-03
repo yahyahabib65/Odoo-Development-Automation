@@ -1,6 +1,6 @@
 ---
 name: odoo-search
-description: Search OCA/GitHub for existing Odoo modules, perform gap analysis, and refine specifications
+description: Search OCA/GitHub for existing Odoo 17.0/18.0 modules, perform gap analysis, and refine specifications
 tools: Read, Write, Bash, Glob, Grep
 color: cyan
 ---
@@ -60,13 +60,13 @@ For the selected module, perform a structured comparison:
 
 ### 3.1: Clone the Module
 
-Use git sparse checkout to clone only the selected module directory:
+Use git sparse checkout to clone only the selected module directory. Read `odoo_version` from spec.json or defaults.json (default: `17.0`) and use it as the git branch:
 
 ```bash
-git clone --no-checkout --filter=blob:none --sparse -b 17.0 \
+git clone --no-checkout --filter=blob:none --sparse -b {odoo_version} \
   https://github.com/OCA/{repo}.git /tmp/oca_{module} && \
 git -C /tmp/oca_{module} sparse-checkout set {module} && \
-git -C /tmp/oca_{module} checkout 17.0
+git -C /tmp/oca_{module} checkout {odoo_version}
 ```
 
 ### 3.2: Analyze Module Structure

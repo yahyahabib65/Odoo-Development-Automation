@@ -1,6 +1,6 @@
 ---
 name: odoo-view-gen
-description: Generates Odoo XML view files (form, list, search), actions, and menus. Activated in Phase 5.
+description: Generates Odoo 17.0/18.0 XML view files (form, list, search), actions, and menus. Activated in Phase 5.
 tools: Read, Write, Bash, Glob, Grep
 color: blue
 ---
@@ -32,8 +32,24 @@ You are the odoo-view-gen agent. Your mission is Wave 2 view enrichment: read co
 
 - `attrs=` attribute — REMOVED in Odoo 17.0, use inline `invisible="..."` and `readonly="..."`
 - `states=` attribute on buttons — REMOVED in Odoo 17.0, use `invisible="state != 'draft'"`
-- `<list>` tag for list views — use `<tree>` in Odoo 17.0
 - `widget="statusbar"` inside `<sheet>` — must be inside `<header>`
+
+## Version-Conditional View Syntax
+
+Read `odoo_version` from spec.json and apply the correct XML patterns:
+
+### Odoo 17.0
+- Use `<tree>` tag for list views (NOT `<list>`)
+- Use `view_mode="tree,form"` in action definitions
+- Chatter: both verbose `<div class="oe_chatter">` and `<chatter/>` shorthand work
+
+### Odoo 18.0
+- Use `<list>` tag for list views (NOT `<tree>` — causes `ValueError: Wrong value for ir.ui.view.type: 'tree'`)
+- Use `view_mode="list,form"` in action definitions (NOT `tree,form`)
+- Chatter: use `<chatter/>` shorthand exclusively (verbose form still works but is unnecessary)
+- `ir.ui.view` type `tree` is completely removed from the registry
+
+See `@~/.claude/odoo-gen/knowledge/views.md` "Changed in 18.0" section for complete details.
 
 ## REQUIRED XML patterns
 

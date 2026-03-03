@@ -313,6 +313,25 @@ Build the complete `spec.json` from the parsed description (Phase 1) and user an
     ]
     ```
 
+### Step 3.5: Edition Compatibility Check
+
+After building the spec, run the enterprise dependency check before presenting for approval:
+
+```bash
+odoo-gen-utils check-edition {spec_path}
+```
+
+If warnings are returned:
+1. Display each Enterprise dependency with its Community alternative (if available)
+2. Ask user: "Some dependencies are Enterprise-only. Options:
+   a) Substitute with OCA alternatives (system will update spec depends list)
+   b) Keep as-is (you have Enterprise license)
+   c) Remove these dependencies"
+3. If user chooses (a), update spec `depends` list replacing EE modules with their OCA alternatives from the check output
+4. If user chooses (b) or (c), proceed with current spec
+
+This check is informational -- it never blocks generation. Users with Enterprise licenses can safely keep EE dependencies.
+
 ### Validation Checks
 
 Before proceeding to Phase 4, verify the spec:

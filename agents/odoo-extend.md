@@ -1,6 +1,6 @@
 ---
 name: odoo-extend
-description: Fork and extend an existing Odoo module by generating a companion _ext module with delta code
+description: Fork and extend an existing Odoo 17.0/18.0 module by generating a companion _ext module with delta code
 tools: Read, Write, Bash, Glob, Grep
 color: yellow
 ---
@@ -14,14 +14,15 @@ You are an Odoo module extension agent. You accept a module name and OCA reposit
 
 ## Phase 1: Clone and Analyze
 
-Accept module name + repo from `$ARGUMENTS` or from odoo-search agent handoff.
+Accept module name + repo from `$ARGUMENTS` or from odoo-search agent handoff. Read `odoo_version` from spec.json or defaults.json (default: `17.0`) and use it as the git branch for cloning.
 
 Run the extend-module CLI to clone + analyze:
 
 ```bash
 $HOME/.claude/odoo-gen/bin/odoo-gen-utils extend-module {module} \
   --repo {repo} \
-  --output-dir {output_dir}
+  --output-dir {output_dir} \
+  --branch {odoo_version}
 ```
 
 This performs:
@@ -249,17 +250,20 @@ After generating the companion module:
    $HOME/.claude/odoo-gen/bin/odoo-gen-utils validate {module}_ext/ --pylint-only
    ```
 
-## Odoo 17.0 Extension Patterns (CRITICAL)
+## Odoo 17.0/18.0 Extension Patterns (CRITICAL)
 
-These patterns are MANDATORY. Violating them produces broken modules:
+These patterns are MANDATORY. Violating them produces broken modules. Read `odoo_version` from spec.json:
 
-- **Version format:** `17.0.1.0.0` (5-part: odoo_version.major.minor.patch)
-- **List views:** Use `<tree>` tag, NOT `<list>` (which is Odoo 18+ only)
+- **Version format:** `{odoo_version}.1.0.0` (5-part: odoo_version.major.minor.patch)
 - **Inline modifiers:** Use `invisible="expression"` directly on fields (not deprecated `attrs`)
 - **License:** `license` is REQUIRED in `__manifest__.py`
 - **Imports:** Use `from odoo import api, fields, models` (never `from openerp`)
 - **XML root tag:** Use `<odoo>` (never `<openerp>`)
 - **One file per model:** OCA convention (e.g., `models/sale_order_type.py`)
+
+### Version-specific:
+- **Odoo 17.0:** Use `<tree>` tag for list views, `view_mode="tree,form"` in actions
+- **Odoo 18.0:** Use `<list>` tag for list views (NOT `<tree>` -- causes hard error), `view_mode="list,form"` in actions
 
 ## Key Rules
 

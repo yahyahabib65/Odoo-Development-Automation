@@ -1,8 +1,10 @@
-# Odoo 17.0 Global Conventions
+# Odoo 17.0/18.0 Global Conventions
 
-> **Target Version: Odoo 17.0 ONLY**
-> All rules, examples, and patterns in this knowledge base are for Odoo 17.0.
-> Do NOT mix patterns from Odoo 8-16 or Odoo 18+.
+> **Supported Versions: Odoo 17.0 and 18.0**
+> This knowledge base covers both Odoo 17.0 (primary) and 18.0. The base rules
+> are for 17.0. Each KB file has a "Changed in 18.0" section documenting breaking
+> changes and new patterns. Read `odoo_version` from spec/config to determine
+> which version-specific rules to apply. Do NOT mix patterns from Odoo 8-16.
 
 ## Naming Conventions
 
@@ -157,5 +159,28 @@ class MyModel(models.Model):
     )
 ```
 
+## Odoo 18.0 Version Awareness
+
+This system supports generating modules for both Odoo 17.0 and 18.0. The `odoo_version`
+field in spec.json or defaults.json controls which version-specific patterns to use.
+
+**Key 18.0 breaking changes** (see individual KB files for details):
+- `<tree>` tag removed -- use `<list>` (see views.md "Changed in 18.0")
+- `view_mode="tree,form"` becomes `view_mode="list,form"` (see views.md)
+- `states=` parameter removed from fields (see models.md "Changed in 18.0")
+- `group_operator=` renamed to `aggregator=` (see models.md)
+- `_name_search()` replaced by `_search_display_name()` (see models.md)
+- Version prefix: `18.0.X.Y.Z` (see manifest.md "Changed in 18.0")
+
+**Version-specific template directories:**
+- `templates/17.0/` -- 17.0 view, model, and action templates (uses `<tree>`, `tree,form`)
+- `templates/18.0/` -- 18.0 view, model, and action templates (uses `<list>`, `list,form`)
+- `templates/shared/` -- Templates identical across versions
+
+**Enterprise edition awareness:**
+- Use `odoo-gen-utils check-edition` to detect Enterprise-only dependencies
+- Enterprise module registry at `data/enterprise_modules.json` (31 modules)
+- OCA Community alternatives suggested where available
+
 ---
-*Knowledge base for Odoo 17.0 -- loaded by all agents via @include*
+*Knowledge base for Odoo 17.0/18.0 -- loaded by all agents via @include*

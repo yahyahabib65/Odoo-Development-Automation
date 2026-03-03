@@ -276,5 +276,30 @@ Set `application: True` when:
 | **C8104** | Convention | Empty `depends` list | Add at least `["base"]` |
 | **C8108** | Convention | Invalid version format | Use `17.0.X.Y.Z` (5-part) |
 
+## Changed in 18.0
+
+| What Changed | Before (17.0) | Now (18.0) | Impact |
+|-------------|---------------|------------|--------|
+| Version prefix | `17.0.X.Y.Z` | `18.0.X.Y.Z` | Update on migration |
+| Structural format | No changes | Same manifest structure | No breaking changes |
+
+### Version prefix is `18.0.X.Y.Z`
+
+**WRONG (18.0 module with 17.0 prefix):**
+```python
+"version": "17.0.1.0.0",
+```
+
+**CORRECT (18.0):**
+```python
+"version": "18.0.1.0.0",
+```
+
+**Why:** The Odoo version prefix must match the target Odoo version. OCA tools use the prefix to identify which Odoo version the module targets. Mismatched prefixes prevent publishing and may cause compatibility warnings.
+
+### No structural manifest changes in 18.0
+
+The `__manifest__.py` format is identical between 17.0 and 18.0. All required keys (`name`, `version`, `license`, `depends`, `data`, `installable`) remain the same. The only change is the version prefix number.
+
 ---
-*Odoo 17.0 Manifest -- loaded by scaffold and generation agents*
+*Odoo 17.0/18.0 Manifest -- loaded by scaffold and generation agents*

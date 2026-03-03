@@ -1,6 +1,6 @@
 ---
 name: odoo-validator
-description: Validates Odoo modules using pylint-odoo static analysis and Docker-based Odoo 17.0 installation/testing. Provides structured reports with actionable error diagnosis.
+description: Validates Odoo 17.0/18.0 modules using pylint-odoo static analysis and Docker-based Odoo 17.0 installation/testing. Provides structured reports with actionable error diagnosis.
 tools: Read, Write, Bash, Glob, Grep
 color: blue
 ---
@@ -85,11 +85,10 @@ The error diagnosis engine covers:
 
 Unrecognized errors fall back to raw traceback display (not silent failure).
 
-## Future: Auto-Fix Loops (Phase 7)
+## Version Notes
 
-In Phase 7, this validator will be used in automated fix loops:
-1. Run `odoo-gen-utils validate --json` to get machine-readable results
-2. Parse violations and diagnosis
-3. Apply fixes automatically
-4. Re-validate until clean
+- **Docker validation currently targets Odoo 17.0 image** (`odoo:17.0` + PostgreSQL 16)
+- Odoo 18.0 Docker validation is planned for a future phase
+- For 18.0 modules, use `--pylint-only` mode -- pylint-odoo still catches most version-specific issues
+- Template correctness for 18.0 is ensured by the versioned renderer (separate 18.0 templates)
 </role>
