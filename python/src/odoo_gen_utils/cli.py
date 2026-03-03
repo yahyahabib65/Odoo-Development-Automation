@@ -13,6 +13,7 @@ from odoo_gen_utils.auto_fix import format_escalation, run_pylint_fix_loop
 from odoo_gen_utils.i18n_extractor import extract_translatable_strings, generate_pot
 from odoo_gen_utils.kb_validator import validate_kb_directory, validate_kb_file
 from odoo_gen_utils.search import build_oca_index, get_github_token, get_index_status
+from odoo_gen_utils.search.wizard import check_github_auth, format_auth_guidance
 from odoo_gen_utils.search.analyzer import analyze_module, format_analysis_text
 from odoo_gen_utils.search.fork import clone_oca_module, setup_companion_dir
 from odoo_gen_utils.search.index import DEFAULT_DB_PATH
@@ -466,11 +467,27 @@ def validate(
         sys.exit(1)
 
 
+def _handle_auth_failure(no_wizard: bool) -> None:
+    """Handle GitHub auth failure with optional wizard guidance."""
+    if no_wizard:
+        click.echo(
+            "GitHub authentication required.\n"
+            "Run: gh auth login\n"
+            "Or set: export GITHUB_TOKEN=your_token",
+            err=True,
+        )
+    else:
+        status = check_github_auth()
+        click.echo(format_auth_guidance(status), err=True)
+    sys.exit(1)
+
+
 @main.command("build-index")
 @click.option("--token", envvar="GITHUB_TOKEN", default=None, help="GitHub personal access token")
 @click.option("--db-path", default=None, help="ChromaDB storage path (default: ~/.local/share/odoo-gen/chromadb/)")
 @click.option("--update", is_flag=True, help="Only re-index repos pushed since last build")
-def build_index(token: str | None, db_path: str | None, update: bool) -> None:
+@click.option("--no-wizard", is_flag=True, help="Skip interactive setup guidance on auth failure")
+def build_index(token: str | None, db_path: str | None, update: bool, no_wizard: bool) -> None:
     """Build or update the local ChromaDB index of OCA Odoo modules.
 
     Crawls all OCA GitHub repositories with a 17.0 branch, extracts module
@@ -481,13 +498,7 @@ def build_index(token: str | None, db_path: str | None, update: bool) -> None:
         token = get_github_token()
 
     if not token:
-        click.echo(
-            "Index build requires GitHub authentication.\n"
-            "Run: gh auth login\n"
-            "Or set: export GITHUB_TOKEN=your_token\n"
-            "Then re-run your search."
-        )
-        sys.exit(1)
+        _handle_auth_failure(no_wizard)
 
     resolved_path = db_path or str(DEFAULT_DB_PATH)
 
@@ -544,12 +555,14 @@ def index_status(db_path: str | None, json_output: bool) -> None:
     is_flag=True,
     help="Fall back to GitHub search if no OCA results found",
 )
+@click.option("--no-wizard", is_flag=True, help="Skip interactive setup guidance on auth failure")
 def search_modules_cmd(
     query: str,
     limit: int,
     db_path: str | None,
     json_output: bool,
     github_fallback: bool,
+    no_wizard: bool,
 ) -> None:
     """Semantically search for Odoo modules matching a natural language query.
 
@@ -564,14 +577,7 @@ def search_modules_cmd(
     if not status.exists or status.module_count == 0:
         token = get_github_token()
         if not token:
-            click.echo(
-                "No index found. Building requires GitHub authentication.\n"
-                "Run: gh auth login\n"
-                "Or set: export GITHUB_TOKEN=your_token\n"
-                "Then re-run your search.",
-                err=True,
-            )
-            sys.exit(1)
+            _handle_auth_failure(no_wizard)
 
         click.echo("No index found. Building index first (this takes ~3-5 minutes)...")
 
@@ -633,6 +639,7 @@ def search_modules_cmd(
 )
 @click.option("--branch", default="17.0", help="Git branch to clone (default: 17.0)")
 @click.option("--json", "json_output", is_flag=True, help="Output analysis as JSON")
+@click.option("--no-wizard", is_flag=True, help="Skip interactive setup guidance on auth failure")
 def extend_module_cmd(
     module_name: str,
     repo: str,
@@ -640,6 +647,7 @@ def extend_module_cmd(
     spec_file: str | None,
     branch: str,
     json_output: bool,
+    no_wizard: bool,
 ) -> None:
     """Clone an OCA module and set up a companion extension module.
 
@@ -652,6 +660,11 @@ def extend_module_cmd(
     (REFN-03: refined spec is the new source of truth).
     """
     out_path = Path(output_dir).resolve()
+
+    # Auth check for extend-module (requires GitHub for cloning)
+    token = get_github_token()
+    if not token:
+        _handle_auth_failure(no_wizard)
 
     # Step 1: Clone the module via sparse checkout
     click.echo(f"Cloning {repo}/{module_name} (branch {branch})...")
