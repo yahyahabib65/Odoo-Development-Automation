@@ -50,7 +50,10 @@
   3. Rendered `__manifest__.py` contains no `installable` or `auto_install` keys (Odoo defaults omitted)
   4. Rendered test files do not import `ValidationError` unless the test actually uses it
   5. Running the auto-fix on a module with chatter XML but missing `mail.thread` inheritance adds the `_inherit` line, and running it on files with unused imports removes them
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 12-01-PLAN.md — Fix 4 template bugs (mail.thread inheritance, conditional api import, clean manifest, clean test imports)
+- [ ] 12-02-PLAN.md — Expand auto-fix (missing mail.thread, unused imports) and update knowledge base
 
 ### Phase 13: Golden Path Regression Testing
 **Goal**: A single E2E test proves that the full pipeline (render templates with realistic spec, Docker install, run Odoo tests) produces a working module -- catching template regressions automatically
@@ -66,7 +69,7 @@
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 12. Template Correctness & Auto-Fix | v1.2 | 0/TBD | Not started | - |
+| 12. Template Correctness & Auto-Fix | v1.2 | 0/2 | Planning complete | - |
 | 13. Golden Path Regression Testing | v1.2 | 0/TBD | Not started | - |
 
 ---
