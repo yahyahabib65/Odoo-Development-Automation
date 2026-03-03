@@ -29,8 +29,8 @@ Nine phases cover all 68 Odoo-specific requirements (plus 13 inherited from GSD)
 - [x] **Phase 5: Core Code Generation** — Models, views, actions, manifests, init files, data, wizards, and README generation with OCA standards compliance
 - [x] **Phase 6: Security & Test Generation** — ACLs, group hierarchy, record rules, comprehensive test suite generation
 - [x] **Phase 7: Human Review & Quality Loops** — GSD checkpoint wiring at each generation stage, feedback incorporation, i18n generation, auto-fix loops
-- [ ] **Phase 8: Search & Fork-Extend** — Semantic search of GitHub/OCA repos, match scoring, spec refinement, fork-and-extend workflow, local vector index
-- [ ] **Phase 9: Edition & Version Support** — CE/EE awareness, Enterprise dependency detection, Community alternatives, Odoo 18.0 template support
+- [x] **Phase 8: Search & Fork-Extend** — Semantic search of GitHub/OCA repos, match scoring, spec refinement, fork-and-extend workflow, local vector index
+- [x] **Phase 9: Edition & Version Support** — CE/EE awareness, Enterprise dependency detection, Community alternatives, Odoo 18.0 template support
 
 ## Phase Details
 
@@ -166,8 +166,8 @@ Plans:
 
 Plans:
 - [x] 08-01-PLAN.md — Vector index infrastructure: ChromaDB + PyGithub OCA crawl, manifest parsing, build-index/index-status CLI commands, pyproject.toml [search] extras (FORK-04, SRCH-01, SRCH-02)
-- [ ] 08-02-PLAN.md — Search query flow: ChromaDB semantic search, 5-result ranking, search-modules CLI, odoo-search agent with gap analysis + spec refinement (SRCH-03..05, REFN-01..03)
-- [ ] 08-03-PLAN.md — Fork-extend workflow: git sparse checkout clone, module structure analysis, companion _ext module setup, odoo-extend agent with _inherit/xpath delta generation (FORK-01..03)
+- [x] 08-02-PLAN.md — Search query flow: ChromaDB semantic search, 5-result ranking, search-modules CLI, odoo-search agent with gap analysis + spec refinement (SRCH-03..05, REFN-01..03)
+- [x] 08-03-PLAN.md — Fork-extend workflow: git sparse checkout clone, module structure analysis, companion _ext module setup, odoo-extend agent with _inherit/xpath delta generation (FORK-01..03)
 
 ### Phase 9: Edition & Version Support
 **Goal**: System is aware of Odoo edition differences and can generate modules targeting both 17.0 and 18.0 with correct version-specific patterns
@@ -181,9 +181,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 09-01-PLAN.md — Enterprise module registry JSON + edition.py with check_enterprise_dependencies() and tests (VERS-01, VERS-02, VERS-03)
-- [ ] 09-02-PLAN.md — Template reorganization (17.0/, 18.0/, shared/) + versioned renderer with FileSystemLoader fallback (VERS-04, VERS-05, VERS-06)
-- [ ] 09-03-PLAN.md — CLI check-edition command, spec.md edition check wiring, all 8 agents version-aware, KB "Changed in 18.0" sections (VERS-01..06)
+- [x] 09-01-PLAN.md — Enterprise module registry JSON + edition.py with check_enterprise_dependencies() and tests (VERS-01, VERS-02, VERS-03)
+- [x] 09-02-PLAN.md — Template reorganization (17.0/, 18.0/, shared/) + versioned renderer with FileSystemLoader fallback (VERS-04, VERS-05, VERS-06)
+- [x] 09-03-PLAN.md — CLI check-edition command, spec.md edition check wiring, all 8 agents version-aware, KB "Changed in 18.0" sections (VERS-01..06)
 
 ## Progress
 
@@ -200,8 +200,8 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 5. Core Code Generation | 3/3 | Complete | 2026-03-02 |
 | 6. Security & Test Generation | 2/2 | Complete | 2026-03-02 |
 | 7. Human Review & Quality Loops | 3/3 | Complete | 2026-03-03 |
-| 8. Search & Fork-Extend | 1/3 | In Progress | - |
-| 9. Edition & Version Support | 0/3 | Not started | - |
+| 8. Search & Fork-Extend | 3/3 | Complete | 2026-03-03 |
+| 9. Edition & Version Support | 3/3 | Complete | 2026-03-03 |
 
 ---
 *Roadmap created: 2026-03-01*
