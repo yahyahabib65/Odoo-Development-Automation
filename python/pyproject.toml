@@ -38,4 +38,5 @@ testpaths = ["tests"]
 markers = [
     "e2e: End-to-end tests hitting real external services (GitHub API, ChromaDB). Skipped without GITHUB_TOKEN.",
     "e2e_slow: Full OCA index build (200+ repos, 3-5 min). Requires GITHUB_TOKEN.",
+    "docker: Integration tests requiring Docker daemon. Skipped when Docker is unavailable.",
 ]
