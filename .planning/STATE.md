@@ -38,11 +38,14 @@ Last activity: 2026-03-03 — Completed 11-02-PLAN.md (i18n field string= AST ex
 - Session-scoped e2e_index_db fixture in test_e2e_github.py, module-scoped in test_e2e_index.py
 - Used if/elif in AST walker to prevent a Call node matching both _() and fields.*() patterns simultaneously
 - Added norecursedirs to pyproject.toml to exclude docker fixture module (imports odoo at load time) from pytest collection
+- Added fixtures/conftest.py with collect_ignore_glob to prevent pytest Odoo import errors (cleaner than norecursedirs)
+- Fixture model fields all include string= attributes to serve dual-purpose for both Docker and i18n testing
 
 ## Performance Metrics
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
+| 11 | 01 | 180s | 2 | 10 |
 | 11 | 02 | 173s | 2 | 3 |
 | 10 | 02 | 301s | 2 | 5 |
 | 10 | 01 | 332s | 3 | 3 |
@@ -50,5 +53,5 @@ Last activity: 2026-03-03 — Completed 11-02-PLAN.md (i18n field string= AST ex
 ## Session Continuity
 
 Last session: 2026-03-03
-Stopped at: Completed 11-02-PLAN.md (DEBT-04 resolved: fields.*(string=...) extraction)
-Resume file: .planning/phases/11-live-integration-testing-i18n/11-02-SUMMARY.md
+Stopped at: Completed 11-01-PLAN.md (DEBT-03 resolved: Docker integration fixture + live tests)
+Resume file: .planning/phases/11-live-integration-testing-i18n/11-01-SUMMARY.md
