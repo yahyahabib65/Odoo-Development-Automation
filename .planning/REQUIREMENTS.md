@@ -5,7 +5,7 @@
 - [x] **DEBT-01**: GitHub CLI is authenticated and search/extend features can query the GitHub API successfully
 - [x] **DEBT-02**: sentence-transformers with PyTorch CPU-only installs cleanly in a fresh venv and ChromaDB indexing works end-to-end
 - [ ] **DEBT-03**: Docker validation runs against a live Odoo 17.0 daemon — module install and test execution verified with real containers (not just mocked subprocess)
-- [ ] **DEBT-04**: Python field `string=` parameter translations are extracted by the i18n extractor into the .pot file
+- [x] **DEBT-04**: Python field `string=` parameter translations are extracted by the i18n extractor into the .pot file
 
 ## Future Requirements
 
