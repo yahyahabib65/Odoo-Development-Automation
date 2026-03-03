@@ -3,6 +3,7 @@
 ## Milestones
 
 - **v1.0 Odoo Module Automation MVP** — Phases 1-9 (shipped 2026-03-03) | [Archive](milestones/v1.0-ROADMAP.md)
+- **v1.1 Tech Debt Cleanup** — Phases 10-11 (in progress)
 
 ## Phases
 
@@ -23,20 +24,43 @@
 
 </details>
 
+### v1.1 Tech Debt Cleanup
+
+- [ ] **Phase 10: Environment & Dependencies** — GitHub auth, PyTorch CPU-only clean install verification
+- [ ] **Phase 11: Live Integration Testing & i18n** — Docker live validation, field string= i18n extraction
+
+## Phase Details
+
+### Phase 10: Environment & Dependencies
+**Goal**: Search and index features work with real GitHub API and a clean sentence-transformers install
+**Depends on**: v1.0 shipped
+**Requirements**: DEBT-01, DEBT-02
+**Success Criteria** (what must be TRUE):
+  1. `gh auth status` succeeds and `odoo-gen-utils search-modules "inventory"` returns results from GitHub API
+  2. A fresh `uv venv` + `uv pip install .[search]` completes without errors on CPU-only machine
+  3. `odoo-gen-utils build-index` successfully crawls OCA repos and builds a ChromaDB index
+  4. `odoo-gen-utils index-status` reports indexed module count > 0
+**Plans**: TBD
+
+### Phase 11: Live Integration Testing & i18n
+**Goal**: Docker validation runs against real Odoo 17.0 containers and i18n extracts field string= translations
+**Depends on**: Phase 10
+**Requirements**: DEBT-03, DEBT-04
+**Success Criteria** (what must be TRUE):
+  1. `odoo-gen-utils validate <module> --docker` spins up a real Odoo 17.0 + PostgreSQL container, installs the module, and reports pass/fail
+  2. At least one integration test runs against the live Docker daemon (not mocked)
+  3. `odoo-gen-utils extract-i18n <module>` extracts `fields.Char(string="My Label")` patterns into the .pot file
+  4. Existing 243+ tests continue to pass (no regressions)
+**Plans**: TBD
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 1. GSD Extension + Odoo Foundation | v1.0 | 4/4 | Complete | 2026-03-01 |
-| 2. Knowledge Base | v1.0 | 3/3 | Complete | 2026-03-01 |
-| 3. Validation Infrastructure | v1.0 | 3/3 | Complete | 2026-03-01 |
-| 4. Input & Specification | v1.0 | 2/2 | Complete | 2026-03-02 |
-| 5. Core Code Generation | v1.0 | 3/3 | Complete | 2026-03-02 |
-| 6. Security & Test Generation | v1.0 | 2/2 | Complete | 2026-03-02 |
-| 7. Human Review & Quality Loops | v1.0 | 3/3 | Complete | 2026-03-03 |
-| 8. Search & Fork-Extend | v1.0 | 3/3 | Complete | 2026-03-03 |
-| 9. Edition & Version Support | v1.0 | 3/3 | Complete | 2026-03-03 |
+| 10. Environment & Dependencies | v1.1 | 0/TBD | Not started | - |
+| 11. Live Integration Testing & i18n | v1.1 | 0/TBD | Not started | - |
 
 ---
 *Roadmap created: 2026-03-01*
 *v1.0 shipped: 2026-03-03*
+*v1.1 started: 2026-03-03*
