@@ -14,6 +14,16 @@ A domain-specific extension of the GSD (Get Shit Done) framework that automates 
 - 8 agents, 13 knowledge files, 24 Jinja2 templates, 12 commands
 - See: `.planning/MILESTONES.md` for details
 
+## Current Milestone: v1.1 Tech Debt Cleanup
+
+**Goal:** Resolve all accumulated tech debt from v1.0 — ensure the pipeline works end-to-end with real infrastructure (GitHub API, Docker, clean install).
+
+**Target items:**
+- GitHub CLI authentication for search/extend features
+- PyTorch CPU-only clean install verification for sentence-transformers
+- Docker live validation against real Odoo 17.0 daemon
+- Python field `string=` i18n extraction
+
 ## Core Value
 
 Compress months of repetitive Odoo module development into days by leveraging GSD's orchestration + existing open-source modules as foundations + Odoo-specialized AI agents, so developers focus on business logic and design decisions.
