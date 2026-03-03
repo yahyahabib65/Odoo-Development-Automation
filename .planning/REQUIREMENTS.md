@@ -66,8 +66,8 @@ These capabilities come from GSD. Our work is wiring them to Odoo-specific workf
 
 ### Step 4-7: Search & Reuse
 
-- [ ] **SRCH-01**: System semantically searches GitHub repositories for Odoo modules similar to the user's description
-- [ ] **SRCH-02**: System semantically searches OCA repositories for similar modules
+- [x] **SRCH-01**: System semantically searches GitHub repositories for Odoo modules similar to the user's description
+- [x] **SRCH-02**: System semantically searches OCA repositories for similar modules
 - [ ] **SRCH-03**: System scores and ranks candidate modules by relevance to the user's intent
 - [ ] **SRCH-04**: System presents top matches to the user with relevance scores, feature overlap, and gap analysis
 - [ ] **SRCH-05**: User can select a match to fork-and-extend, or choose to build from scratch
@@ -83,7 +83,7 @@ These capabilities come from GSD. Our work is wiring them to Odoo-specific workf
 - [ ] **FORK-01**: System clones the selected matching module into the output directory
 - [ ] **FORK-02**: System analyzes the forked module's structure (models, views, security, data files)
 - [ ] **FORK-03**: System generates delta code to extend the forked module to match the user's refined specification
-- [ ] **FORK-04**: System maintains a local vector index of OCA/GitHub module descriptions for fast semantic matching
+- [x] **FORK-04**: System maintains a local vector index of OCA/GitHub module descriptions for fast semantic matching
 
 ### Step 8: Prior Art & Knowledge Base
 
@@ -250,8 +250,8 @@ Deferred to future release. Tracked but not in current roadmap.
 | QUAL-06 | Phase 7: Human Review & Quality Loops | Complete |
 | QUAL-09 | Phase 7: Human Review & Quality Loops | Complete |
 | QUAL-10 | Phase 7: Human Review & Quality Loops | Complete |
-| SRCH-01 | Phase 8: Search & Fork-Extend | Pending |
-| SRCH-02 | Phase 8: Search & Fork-Extend | Pending |
+| SRCH-01 | Phase 8: Search & Fork-Extend | Complete |
+| SRCH-02 | Phase 8: Search & Fork-Extend | Complete |
 | SRCH-03 | Phase 8: Search & Fork-Extend | Pending |
 | SRCH-04 | Phase 8: Search & Fork-Extend | Pending |
 | SRCH-05 | Phase 8: Search & Fork-Extend | Pending |
@@ -261,7 +261,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | FORK-01 | Phase 8: Search & Fork-Extend | Pending |
 | FORK-02 | Phase 8: Search & Fork-Extend | Pending |
 | FORK-03 | Phase 8: Search & Fork-Extend | Pending |
-| FORK-04 | Phase 8: Search & Fork-Extend | Pending |
+| FORK-04 | Phase 8: Search & Fork-Extend | Complete |
 | VERS-01 | Phase 9: Edition & Version Support | Pending |
 | VERS-02 | Phase 9: Edition & Version Support | Pending |
 | VERS-03 | Phase 9: Edition & Version Support | Pending |

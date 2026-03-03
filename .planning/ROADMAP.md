@@ -26,9 +26,9 @@ Nine phases cover all 68 Odoo-specific requirements (plus 13 inherited from GSD)
 - [x] **Phase 2: Knowledge Base** — Odoo 17 coding patterns, OCA standards, pylint-odoo rules, version-specific references, extensible skill system
 - [x] **Phase 3: Validation Infrastructure** — pylint-odoo integration, Docker-based Odoo 17.0 environment, module install testing, quality reporting
 - [x] **Phase 4: Input & Specification** — Natural language module description, structured Odoo follow-up questions, spec parsing, user approval flow
-- [ ] **Phase 5: Core Code Generation** — Models, views, actions, manifests, init files, data, wizards, and README generation with OCA standards compliance
-- [ ] **Phase 6: Security & Test Generation** — ACLs, group hierarchy, record rules, comprehensive test suite generation
-- [ ] **Phase 7: Human Review & Quality Loops** — GSD checkpoint wiring at each generation stage, feedback incorporation, i18n generation, auto-fix loops
+- [x] **Phase 5: Core Code Generation** — Models, views, actions, manifests, init files, data, wizards, and README generation with OCA standards compliance
+- [x] **Phase 6: Security & Test Generation** — ACLs, group hierarchy, record rules, comprehensive test suite generation
+- [x] **Phase 7: Human Review & Quality Loops** — GSD checkpoint wiring at each generation stage, feedback incorporation, i18n generation, auto-fix loops
 - [ ] **Phase 8: Search & Fork-Extend** — Semantic search of GitHub/OCA repos, match scoring, spec refinement, fork-and-extend workflow, local vector index
 - [ ] **Phase 9: Edition & Version Support** — CE/EE awareness, Enterprise dependency detection, Community alternatives, Odoo 18.0 template support
 
@@ -117,7 +117,7 @@ Plans:
 Plans:
 - [x] 05-01-PLAN.md — Renderer extensions + new Jinja2 templates (computed stubs, sequences, wizards, statusbar)
 - [x] 05-02-PLAN.md — Agent activation: odoo-model-gen, odoo-view-gen, odoo-test-gen full system prompts
-- [ ] 05-03-PLAN.md — generate.md workflow + spec.md trigger hook + REQUIREMENTS.md wording fixes
+- [x] 05-03-PLAN.md — generate.md workflow + spec.md trigger hook + REQUIREMENTS.md wording fixes
 
 ### Phase 6: Security & Test Generation
 **Goal**: Every generated module has complete security infrastructure and a meaningful test suite that verifies real behavior
@@ -132,8 +132,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 06-01-PLAN.md — TDD: has_company_field detection + record_rules.xml.j2 template + renderer extensions (SECG-01, SECG-03, SECG-04, SECG-05)
-- [ ] 06-02-PLAN.md — Expand test_model.py.j2 + activate odoo-test-gen + activate odoo-security-gen + update generate.md (SECG-02, SECG-04, TEST-01..06)
+- [x] 06-01-PLAN.md — TDD: has_company_field detection + record_rules.xml.j2 template + renderer extensions (SECG-01, SECG-03, SECG-04, SECG-05)
+- [x] 06-02-PLAN.md — Expand test_model.py.j2 + activate odoo-test-gen + activate odoo-security-gen + update generate.md (SECG-02, SECG-04, TEST-01..06)
 
 ### Phase 7: Human Review & Quality Loops
 **Goal**: GSD checkpoints are wired to each Odoo generation stage, with feedback incorporation and auto-fix before escalating
@@ -148,9 +148,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 07-01-PLAN.md — TDD: i18n static extractor (ast + xml.etree.ElementTree) with extract-i18n CLI command (QUAL-06)
-- [ ] 07-02-PLAN.md — generate.md checkpoint wiring: CP-1, CP-2, CP-3 with regeneration logic and i18n step (REVW-01..06)
-- [ ] 07-03-PLAN.md — Pylint + Docker auto-fix loops with max 2 cycles and grouped escalation (QUAL-09, QUAL-10)
+- [x] 07-01-PLAN.md — TDD: i18n static extractor (ast + xml.etree.ElementTree) with extract-i18n CLI command (QUAL-06)
+- [x] 07-02-PLAN.md — generate.md checkpoint wiring: CP-1, CP-2, CP-3 with regeneration logic and i18n step (REVW-01..06)
+- [x] 07-03-PLAN.md — Pylint + Docker auto-fix loops with max 2 cycles and grouped escalation (QUAL-09, QUAL-10)
 
 ### Phase 8: Search & Fork-Extend
 **Goal**: User can search for existing Odoo modules, see how they overlap with their need, and fork-and-extend a match instead of building from scratch
@@ -165,7 +165,7 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 08-01-PLAN.md — Vector index infrastructure: ChromaDB + PyGithub OCA crawl, manifest parsing, build-index/index-status CLI commands, pyproject.toml [search] extras (FORK-04, SRCH-01, SRCH-02)
+- [x] 08-01-PLAN.md — Vector index infrastructure: ChromaDB + PyGithub OCA crawl, manifest parsing, build-index/index-status CLI commands, pyproject.toml [search] extras (FORK-04, SRCH-01, SRCH-02)
 - [ ] 08-02-PLAN.md — Search query flow: ChromaDB semantic search, 5-result ranking, search-modules CLI, odoo-search agent with gap analysis + spec refinement (SRCH-03..05, REFN-01..03)
 - [ ] 08-03-PLAN.md — Fork-extend workflow: git sparse checkout clone, module structure analysis, companion _ext module setup, odoo-extend agent with _inherit/xpath delta generation (FORK-01..03)
 
@@ -196,10 +196,10 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 2. Knowledge Base | 3/3 | Complete | 2026-03-01 |
 | 3. Validation Infrastructure | 3/3 | Complete | 2026-03-01 |
 | 4. Input & Specification | 2/2 | Complete | 2026-03-02 |
-| 5. Core Code Generation | 2/3 | In Progress|  |
+| 5. Core Code Generation | 3/3 | Complete | 2026-03-02 |
 | 6. Security & Test Generation | 2/2 | Complete | 2026-03-02 |
-| 7. Human Review & Quality Loops | 0/3 | Not started | - |
-| 8. Search & Fork-Extend | 0/3 | Not started | - |
+| 7. Human Review & Quality Loops | 3/3 | Complete | 2026-03-03 |
+| 8. Search & Fork-Extend | 1/3 | In Progress | - |
 | 9. Edition & Version Support | 0/2 | Not started | - |
 
 ---
