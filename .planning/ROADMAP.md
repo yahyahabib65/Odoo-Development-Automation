@@ -74,6 +74,16 @@ Plans:
 | 12. Template Correctness & Auto-Fix | v1.2 | 2/2 | Complete | 2026-03-03 |
 | 13. Golden Path Regression Testing | v1.2 | Complete    | 2026-03-03 | 2026-03-03 |
 
+### Phase 14: Cleanup/debug the tech debt
+
+**Goal:** Wire orphaned auto-fix functions (fix_missing_mail_thread, fix_unused_imports) into the CLI runtime so they execute during validate --auto-fix, closing the broken dispatch layer identified in the v1.2 milestone audit
+**Requirements**: TDEBT-01, TDEBT-02
+**Depends on:** Phase 13
+**Plans:** 1 plan
+
+Plans:
+- [ ] 14-01-PLAN.md — Wire run_docker_fix_loop into auto_fix.py and CLI validate command
+
 ---
 *Roadmap created: 2026-03-01*
 *v1.0 shipped: 2026-03-03*
