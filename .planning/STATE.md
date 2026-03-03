@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-last_updated: "2026-03-03T00:51:00.000Z"
+last_updated: "2026-03-03T00:58:39.000Z"
 progress:
   total_phases: 9
   completed_phases: 7
   total_plans: 25
-  completed_plans: 23
+  completed_plans: 24
 ---
 
 # Project State
@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 ## Current Position
 
 Phase: 8 of 9 (Search & Fork-Extend) -- IN PROGRESS
-Plan: 1 of 3 complete in Phase 8 (08-01)
-Status: Phase 8 in progress -- 08-01 complete (vector index infrastructure), 08-02 and 08-03 remaining
-Last activity: 2026-03-03 -- Completed 08-01 (ChromaDB index + CLI commands)
+Plan: 2 of 3 complete in Phase 8 (08-01, 08-02)
+Status: Phase 8 in progress -- 08-01 complete (vector index), 08-02 complete (search query + agent), 08-03 remaining
+Last activity: 2026-03-03 -- Completed 08-02 (search query flow + gap analysis agent)
 
-Progress: [████████░░] 80% (Phases 1-7 complete, Phase 8 plan 1/3 done, Phase 9 remaining)
+Progress: [█████████░] 85% (Phases 1-7 complete, Phase 8 plan 2/3 done, Phase 9 remaining)
 
 ## Performance Metrics
 
@@ -61,6 +61,7 @@ Progress: [████████░░] 80% (Phases 1-7 complete, Phase 8 pla
 | Phase 07 P02 | 4 min | 2 tasks | 1 files |
 | Phase 07 P03 | 7 min | 2 tasks | 4 files |
 | Phase 08 P01 | 5 min | 2 tasks | 8 files |
+| Phase 08 P02 | 4 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -152,6 +153,12 @@ Recent decisions affecting current work:
 - [Phase 08-01]: get_github_token is public API (no underscore) -- exported from search/__init__.py for CLI and external use
 - [Phase 08-01]: Lazy imports for chromadb and github -- CLI loads without search dependencies installed
 - [Phase 08-01]: CPU-only torch via uv index config -- avoids pulling full CUDA toolkit
+- [Phase 08-02]: Cosine distance to similarity: 1.0 - (distance / 2.0) for 0.0-1.0 range
+- [Phase 08-02]: GitHub fallback results get fixed relevance_score=0.5 (unranked)
+- [Phase 08-02]: Auto-fallback to GitHub when OCA returns 0 results, even without --github flag
+- [Phase 08-02]: Refined spec overwrites original spec.json path (REFN-03 source of truth for all downstream)
+- [Phase 08-02]: Gap analysis runs only on selected result, not all 5 upfront (Decision A)
+- [Phase 08-02]: Follow-up queries independently re-query ChromaDB, no session state (Decision A)
 
 ### Pending Todos
 
@@ -166,5 +173,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-03
-Stopped at: Completed 08-01-PLAN.md -- vector index infrastructure (ChromaDB + PyGithub + CLI commands)
-Resume file: No active checkpoint -- ready for 08-02-PLAN.md (search query flow)
+Stopped at: Completed 08-02-PLAN.md -- search query flow + gap analysis agent
+Resume file: No active checkpoint -- ready for 08-03-PLAN.md (fork-extend)

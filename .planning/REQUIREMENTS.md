@@ -68,15 +68,15 @@ These capabilities come from GSD. Our work is wiring them to Odoo-specific workf
 
 - [x] **SRCH-01**: System semantically searches GitHub repositories for Odoo modules similar to the user's description
 - [x] **SRCH-02**: System semantically searches OCA repositories for similar modules
-- [ ] **SRCH-03**: System scores and ranks candidate modules by relevance to the user's intent
-- [ ] **SRCH-04**: System presents top matches to the user with relevance scores, feature overlap, and gap analysis
-- [ ] **SRCH-05**: User can select a match to fork-and-extend, or choose to build from scratch
+- [x] **SRCH-03**: System scores and ranks candidate modules by relevance to the user's intent
+- [x] **SRCH-04**: System presents top matches to the user with relevance scores, feature overlap, and gap analysis
+- [x] **SRCH-05**: User can select a match to fork-and-extend, or choose to build from scratch
 
 ### Step 6: Spec Refinement
 
-- [ ] **REFN-01**: After viewing search results, user can adjust the module specification based on what already exists
-- [ ] **REFN-02**: System highlights which parts of the spec are already covered by the matched module and which need to be built
-- [ ] **REFN-03**: Adjusted spec replaces the original for all downstream generation steps
+- [x] **REFN-01**: After viewing search results, user can adjust the module specification based on what already exists
+- [x] **REFN-02**: System highlights which parts of the spec are already covered by the matched module and which need to be built
+- [x] **REFN-03**: Adjusted spec replaces the original for all downstream generation steps
 
 ### Step 7: Fork & Extend
 
@@ -252,12 +252,12 @@ Deferred to future release. Tracked but not in current roadmap.
 | QUAL-10 | Phase 7: Human Review & Quality Loops | Complete |
 | SRCH-01 | Phase 8: Search & Fork-Extend | Complete |
 | SRCH-02 | Phase 8: Search & Fork-Extend | Complete |
-| SRCH-03 | Phase 8: Search & Fork-Extend | Pending |
-| SRCH-04 | Phase 8: Search & Fork-Extend | Pending |
-| SRCH-05 | Phase 8: Search & Fork-Extend | Pending |
-| REFN-01 | Phase 8: Search & Fork-Extend | Pending |
-| REFN-02 | Phase 8: Search & Fork-Extend | Pending |
-| REFN-03 | Phase 8: Search & Fork-Extend | Pending |
+| SRCH-03 | Phase 8: Search & Fork-Extend | Complete |
+| SRCH-04 | Phase 8: Search & Fork-Extend | Complete |
+| SRCH-05 | Phase 8: Search & Fork-Extend | Complete |
+| REFN-01 | Phase 8: Search & Fork-Extend | Complete |
+| REFN-02 | Phase 8: Search & Fork-Extend | Complete |
+| REFN-03 | Phase 8: Search & Fork-Extend | Complete |
 | FORK-01 | Phase 8: Search & Fork-Extend | Pending |
 | FORK-02 | Phase 8: Search & Fork-Extend | Pending |
 | FORK-03 | Phase 8: Search & Fork-Extend | Pending |
