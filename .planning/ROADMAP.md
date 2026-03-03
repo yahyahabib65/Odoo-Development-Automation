@@ -42,8 +42,8 @@
   4. `odoo-gen-utils index-status` reports indexed module count > 0
 **Plans**: 2 plans (Wave 1 parallel)
 Plans:
-- [ ] 10-01-PLAN.md — Remove unused deps (sentence-transformers/torch), add E2E test infrastructure
-- [ ] 10-02-PLAN.md — GitHub auth setup wizard with --no-wizard flag
+- [x] 10-01-PLAN.md — Remove unused deps (sentence-transformers/torch), add E2E test infrastructure
+- [x] 10-02-PLAN.md — GitHub auth setup wizard with --no-wizard flag
 
 ### Phase 11: Live Integration Testing & i18n
 **Goal**: Docker validation runs against real Odoo 17.0 containers and i18n extracts field string= translations
@@ -60,7 +60,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 10. Environment & Dependencies | 2/2 | Complete   | 2026-03-03 | - |
+| 10. Environment & Dependencies | v1.1 | 2/2 | Complete | 2026-03-03 |
 | 11. Live Integration Testing & i18n | v1.1 | 0/TBD | Not started | - |
 
 ---
