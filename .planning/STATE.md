@@ -3,11 +3,11 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Template Quality
 status: completed
-stopped_at: Completed 13-01 golden path regression test
-last_updated: "2026-03-03T17:50:46.888Z"
+stopped_at: Phase 14 context gathered
+last_updated: "2026-03-03T18:36:50.895Z"
 last_activity: 2026-03-03 -- Completed 13-01 golden path regression test
 progress:
-  total_phases: 2
+  total_phases: 3
   completed_phases: 2
   total_plans: 3
   completed_plans: 3
@@ -73,12 +73,16 @@ Progress: [██████████] 100%
 - [Phase 13]: Golden path spec uses depends=["base", "mail"] (not "hr") -- regression testing our templates, not Odoo dependency resolution
 - [Phase 13]: Module-scoped fixture renders once, shared by all 3 tests -- avoids triple render cost
 
+### Roadmap Evolution
+
+- Phase 14 added: Cleanup/debug the tech debt (wire auto-fix functions into CLI runtime)
+
 ### Blockers/Concerns
 
 None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-03T17:44:26Z
-Stopped at: Completed 13-01 golden path regression test
-Resume file: .planning/phases/13-golden-path-regression-testing/13-01-SUMMARY.md
+Last session: 2026-03-03T18:36:50.893Z
+Stopped at: Phase 14 context gathered
+Resume file: .planning/phases/14-cleanup-debug-the-tech-debt/14-CONTEXT.md
