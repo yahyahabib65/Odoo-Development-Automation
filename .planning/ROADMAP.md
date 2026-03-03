@@ -40,7 +40,10 @@
   2. A fresh `uv venv` + `uv pip install .[search]` completes without errors on CPU-only machine
   3. `odoo-gen-utils build-index` successfully crawls OCA repos and builds a ChromaDB index
   4. `odoo-gen-utils index-status` reports indexed module count > 0
-**Plans**: TBD
+**Plans**: 2 plans (Wave 1 parallel)
+Plans:
+- [ ] 10-01-PLAN.md — Remove unused deps (sentence-transformers/torch), add E2E test infrastructure
+- [ ] 10-02-PLAN.md — GitHub auth setup wizard with --no-wizard flag
 
 ### Phase 11: Live Integration Testing & i18n
 **Goal**: Docker validation runs against real Odoo 17.0 containers and i18n extracts field string= translations
@@ -57,7 +60,7 @@
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 10. Environment & Dependencies | v1.1 | 0/TBD | Not started | - |
+| 10. Environment & Dependencies | v1.1 | 0/2 | Planned | - |
 | 11. Live Integration Testing & i18n | v1.1 | 0/TBD | Not started | - |
 
 ---

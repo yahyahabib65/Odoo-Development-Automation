@@ -1,8 +1,8 @@
 ---
 phase: 10
 slug: environment-dependencies
-status: draft
-nyquist_compliant: false
+status: planned
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-03-03
 ---
@@ -38,8 +38,11 @@ created: 2026-03-03
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| TBD | TBD | TBD | DEBT-01 | integration/e2e | `cd python && uv run pytest tests/ -x -q -m e2e` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | DEBT-02 | integration/e2e | `cd python && uv run pytest tests/ -x -q -m e2e` | ❌ W0 | ⬜ pending |
+| 10-01-T1 | 01 | 1 | DEBT-02 | unit (regression) | `cd python && uv run pytest tests/ -x -q` | existing | ⬜ pending |
+| 10-01-T2 | 01 | 1 | DEBT-01 | e2e | `cd python && uv run pytest tests/test_e2e_github.py -x -q --co` | ❌ W0 | ⬜ pending |
+| 10-01-T3 | 01 | 1 | DEBT-02 | e2e | `cd python && uv run pytest tests/test_e2e_index.py -x -q --co` | ❌ W0 | ⬜ pending |
+| 10-02-T1 | 02 | 1 | DEBT-01 | unit | `cd python && uv run pytest tests/test_wizard.py -x -v` | ❌ W0 | ⬜ pending |
+| 10-02-T2 | 02 | 1 | DEBT-01 | unit (regression) | `cd python && uv run pytest tests/ -x -q` | existing | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -66,11 +69,11 @@ created: 2026-03-03
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 30s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references (test_e2e_github.py, test_e2e_index.py, test_wizard.py, markers)
+- [x] No watch-mode flags
+- [x] Feedback latency < 30s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved (planner)
