@@ -80,9 +80,9 @@ These capabilities come from GSD. Our work is wiring them to Odoo-specific workf
 
 ### Step 7: Fork & Extend
 
-- [ ] **FORK-01**: System clones the selected matching module into the output directory
-- [ ] **FORK-02**: System analyzes the forked module's structure (models, views, security, data files)
-- [ ] **FORK-03**: System generates delta code to extend the forked module to match the user's refined specification
+- [x] **FORK-01**: System clones the selected matching module into the output directory
+- [x] **FORK-02**: System analyzes the forked module's structure (models, views, security, data files)
+- [x] **FORK-03**: System generates delta code to extend the forked module to match the user's refined specification
 - [x] **FORK-04**: System maintains a local vector index of OCA/GitHub module descriptions for fast semantic matching
 
 ### Step 8: Prior Art & Knowledge Base
@@ -258,9 +258,9 @@ Deferred to future release. Tracked but not in current roadmap.
 | REFN-01 | Phase 8: Search & Fork-Extend | Complete |
 | REFN-02 | Phase 8: Search & Fork-Extend | Complete |
 | REFN-03 | Phase 8: Search & Fork-Extend | Complete |
-| FORK-01 | Phase 8: Search & Fork-Extend | Pending |
-| FORK-02 | Phase 8: Search & Fork-Extend | Pending |
-| FORK-03 | Phase 8: Search & Fork-Extend | Pending |
+| FORK-01 | Phase 8: Search & Fork-Extend | Complete |
+| FORK-02 | Phase 8: Search & Fork-Extend | Complete |
+| FORK-03 | Phase 8: Search & Fork-Extend | Complete |
 | FORK-04 | Phase 8: Search & Fork-Extend | Complete |
 | VERS-01 | Phase 9: Edition & Version Support | Pending |
 | VERS-02 | Phase 9: Edition & Version Support | Pending |
