@@ -10,7 +10,7 @@ requires:
 
 provides:
   - .mcp.json Claude Code MCP server configuration for odoo-introspection
-  - Verified end-to-end: server starts in stdio mode, 29 unit tests pass, 350 total tests pass
+  - Verified end-to-end: server starts in stdio mode, 29 unit tests pass, 350 total tests pass, all 6 MCP tools confirmed working against live Odoo dev instance
 
 affects: [phase-17-claude-code-integration]
 
@@ -46,7 +46,7 @@ completed: "2026-03-04"
 - **Duration:** 3 min
 - **Started:** 2026-03-04T13:33:37Z
 - **Completed:** 2026-03-04T13:36:00Z
-- **Tasks:** 1 of 2 (Task 2 is human-verify checkpoint)
+- **Tasks:** 2 of 2 (both complete)
 - **Files modified:** 1
 
 ## Accomplishments
@@ -55,15 +55,16 @@ completed: "2026-03-04"
 - Verified server starts cleanly in stdio mode (exit 124 on timeout as expected)
 - Confirmed all 29 MCP unit tests pass and 350 total tests pass with no regressions
 - Phase 15 dev instance defaults pre-populated as env vars (http://localhost:8069, odoo_dev, admin)
+- Human verified all 6 MCP tools against live Odoo dev instance: check_connection (uid=2), list_models (account.account, res.partner, etc.), get_model_fields (field metadata with ttype), list_installed_modules (versions), check_module_dependency (sale confirmed installed), get_view_arch (real XML view architecture)
 
 ## Task Commits
 
 Each task was committed atomically:
 
 1. **Task 1: Create MCP entry point and Claude Code configuration** - `8a30959` (feat)
-2. **Task 2: Verify MCP server and configuration end-to-end** - checkpoint pending human verification
+2. **Task 2: Verify MCP server and configuration end-to-end** - human-verify checkpoint APPROVED
 
-**Plan metadata:** (final commit pending checkpoint approval)
+**Plan metadata:** Final commit included in docs commit for plan completion.
 
 ## Files Created/Modified
 

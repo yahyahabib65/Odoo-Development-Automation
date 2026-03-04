@@ -88,8 +88,8 @@ Plans:
 **Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 16-01-PLAN.md — OdooClient wrapper + MCP server with 6 tools + unit tests (TDD)
-- [ ] 16-02-PLAN.md — Claude Code MCP configuration + live instance verification checkpoint
+- [x] 16-01-PLAN.md — OdooClient wrapper + MCP server with 6 tools + unit tests (TDD)
+- [x] 16-02-PLAN.md — Claude Code MCP configuration + live instance verification checkpoint
 
 ### Phase 17: Inline Environment Verification
 **Goal**: Model and view generation agents verify inheritance chains, field references, and view targets against the live Odoo instance during generation, catching errors at source instead of during Docker validation
