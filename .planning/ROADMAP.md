@@ -53,13 +53,21 @@
 - [x] Phase 16: Odoo MCP Server (2/2 plans) — completed 2026-03-04
 - [x] Phase 17: Inline Environment Verification (2/2 plans) — completed 2026-03-04
 
-**Total:** 3 phases, 6 plans, 5 requirements | 18 commits | 2/2 | Complete    | 2026-03-04 | Milestone | Plans Complete | Status | Completed |
-|-------|-----------|----------------|--------|-----------|
-| 15. Odoo Dev Instance | v2.0 | 2/2 | Complete | 2026-03-04 |
-| 16. Odoo MCP Server | v2.0 | 2/2 | Complete | 2026-03-04 |
-| 17. Inline Environment Verification | v2.0 | Complete    | 2026-03-04 | 2026-03-04 |
-| 18. Auto-Fix Hardening | v2.1 | 0/2 | Planned | - |
-| 19. Enhancements | v2.1 | 0/? | Pending | - |
+</details>
+
+### v2.1 Auto-Fix & Enhancements (Phases 18-19)
+
+- [x] **Phase 18: Auto-Fix Hardening** (2/2 plans) — completed 2026-03-04
+  - **Goal:** Docker auto-fix pipeline + configurable iteration caps + integration tests
+  - **Requirements:** [DFIX-01, AFIX-01, AFIX-02]
+
+- [ ] **Phase 19: Enhancements** (0/3 plans)
+  - **Goal:** Context7 MCP integration for live Odoo docs + artifact state tracking for generation pipeline observability
+  - **Requirements:** [MCP-05, OBS-01]
+  - **Plans:** 3 plans
+    - [ ] 19-01-PLAN.md — TDD Context7 REST client (MCP-05)
+    - [ ] 19-02-PLAN.md — TDD artifact state tracker core (OBS-01)
+    - [ ] 19-03-PLAN.md — Integration wiring (CLI + renderer + integration tests)
 
 ---
 *Roadmap created: 2026-03-01*
@@ -69,3 +77,4 @@
 *v2.0 roadmap added: 2026-03-04*
 *v2.0 shipped: 2026-03-04*
 *v2.1 started: 2026-03-04*
+*Phase 19 planned: 2026-03-04*
