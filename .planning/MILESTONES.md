@@ -1,5 +1,21 @@
 # Milestones
 
+## v2.0 Environment-Aware Generation (Shipped: 2026-03-04)
+
+**Phases completed:** 3 phases (15-17), 6 plans | 18 commits | +1,200 net LOC Python
+**Timeline:** 2026-03-04 (1 day)
+**Tests:** 381 passing (up from 309)
+
+**Key accomplishments:**
+1. Docker Compose Odoo 17 CE dev environment with PostgreSQL, management script (odoo-dev.sh), and XML-RPC access
+2. FastMCP server with 6 introspection tools: list_models, get_model_fields, list_installed_modules, check_module_dependency, get_view_arch, check_connection
+3. OdooClient XML-RPC wrapper with lazy auth, frozen OdooConfig, and graceful error handling
+4. EnvironmentVerifier with 5 inline checks: model inheritance, relational comodels, field overrides, view fields, view inherit targets
+5. Verification wired into render_module() and CLI — non-blocking warnings on stderr, generation proceeds normally
+6. Graceful degradation: when Odoo/MCP unavailable, falls back to static generation with no errors
+
+---
+
 ## v1.2 Template Quality (Shipped: 2026-03-04)
 
 **Phases completed:** 3 phases (12-14), 4 plans | 29 commits | +3,550 net LOC Python

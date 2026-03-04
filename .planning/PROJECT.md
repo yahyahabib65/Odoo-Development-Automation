@@ -8,23 +8,24 @@ A domain-specific extension of the GSD (Get Shit Done) framework that automates 
 
 ## Current State
 
-**Shipped:** v1.2 (2026-03-04) — Template Quality
-- 14 phases total across 3 milestones, 34 plans, 168+ commits over 4 days
-- 10,999 LOC Python, 309 tests passing
-- 8 agents, 13 knowledge files, 24 Jinja2 templates, 12 commands
-- Template correctness verified: mail.thread auto-inheritance, conditional imports, clean manifests
-- Golden path E2E regression test: render → Docker install → Docker test execution
-- Auto-fix pipeline fully wired: pylint W0611 + Docker missing_mail_thread dispatch
+**Shipped:** v2.0 (2026-03-04) — Environment-Aware Generation
+- 17 phases total across 4 milestones, 40 plans, 197+ commits over 4 days
+- MCP server with 6 tools for live Odoo introspection (XML-RPC)
+- EnvironmentVerifier: inline model/view verification during generation
+- Docker Compose dev environment with Odoo 17 CE + PostgreSQL
+- 381 tests passing, 11,000+ LOC Python
 - See: `.planning/MILESTONES.md` for full history
 
-**In Progress:** v2.0 — Environment-Aware Generation
-- Core thesis: "generate then validate" → "verify as you generate" via MCP
-- Odoo MCP server integrated into odoo-gen (XML-RPC to live Odoo instance)
-- Inline environment verification during generation (not batch at end)
+## Current Milestone: v2.1 Auto-Fix & Enhancements
+
+**Goal:** Harden the auto-fix pipeline to handle all common Docker error patterns with bounded iterations, add Context7 MCP for live docs, and introduce generation pipeline observability.
+
+**Target features:**
+- Expanded Docker fix patterns (5/5 error types handled)
+- Bounded auto-fix iterations (cap loops, escalate to human)
+- CLI --auto-fix integration test (end-to-end verification)
 - Context7 MCP for live Odoo documentation
-- Expanded Docker fix patterns (5/5 error types)
-- Bounded auto-fix iterations + CLI --auto-fix integration test
-- Generation pipeline observability
+- Generation pipeline observability (artifact state tracking)
 
 ## Core Value
 
@@ -103,7 +104,16 @@ Layer 4: AI Coding Assistant (USER'S ENVIRONMENT)
 - Golden path E2E test catches template regressions (render → Docker install → test) — v1.2
 - Auto-fix functions wired into CLI runtime (run_docker_fix_loop + pylint W0611) — v1.2
 
-### Active (v2.0 — Environment-Aware Generation)
+### Validated (cont.)
+
+**Environment-Aware Generation (v2.0):**
+- Odoo dev instance via Docker Compose (XML-RPC accessible, data persists) — v2.0
+- MCP server with 6 tools: list_models, get_model_fields, list_installed_modules, check_module_dependency, get_view_arch, check_connection — v2.0
+- Inline model verification: _inherit, relational comodels, field overrides checked against live instance — v2.0
+- Inline view verification: field references and inherited view targets checked against live instance — v2.0
+- Graceful degradation when MCP/Odoo unavailable (warnings, not blocks) — v2.0
+
+### Active (v2.1 — Auto-Fix & Enhancements)
 
 See: `.planning/REQUIREMENTS.md` for full requirement IDs and acceptance criteria
 
@@ -119,7 +129,7 @@ See: `.planning/REQUIREMENTS.md` for full requirement IDs and acceptance criteri
 
 ## Context
 
-- v2.0 in progress — environment-aware generation via MCP integration
+- v2.0 shipped 2026-03-04 — environment-aware generation via MCP (Phases 15-17)
 - v1.2 shipped 2026-03-04 — template correctness, golden path E2E, auto-fix dispatch wiring
 - v1.1 shipped 2026-03-03 — GitHub auth, dependency cleanup, live Docker testing, field string= i18n
 - v1.0 shipped 2026-03-03 with 4,150 LOC Python, 243 tests, and full pipeline coverage
@@ -127,7 +137,7 @@ See: `.planning/REQUIREMENTS.md` for full requirement IDs and acceptance criteri
 - 8 specialized agents: odoo-scaffold, odoo-model-gen, odoo-view-gen, odoo-test-gen, odoo-security-gen, odoo-validator, odoo-search, odoo-extend
 - 12 user commands via /odoo-gen:* prefix (new, validate, search, plan, extend, etc.)
 - 13 knowledge base files covering Odoo 17.0/18.0 OCA standards
-- v2.0 adds: MCP server (XML-RPC), inline verification, Context7, expanded Docker fixes
+- v2.1 adds: Expanded Docker fixes, bounded iterations, Context7, observability
 - Remaining tech debt: CLI --auto-fix path has no integration test, FIXABLE_DOCKER_PATTERNS handles 1/5 patterns
 - Distribution: users clone into `~/.claude/odoo-gen/` and run `install.sh`
 
@@ -181,4 +191,4 @@ See: `.planning/REQUIREMENTS.md` for full requirement IDs and acceptance criteri
 | **Context7** | INTEGRATE | Live documentation MCP for real-time Odoo API reference |
 
 ---
-*Last updated: 2026-03-04 — v2.0 Environment-Aware Generation in progress*
+*Last updated: 2026-03-04 — v2.1 Auto-Fix & Enhancements started*
