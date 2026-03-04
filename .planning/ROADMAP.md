@@ -101,7 +101,11 @@ Plans:
   3. Verification mismatches produce warnings with suggested corrections (not hard blocks) so generation can proceed
   4. When the MCP server is unavailable, generation falls back to current static behavior with no errors
   5. Integration tests demonstrate: (a) model inheriting hr.employee triggers MCP checks, (b) view referencing non-existent field triggers a warning
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 17-01-PLAN.md — EnvironmentVerifier + VerificationWarning (TDD) + renderer.py wiring + caller updates
+- [ ] 17-02-PLAN.md — Docker integration tests (live Odoo) + CLI warning output checkpoint
 
 ### Phase 18: Auto-Fix Hardening
 **Goal**: The auto-fix pipeline handles all 5 common Docker error patterns and has bounded iteration caps so failures escalate to human review instead of looping forever
@@ -131,7 +135,7 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 15. Odoo Dev Instance | v2.0 | 2/2 | Complete | 2026-03-04 |
 | 16. Odoo MCP Server | 2/2 | Complete    | 2026-03-04 | - |
-| 17. Inline Environment Verification | v2.0 | 0/? | Not started | - |
+| 17. Inline Environment Verification | v2.0 | 0/2 | Planned | - |
 | 18. Auto-Fix Hardening | v2.1 | 0/? | Deferred | - |
 | 19. Enhancements | v2.1 | 0/? | Deferred | - |
 
