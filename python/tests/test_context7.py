@@ -247,3 +247,25 @@ class TestContext7GetHelper:
         call_args = mock_urlopen.call_args
         request = call_args[0][0]
         assert not request.has_header("Authorization")
+
+
+# ---------------------------------------------------------------------------
+# Integration: KB is primary, Context7 supplements
+# ---------------------------------------------------------------------------
+
+
+class TestKBPrimaryContext7Supplementary:
+    """Integration test: knowledge base is primary, Context7 supplements."""
+
+    def test_kb_primary_context7_supplementary(self) -> None:
+        """Verify that generation works without Context7 -- KB is sole source."""
+        from odoo_gen_utils.context7 import build_context7_from_env
+
+        # Ensure CONTEXT7_API_KEY is not set
+        env = {k: v for k, v in os.environ.items() if k != "CONTEXT7_API_KEY"}
+        with patch.dict(os.environ, env, clear=True):
+            client = build_context7_from_env()
+            assert not client.is_configured
+            assert client.query_docs("mail.thread") == []
+            # This verifies the system degrades gracefully -- knowledge base
+            # would be the sole source in the real pipeline

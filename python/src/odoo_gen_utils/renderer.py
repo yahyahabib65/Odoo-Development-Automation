@@ -363,6 +363,18 @@ def render_module(
     created_files: list[Path] = []
     all_warnings: list = []
 
+    # --- Artifact state tracking (OBS-01) ---
+    try:
+        from odoo_gen_utils.artifact_state import (
+            ArtifactKind,
+            ArtifactStatus,
+            ModuleState,
+            save_state,
+        )
+        _state: ModuleState | None = ModuleState(module_name=module_name)
+    except Exception:
+        _state = None
+
     models = spec.get("models", [])
     spec_wizards = spec.get("wizards", [])
     has_wizards = bool(spec_wizards)
@@ -438,6 +450,16 @@ def render_module(
     created_files.append(
         render_template(env, "manifest.py.j2", module_dir / "__manifest__.py", module_context)
     )
+    if _state is not None:
+        try:
+            _state = _state.transition(
+                kind=ArtifactKind.MANIFEST.value,
+                name="__manifest__",
+                file_path="__manifest__.py",
+                new_status=ArtifactStatus.GENERATED.value,
+            )
+        except Exception:
+            pass  # State tracking must never block generation
 
     # 2. Root __init__.py (conditionally imports wizards)
     created_files.append(
@@ -462,11 +484,31 @@ def render_module(
         created_files.append(
             render_template(env, "model.py.j2", module_dir / "models" / f"{model_var}.py", model_ctx)
         )
+        if _state is not None:
+            try:
+                _state = _state.transition(
+                    kind=ArtifactKind.MODEL.value,
+                    name=model["name"],
+                    file_path=str(created_files[-1].relative_to(module_dir)),
+                    new_status=ArtifactStatus.GENERATED.value,
+                )
+            except Exception:
+                pass  # State tracking must never block generation
 
         # views/<model_var>_views.xml (form + tree + search combined)
         created_files.append(
             render_template(env, "view_form.xml.j2", module_dir / "views" / f"{model_var}_views.xml", model_ctx)
         )
+        if _state is not None:
+            try:
+                _state = _state.transition(
+                    kind=ArtifactKind.VIEW.value,
+                    name=model["name"],
+                    file_path=str(created_files[-1].relative_to(module_dir)),
+                    new_status=ArtifactStatus.GENERATED.value,
+                )
+            except Exception:
+                pass  # State tracking must never block generation
 
         # Inline environment verification (MCP-04): verify view field references.
         if verifier is not None:
@@ -492,6 +534,16 @@ def render_module(
     created_files.append(
         render_template(env, "access_csv.j2", module_dir / "security" / "ir.model.access.csv", module_context)
     )
+    if _state is not None:
+        try:
+            _state = _state.transition(
+                kind=ArtifactKind.SECURITY.value,
+                name="ir.model.access.csv",
+                file_path="security/ir.model.access.csv",
+                new_status=ArtifactStatus.GENERATED.value,
+            )
+        except Exception:
+            pass  # State tracking must never block generation
 
     # 7b. security/record_rules.xml (if any model has company_id field)
     if has_company_modules:
@@ -607,6 +659,16 @@ def render_module(
                 env, "test_model.py.j2", module_dir / "tests" / f"test_{model_var}.py", model_ctx
             )
         )
+        if _state is not None:
+            try:
+                _state = _state.transition(
+                    kind=ArtifactKind.TEST.value,
+                    name=model["name"],
+                    file_path=str(created_files[-1].relative_to(module_dir)),
+                    new_status=ArtifactStatus.GENERATED.value,
+                )
+            except Exception:
+                pass  # State tracking must never block generation
 
     # 13. demo/demo_data.xml
     created_files.append(
@@ -628,5 +690,12 @@ def render_module(
     created_files.append(
         render_template(env, "readme.rst.j2", module_dir / "README.rst", module_context)
     )
+
+    # --- Save artifact state (OBS-01) ---
+    if _state is not None:
+        try:
+            save_state(_state, module_dir)
+        except Exception:
+            pass  # State tracking must never block generation
 
     return created_files, all_warnings

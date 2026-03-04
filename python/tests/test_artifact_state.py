@@ -393,3 +393,54 @@ class TestFormatStateTable:
         assert "library_management" in output
         # Should not crash
         assert isinstance(output, str)
+
+
+# ---------------------------------------------------------------------------
+# Integration tests: render_module emits artifact states
+# ---------------------------------------------------------------------------
+
+
+class TestRenderModuleStateIntegration:
+    """Integration tests: render_module emits artifact states."""
+
+    def test_render_module_creates_state_file(self, tmp_path: Path) -> None:
+        """render_module() creates .odoo-gen-state.json sidecar."""
+        spec = {
+            "module_name": "test_state_mod",
+            "models": [{"name": "test.model", "fields": []}],
+        }
+        from odoo_gen_utils.renderer import get_template_dir, render_module
+
+        template_dir = get_template_dir()
+        files, warnings = render_module(spec, template_dir, tmp_path)
+        state_file = tmp_path / "test_state_mod" / ".odoo-gen-state.json"
+        assert state_file.exists(), "State sidecar file should be created"
+        data = json.loads(state_file.read_text())
+        assert data["module_name"] == "test_state_mod"
+        assert len(data["artifacts"]) > 0
+        # Check at least model and manifest artifacts tracked
+        kinds = {a["kind"] for a in data["artifacts"]}
+        assert "model" in kinds
+        assert "manifest" in kinds
+
+    def test_render_module_state_failure_does_not_block(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """If state tracking fails, render_module still succeeds."""
+        import odoo_gen_utils.artifact_state as ast_mod
+
+        def _exploding_transition(self: object, *args: object, **kwargs: object) -> None:
+            raise RuntimeError("State tracking exploded")
+
+        monkeypatch.setattr(ast_mod.ModuleState, "transition", _exploding_transition)
+
+        spec = {
+            "module_name": "test_no_block",
+            "models": [{"name": "test.model", "fields": []}],
+        }
+        from odoo_gen_utils.renderer import get_template_dir, render_module
+
+        template_dir = get_template_dir()
+        # Must not raise
+        files, warnings = render_module(spec, template_dir, tmp_path)
+        assert len(files) > 0, "Module files should still be created"
