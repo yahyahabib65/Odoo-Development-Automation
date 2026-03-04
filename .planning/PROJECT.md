@@ -8,21 +8,14 @@ A domain-specific extension of the GSD (Get Shit Done) framework that automates 
 
 ## Current State
 
-**Shipped:** v1.0 (2026-03-03) — Odoo Module Automation MVP
-- 9 phases, 26 plans, 139 commits over 3 days
-- 4,150 LOC Python, 243 tests passing
+**Shipped:** v1.2 (2026-03-04) — Template Quality
+- 14 phases total across 3 milestones, 34 plans, 168+ commits over 4 days
+- 10,999 LOC Python, 309 tests passing
 - 8 agents, 13 knowledge files, 24 Jinja2 templates, 12 commands
-- See: `.planning/MILESTONES.md` for details
-
-## Current Milestone: v1.2 Template Quality
-
-**Goal:** Fix template bugs that prevent generated modules from installing in Odoo, and build prevention infrastructure so template regressions are caught automatically.
-
-**Target features:**
-- Fix Jinja2 template bugs (mail.thread inheritance, conditional api import, superfluous manifest keys, unused test imports)
-- Golden path E2E test: render realistic spec → Docker install → run Odoo tests → assert pass
-- Expanded auto-fix: handle structural issues (missing model inheritance, wrong imports) not just pylint style
-- Knowledge base update: ensure agents know mail.thread/mail.activity.mixin rules when mail is in depends
+- Template correctness verified: mail.thread auto-inheritance, conditional imports, clean manifests
+- Golden path E2E regression test: render → Docker install → Docker test execution
+- Auto-fix pipeline fully wired: pylint W0611 + Docker missing_mail_thread dispatch
+- See: `.planning/MILESTONES.md` for full history
 
 ## Core Value
 
@@ -51,6 +44,7 @@ Layer 3: Python Utilities (BUILT BY US)
   - Docker-based Odoo 17 validation
   - ChromaDB semantic search index
   - Module structure analysis tools
+  - Auto-fix pipeline (pylint + Docker error dispatch)
 
 Layer 4: AI Coding Assistant (USER'S ENVIRONMENT)
   - Claude Code, Gemini, Codex, OpenCode, etc.
@@ -89,12 +83,20 @@ Layer 4: AI Coding Assistant (USER'S ENVIRONMENT)
 - System auto-fixes pylint/Docker failures before escalating to human — v1.0
 - System supports Odoo 17.0 (primary) and 18.0, CE and EE editions — v1.0
 
+**Template Quality (v1.2):**
+- Templates produce correct mail.thread inheritance when mail in depends — v1.2
+- Templates produce conditional api import (only when decorators used) — v1.2
+- Templates produce clean manifests (no superfluous keys) — v1.2
+- Templates produce clean test imports (no unused ValidationError) — v1.2
+- Auto-fix detects missing mail.thread and adds _inherit line — v1.2
+- Auto-fix detects and removes unused imports (AST-based) — v1.2
+- Knowledge base documents mail.thread rules and triple dependency — v1.2
+- Golden path E2E test catches template regressions (render → Docker install → test) — v1.2
+- Auto-fix functions wired into CLI runtime (run_docker_fix_loop + pylint W0611) — v1.2
+
 ### Active
 
-- Fix template bugs so generated modules install cleanly in Odoo 17.0/18.0
-- Golden path E2E test catches template regressions automatically
-- Auto-fix handles structural template issues (not just pylint style)
-- Knowledge base updated with mail.thread/mixin inheritance rules
+(None — planning next milestone)
 
 ### Out of Scope
 
@@ -108,13 +110,14 @@ Layer 4: AI Coding Assistant (USER'S ENVIRONMENT)
 
 ## Context
 
+- v1.2 shipped 2026-03-04 — template correctness, golden path E2E, auto-fix dispatch wiring
 - v1.1 shipped 2026-03-03 — GitHub auth, dependency cleanup, live Docker testing, field string= i18n
 - v1.0 shipped 2026-03-03 with 4,150 LOC Python, 243 tests, and full pipeline coverage
-- Tech stack: Python 3.12, Jinja2, Click CLI, pylint-odoo, ChromaDB, sentence-transformers, Docker
+- Tech stack: Python 3.12, Jinja2, Click CLI, pylint-odoo, ChromaDB, Docker
 - 8 specialized agents: odoo-scaffold, odoo-model-gen, odoo-view-gen, odoo-test-gen, odoo-security-gen, odoo-validator, odoo-search, odoo-extend
 - 12 user commands via /odoo-gen:* prefix (new, validate, search, plan, extend, etc.)
 - 13 knowledge base files covering Odoo 17.0/18.0 OCA standards
-- Known tech debt: 7 items (3 orphaned templates, gh CLI auth setup, Docker live testing, field string= i18n, missing Phase 9 VERIFICATION.md)
+- Remaining tech debt: CLI --auto-fix path has no integration test, FIXABLE_DOCKER_PATTERNS handles 1/5 patterns
 - Distribution: users clone into `~/.claude/odoo-gen/` and run `install.sh`
 
 ## Constraints
@@ -140,14 +143,15 @@ Layer 4: AI Coding Assistant (USER'S ENVIRONMENT)
 | Clone-based install (~/.claude/) | Same pattern as GSD, works with any AI coding assistant | Good — simple setup via install.sh |
 | Odoo 17.0 primary target | Stable, widely adopted, strong OCA support | Good — 18.0 added as secondary |
 | Fork-and-extend strategy | Leverage existing OCA/GitHub modules as foundation | Good — ChromaDB search + companion _ext modules |
-| Semantic search (ChromaDB + sentence-transformers) | Intent-based matching, not just keywords | Good — requires PyTorch (~2GB), CPU-only configured |
+| Semantic search (ChromaDB) | Intent-based matching, not just keywords | Good — uses built-in ONNX embedding (no PyTorch) |
 | Python 3.12 for utilities | Odoo 17 supports 3.10-3.12 only; 3.13+ breaks validation | Good — uv venv isolation works |
 | Checkpoint-based human review | GSD provides the mechanism; we wire Odoo-specific checkpoints | Good — 3 checkpoints in generate.md |
 | OCA quality as the bar | pylint-odoo, i18n, full security, tests | Good — auto-fix loops reduce manual work |
-| Docker for validation | Only way to truly verify module installs and tests pass | Partial — all tests mock subprocess, no live testing yet |
-| UI UX Pro Max Skill pattern | Reasoning engine + hierarchical system + rule library | Good — knowledge base architecture follows this |
+| Docker for validation | Only way to truly verify module installs and tests pass | Good — live Docker tests verify real installation |
 | Jinja2 deterministic + AI enrichment | Structural files via templates, business logic via agents | Good — hybrid approach prevents hallucinations |
 | Version-aware template fallback | FileSystemLoader([version_dir, shared_dir]) | Good — clean 17.0/18.0 separation |
+| AST-based import analysis | More reliable than regex for complex Python imports | Good — precise unused import detection |
+| Immutable read-transform-write | Read file → create new content → compare → write if changed | Good — safe auto-fix pattern |
 
 ## Prior Art
 
@@ -161,8 +165,6 @@ Layer 4: AI Coding Assistant (USER'S ENVIRONMENT)
 | **LangExtract** (Google) | REFERENCE | Source-grounded extraction → informs spec parsing approach |
 | **Agent Lightning** (Microsoft) | FUTURE | RL-based agent optimization → v2+ when we have agents to optimize |
 | **Gemini-Odoo-Module-Generator** | COMPETITOR | Single-agent Gemini CLI → baseline we must exceed |
-| **Ruflo** (ruvnet) | SKIP | Over-engineered for our needs (60+ agents, Byzantine consensus) |
-| **LobeHub** | SKIP | Web chat platform, different product category |
 
 ---
-*Last updated: 2026-03-03 after v1.1 milestone — starting v1.2 Template Quality*
+*Last updated: 2026-03-04 after v1.2 milestone — all milestones shipped*

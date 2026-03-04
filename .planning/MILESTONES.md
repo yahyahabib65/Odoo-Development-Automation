@@ -1,5 +1,20 @@
 # Milestones
 
+## v1.2 Template Quality (Shipped: 2026-03-04)
+
+**Phases completed:** 3 phases (12-14), 4 plans | 29 commits | +3,550 net LOC Python
+**Timeline:** 2026-03-03 to 2026-03-04 (2 days)
+**Tests:** 309 passing (up from 243)
+
+**Key accomplishments:**
+1. Fixed 4 template correctness bugs: mail.thread auto-inheritance, conditional api import, clean manifest (no superfluous keys), clean test imports (no unused ValidationError)
+2. AST-based auto-fix for missing mail.thread inheritance (scans XML for chatter indicators) and unused imports (api, ValidationError)
+3. Golden path E2E regression test: renders realistic module spec → Docker installs → Docker test execution, catching template regressions automatically
+4. Wired orphaned auto-fix functions into CLI runtime via run_docker_fix_loop dispatch and extended pylint fix loop for W0611
+5. Knowledge base updated with mail.thread inheritance rules and triple dependency (mail depends + model inherit + chatter view)
+
+---
+
 ## v1.0 Odoo Module Automation MVP (Shipped: 2026-03-03)
 
 **Phases completed:** 9 phases, 26 plans | 139 commits | 4,150 LOC Python
