@@ -14,8 +14,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+mcp = [
+    "mcp>=1.9",
+]
 test = [
     "pytest>=8.0",
+    "pytest-asyncio>=0.23",
 ]
 search = [
     "chromadb>=1.5",
@@ -35,6 +39,7 @@ line-length = 120
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"
 norecursedirs = ["tests/fixtures/docker_test_module"]
 markers = [
     "e2e: End-to-end tests hitting real external services (GitHub API, ChromaDB). Skipped without GITHUB_TOKEN.",
