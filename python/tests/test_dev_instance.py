@@ -9,12 +9,22 @@ from __future__ import annotations
 import ast
 import os
 import subprocess
+import urllib.request
+import xmlrpc.client
 from pathlib import Path
 
 import pytest
 
+from odoo_gen_utils.validation.docker_runner import check_docker_available
+
 # Project root: two parents up from tests/ dir
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+# Docker skip decorator (same pattern as test_docker_integration.py)
+skip_no_docker = pytest.mark.skipif(
+    not check_docker_available(),
+    reason="Docker daemon not available -- skipping Docker integration tests",
+)
 
 # ---------------------------------------------------------------------------
 # Unit tests: Config file validation (no Docker needed)
@@ -168,3 +178,182 @@ class TestManagementScript:
             assert mod in content, (
                 f"verify-odoo-dev.py missing reference to required module: {mod}"
             )
+
+
+# ---------------------------------------------------------------------------
+# Docker integration tests: Live instance verification
+# ---------------------------------------------------------------------------
+
+# XML-RPC connection defaults (matching docker/dev/.env)
+_ODOO_DEV_PORT = os.environ.get("ODOO_DEV_PORT", "8069")
+_ODOO_URL = f"http://localhost:{_ODOO_DEV_PORT}"
+_ODOO_DB = os.environ.get("ODOO_DEV_DB", "odoo_dev")
+_ODOO_USER = "admin"
+_ODOO_PASSWORD = "admin"
+
+
+def _wait_for_health(url: str, timeout: int = 120) -> bool:
+    """Poll the Odoo health endpoint until it responds or timeout."""
+    import time
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            resp = urllib.request.urlopen(f"{url}/web/health", timeout=5)
+            if resp.status == 200:
+                return True
+        except Exception:  # noqa: BLE001
+            pass
+        time.sleep(3)
+    return False
+
+
+def _xmlrpc_auth(
+    url: str = _ODOO_URL,
+    db: str = _ODOO_DB,
+    username: str = _ODOO_USER,
+    password: str = _ODOO_PASSWORD,
+) -> tuple[int, xmlrpc.client.ServerProxy]:
+    """Authenticate via XML-RPC, returning (uid, models_proxy)."""
+    common = xmlrpc.client.ServerProxy(f"{url}/xmlrpc/2/common")
+    uid = common.authenticate(db, username, password, {})
+    assert uid, f"XML-RPC authentication failed for {username}@{db}"
+    models = xmlrpc.client.ServerProxy(f"{url}/xmlrpc/2/object")
+    return uid, models
+
+
+@pytest.fixture(scope="class")
+def dev_instance():
+    """Start the Odoo dev instance, yield its URL, then stop it.
+
+    Uses scripts/odoo-dev.sh for lifecycle management.
+    Class-scoped so all tests in TestDevInstanceDocker share one startup cycle.
+    """
+    script = PROJECT_ROOT / "scripts" / "odoo-dev.sh"
+
+    # Start the instance
+    result = subprocess.run(
+        [str(script), "start"],
+        cwd=str(PROJECT_ROOT),
+        capture_output=True,
+        timeout=300,
+    )
+    assert result.returncode == 0, (
+        f"odoo-dev.sh start failed:\n{result.stderr.decode()}"
+    )
+
+    # Wait for health
+    url = _ODOO_URL
+    healthy = _wait_for_health(url, timeout=120)
+    assert healthy, f"Odoo dev instance did not become healthy at {url}"
+
+    yield url
+
+    # Teardown: stop (not reset -- preserve data between runs)
+    subprocess.run(
+        [str(script), "stop"],
+        cwd=str(PROJECT_ROOT),
+        capture_output=True,
+        timeout=60,
+    )
+
+
+class TestDevInstanceDocker:
+    """Integration tests requiring Docker daemon.
+
+    All tests use @pytest.mark.docker and @skip_no_docker decorators.
+    """
+
+    @pytest.mark.docker
+    @skip_no_docker
+    @pytest.mark.timeout(120)
+    def test_compose_starts_instance(self, dev_instance: str) -> None:
+        """Dev instance should start and respond to health endpoint."""
+        resp = urllib.request.urlopen(f"{dev_instance}/web/health", timeout=10)
+        assert resp.status == 200, f"Health check failed with status {resp.status}"
+
+    @pytest.mark.docker
+    @skip_no_docker
+    @pytest.mark.timeout(120)
+    def test_xmlrpc_connectivity(self, dev_instance: str) -> None:
+        """XML-RPC authenticate as admin and query ir.model."""
+        uid, models = _xmlrpc_auth(url=dev_instance)
+        assert uid, "Expected truthy uid from authentication"
+
+        count = models.execute_kw(
+            _ODOO_DB, uid, _ODOO_PASSWORD,
+            "ir.model", "search_count", [[]],
+        )
+        assert count > 0, f"Expected ir.model count > 0, got {count}"
+
+    @pytest.mark.docker
+    @skip_no_docker
+    @pytest.mark.timeout(120)
+    def test_required_modules_installed(self, dev_instance: str) -> None:
+        """All 6 required modules must have state=installed."""
+        uid, models = _xmlrpc_auth(url=dev_instance)
+
+        installed = models.execute_kw(
+            _ODOO_DB, uid, _ODOO_PASSWORD,
+            "ir.module.module", "search_read",
+            [[["state", "=", "installed"]]],
+            {"fields": ["name"]},
+        )
+        installed_names = {m["name"] for m in installed}
+        required = {"base", "mail", "sale", "purchase", "hr", "account"}
+        missing = required - installed_names
+
+        assert not missing, f"Missing required modules: {missing}"
+
+    @pytest.mark.docker
+    @skip_no_docker
+    @pytest.mark.timeout(180)
+    def test_data_persistence(self, dev_instance: str) -> None:
+        """Data must survive stop/start cycle (named volumes)."""
+        script = PROJECT_ROOT / "scripts" / "odoo-dev.sh"
+
+        # Create a test partner
+        uid, models = _xmlrpc_auth(url=dev_instance)
+        partner_id = models.execute_kw(
+            _ODOO_DB, uid, _ODOO_PASSWORD,
+            "res.partner", "create",
+            [{"name": "odoo-gen-test-persistence"}],
+        )
+        assert partner_id, "Failed to create test partner"
+
+        # Stop the instance
+        result = subprocess.run(
+            [str(script), "stop"],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            timeout=60,
+        )
+        assert result.returncode == 0, "odoo-dev.sh stop failed"
+
+        # Re-start the instance
+        result = subprocess.run(
+            [str(script), "start"],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            timeout=300,
+        )
+        assert result.returncode == 0, "odoo-dev.sh start failed after stop"
+
+        # Wait for health
+        healthy = _wait_for_health(dev_instance, timeout=120)
+        assert healthy, "Instance did not become healthy after restart"
+
+        # Re-authenticate and search for the partner
+        uid2, models2 = _xmlrpc_auth(url=dev_instance)
+        found = models2.execute_kw(
+            _ODOO_DB, uid2, _ODOO_PASSWORD,
+            "res.partner", "search",
+            [[["name", "=", "odoo-gen-test-persistence"]]],
+        )
+        assert len(found) > 0, "Test partner did not persist across stop/start"
+
+        # Clean up: remove the test partner
+        models2.execute_kw(
+            _ODOO_DB, uid2, _ODOO_PASSWORD,
+            "res.partner", "unlink", [found],
+        )
