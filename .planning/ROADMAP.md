@@ -101,7 +101,7 @@ Plans:
   3. Verification mismatches produce warnings with suggested corrections (not hard blocks) so generation can proceed
   4. When the MCP server is unavailable, generation falls back to current static behavior with no errors
   5. Integration tests demonstrate: (a) model inheriting hr.employee triggers MCP checks, (b) view referencing non-existent field triggers a warning
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 - [ ] 17-01-PLAN.md — EnvironmentVerifier + VerificationWarning (TDD) + renderer.py wiring + caller updates
@@ -135,7 +135,7 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 15. Odoo Dev Instance | v2.0 | 2/2 | Complete | 2026-03-04 |
 | 16. Odoo MCP Server | 2/2 | Complete    | 2026-03-04 | - |
-| 17. Inline Environment Verification | v2.0 | 0/2 | Planned | - |
+| 17. Inline Environment Verification | 1/2 | In Progress|  | - |
 | 18. Auto-Fix Hardening | v2.1 | 0/? | Deferred | - |
 | 19. Enhancements | v2.1 | 0/? | Deferred | - |
 

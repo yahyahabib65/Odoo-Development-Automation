@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Environment-Aware Generation
 status: verifying
-stopped_at: Completed 16-02-PLAN.md - Phase 16 fully complete
-last_updated: "2026-03-04T14:00:29.569Z"
+stopped_at: Completed 17-01-PLAN.md - Phase 17 plan 01 complete (EnvironmentVerifier + render_module tuple)
+last_updated: "2026-03-04T14:42:09.718Z"
 last_activity: 2026-03-04 — Plan 16-02 complete (MCP config verified by human against live Odoo instance, all 6 tools confirmed working)
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
+  total_plans: 6
+  completed_plans: 5
   percent: 67
 ---
 
@@ -27,12 +27,12 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 ## Current Position
 
 Milestone: v2.0 Environment-Aware Generation
-Phase: 16 of 19 (Odoo MCP Server) — COMPLETE
-Plan: 2 of 2 in current phase (ALL COMPLETE)
-Status: Phase 16 fully complete; Phase 17 (Inline Environment Verification) is next
-Last activity: 2026-03-04 — Plan 16-02 complete (MCP config verified by human against live Odoo instance, all 6 tools confirmed working)
+Phase: 17 of 19 (Inline Environment Verification) — Plan 01 complete
+Plan: 1 of 1 in current phase (ALL COMPLETE)
+Status: Phase 17 plan 01 complete; MCP-03 and MCP-04 requirements satisfied
+Last activity: 2026-03-04 — Plan 17-01 complete (EnvironmentVerifier implemented, render_module returns tuple, 381 tests green)
 
-Progress: [███████___] 67%
+Progress: [█████████░] 90%
 
 ## Key Decisions (v2.0)
 
@@ -50,6 +50,9 @@ Progress: [███████___] 67%
 - Fixture teardown uses stop (not reset) to preserve data between test runs
 - MCP test strategy: FastMCP direct call_tool()/list_tools() instead of in-memory Client (mcp package v1.26.0 has no Client class at top level)
 - asyncio_mode=auto in pyproject.toml eliminates per-test async markers for MCP tests
+- Lazy OdooClient import in build_verifier_from_env avoids circular imports and keeps cold import fast
+- TYPE_CHECKING guard in renderer.py prevents circular import between verifier.py and renderer.py
+- render_module() returns tuple[list[Path], list[VerificationWarning]] -- backward-compatible (verifier defaults to None)
 
 ## Blockers/Concerns
 
@@ -63,10 +66,11 @@ None yet.
 | 15 | 02 | 3min | 2 | 1 |
 | 16 | 01 | 4min | 2 | 6 |
 | 16 | 02 | 3min | 2 | 1 |
+| 17 | 01 | 4min | 2 | 5 |
 
 ## Session Continuity
 
-Last session: 2026-03-04T13:56:06.889Z
-Stopped at: Completed 16-02-PLAN.md - Phase 16 fully complete
+Last session: 2026-03-04T14:42:09.716Z
+Stopped at: Completed 17-01-PLAN.md - Phase 17 plan 01 complete (EnvironmentVerifier + render_module tuple)
 Resume file: None
 Next step: Phase 17 — Inline Environment Verification (MCP-03, MCP-04)
