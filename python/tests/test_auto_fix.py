@@ -896,3 +896,322 @@ class TestPylintFixLoopUnusedImports:
 
             content = model_file.read_text(encoding="utf-8")
             assert "ValidationError" not in content
+
+
+# ---------------------------------------------------------------------------
+# fix_xml_parse_error -- Docker fix for mismatched XML tags
+# ---------------------------------------------------------------------------
+
+
+class TestFixXmlParseError:
+    """fix_xml_parse_error detects and fixes mismatched closing tags in XML."""
+
+    def _make_module(self, tmp_path: Path, xml_content: str) -> Path:
+        """Helper: create a module with views/model_views.xml."""
+        module_dir = tmp_path / "test_module"
+        (module_dir / "views").mkdir(parents=True)
+        (module_dir / "views" / "model_views.xml").write_text(
+            textwrap.dedent(xml_content), encoding="utf-8"
+        )
+        return module_dir
+
+    def test_fixes_mismatched_closing_tag(self, tmp_path: Path):
+        """Mismatched closing tag <fom> instead of <form> is detected and fixed."""
+        from odoo_gen_utils.auto_fix import fix_xml_parse_error
+
+        xml = """\
+            <?xml version="1.0" encoding="UTF-8"?>
+            <odoo>
+                <record id="view_form" model="ir.ui.view">
+                    <field name="arch" type="xml">
+                        <form>
+                            <sheet><group><field name="name"/></group></sheet>
+                        </fom>
+                    </field>
+                </record>
+            </odoo>
+        """
+        module_dir = self._make_module(tmp_path, xml)
+        error_output = (
+            'lxml.etree.XMLSyntaxError: Opening and ending tag mismatch: '
+            'form line 5 and fom, line 7, column 27 '
+            f'(views/model_views.xml, line 7)'
+        )
+        result = fix_xml_parse_error(module_dir, error_output)
+        assert result is True
+
+        content = (module_dir / "views" / "model_views.xml").read_text(encoding="utf-8")
+        assert "</fom>" not in content
+        assert "</form>" in content
+
+    def test_well_formed_xml_returns_false(self, tmp_path: Path):
+        """Well-formed XML returns False (no change needed)."""
+        from odoo_gen_utils.auto_fix import fix_xml_parse_error
+
+        xml = """\
+            <?xml version="1.0" encoding="UTF-8"?>
+            <odoo>
+                <record id="view_form" model="ir.ui.view">
+                    <field name="arch" type="xml">
+                        <form>
+                            <sheet><group><field name="name"/></group></sheet>
+                        </form>
+                    </field>
+                </record>
+            </odoo>
+        """
+        module_dir = self._make_module(tmp_path, xml)
+        error_output = "Some error referencing views/model_views.xml"
+        result = fix_xml_parse_error(module_dir, error_output)
+        assert result is False
+
+
+# ---------------------------------------------------------------------------
+# fix_missing_acl -- Docker fix for missing ir.model.access.csv
+# ---------------------------------------------------------------------------
+
+
+class TestFixMissingAcl:
+    """fix_missing_acl creates security/ir.model.access.csv for missing models."""
+
+    def _make_module(self, tmp_path: Path, *, has_csv: bool = False, csv_content: str = "") -> Path:
+        """Helper: create a module with models/ and optionally security/."""
+        module_dir = tmp_path / "test_module"
+        (module_dir / "models").mkdir(parents=True)
+        (module_dir / "models" / "__init__.py").write_text(
+            "from . import my_model\n", encoding="utf-8"
+        )
+        (module_dir / "models" / "my_model.py").write_text(textwrap.dedent("""\
+            from odoo import fields, models
+
+            class MyModel(models.Model):
+                _name = "my.model"
+                _description = "My Model"
+
+                name = fields.Char(required=True)
+        """), encoding="utf-8")
+        (module_dir / "__manifest__.py").write_text(textwrap.dedent("""\
+            {
+                "name": "Test Module",
+                "version": "17.0.1.0.0",
+                "license": "LGPL-3",
+                "depends": ["base"],
+                "data": [],
+            }
+        """), encoding="utf-8")
+        if has_csv:
+            (module_dir / "security").mkdir(parents=True, exist_ok=True)
+            (module_dir / "security" / "ir.model.access.csv").write_text(
+                csv_content, encoding="utf-8"
+            )
+        return module_dir
+
+    def test_creates_csv_when_missing(self, tmp_path: Path):
+        """Creates security/ir.model.access.csv with access rule when missing."""
+        from odoo_gen_utils.auto_fix import fix_missing_acl
+
+        module_dir = self._make_module(tmp_path, has_csv=False)
+        error_output = "No access rule defined for model my.model ir.model.access"
+        result = fix_missing_acl(module_dir, error_output)
+        assert result is True
+
+        csv_path = module_dir / "security" / "ir.model.access.csv"
+        assert csv_path.exists()
+        content = csv_path.read_text(encoding="utf-8")
+        assert "id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink" in content
+        assert "access_my_model" in content
+        assert "model_my_model" in content
+
+    def test_returns_false_when_csv_has_model(self, tmp_path: Path):
+        """Returns False when ir.model.access.csv already has the model."""
+        from odoo_gen_utils.auto_fix import fix_missing_acl
+
+        csv_content = (
+            "id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink\n"
+            "access_my_model,access.my.model,model_my_model,base.group_user,1,1,1,0\n"
+        )
+        module_dir = self._make_module(tmp_path, has_csv=True, csv_content=csv_content)
+        error_output = "No access rule for model my.model"
+        result = fix_missing_acl(module_dir, error_output)
+        assert result is False
+
+    def test_manifest_updated_with_csv_path(self, tmp_path: Path):
+        """Manifest data list is updated to include security/ir.model.access.csv."""
+        from odoo_gen_utils.auto_fix import fix_missing_acl
+
+        module_dir = self._make_module(tmp_path, has_csv=False)
+        error_output = "No access rule for model ir.model.access"
+        fix_missing_acl(module_dir, error_output)
+
+        manifest_content = (module_dir / "__manifest__.py").read_text(encoding="utf-8")
+        assert "security/ir.model.access.csv" in manifest_content
+
+
+# ---------------------------------------------------------------------------
+# fix_manifest_load_order -- Docker fix for action/menu ordering
+# ---------------------------------------------------------------------------
+
+
+class TestFixManifestLoadOrder:
+    """fix_manifest_load_order reorders manifest data so actions precede menus."""
+
+    def _make_module(self, tmp_path: Path, data_files: list[str]) -> Path:
+        """Helper: create a module with __manifest__.py and view files."""
+        module_dir = tmp_path / "test_module"
+        (module_dir / "views").mkdir(parents=True)
+
+        # Create action file (defines actions)
+        (module_dir / "views" / "actions.xml").write_text(textwrap.dedent("""\
+            <odoo>
+                <record id="action_my_model" model="ir.actions.act_window">
+                    <field name="name">My Model</field>
+                    <field name="res_model">my.model</field>
+                    <field name="view_mode">list,form</field>
+                </record>
+            </odoo>
+        """), encoding="utf-8")
+
+        # Create menu file (references actions)
+        (module_dir / "views" / "menus.xml").write_text(textwrap.dedent("""\
+            <odoo>
+                <menuitem id="menu_my_model"
+                          name="My Model"
+                          action="action_my_model"
+                          parent="base.menu_custom"/>
+            </odoo>
+        """), encoding="utf-8")
+
+        manifest_data = repr(data_files)
+        (module_dir / "__manifest__.py").write_text(textwrap.dedent(f"""\
+            {{
+                "name": "Test Module",
+                "version": "17.0.1.0.0",
+                "license": "LGPL-3",
+                "depends": ["base"],
+                "data": {manifest_data},
+            }}
+        """), encoding="utf-8")
+        return module_dir
+
+    def test_reorders_menus_after_actions(self, tmp_path: Path):
+        """Menus listed before actions get reordered so actions come first."""
+        from odoo_gen_utils.auto_fix import fix_manifest_load_order
+
+        # menus.xml before actions.xml -- wrong order
+        module_dir = self._make_module(tmp_path, ["views/menus.xml", "views/actions.xml"])
+        error_output = "External ID not found: action_my_model ir.actions.act_window does not exist"
+        result = fix_manifest_load_order(module_dir, error_output)
+        assert result is True
+
+        manifest_content = (module_dir / "__manifest__.py").read_text(encoding="utf-8")
+        actions_pos = manifest_content.index("actions.xml")
+        menus_pos = manifest_content.index("menus.xml")
+        assert actions_pos < menus_pos
+
+    def test_correct_order_returns_false(self, tmp_path: Path):
+        """Already correct order returns False."""
+        from odoo_gen_utils.auto_fix import fix_manifest_load_order
+
+        # actions.xml before menus.xml -- correct order
+        module_dir = self._make_module(tmp_path, ["views/actions.xml", "views/menus.xml"])
+        error_output = "External ID not found for action"
+        result = fix_manifest_load_order(module_dir, error_output)
+        assert result is False
+
+
+# ---------------------------------------------------------------------------
+# run_docker_fix_loop -- dispatch to new fix functions
+# ---------------------------------------------------------------------------
+
+
+class TestRunDockerFixLoopNewDispatch:
+    """run_docker_fix_loop dispatches to the 3 new Docker fix functions."""
+
+    def test_dispatches_xml_parse_error(self, tmp_path: Path):
+        """run_docker_fix_loop dispatches to fix_xml_parse_error for XML errors."""
+        from odoo_gen_utils.auto_fix import run_docker_fix_loop
+
+        module_dir = tmp_path / "test_module"
+        (module_dir / "views").mkdir(parents=True)
+        (module_dir / "views" / "model_views.xml").write_text(textwrap.dedent("""\
+            <?xml version="1.0" encoding="UTF-8"?>
+            <odoo>
+                <record id="view_form" model="ir.ui.view">
+                    <field name="arch" type="xml">
+                        <form>
+                            <sheet><group><field name="name"/></group></sheet>
+                        </fom>
+                    </field>
+                </record>
+            </odoo>
+        """), encoding="utf-8")
+
+        error_text = (
+            "lxml.etree.XMLSyntaxError: Opening and ending tag mismatch: "
+            "form line 5 and fom, line 7 (views/model_views.xml, line 7)"
+        )
+        result = run_docker_fix_loop(module_dir, error_text)
+        assert result is True
+
+    def test_dispatches_missing_acl(self, tmp_path: Path):
+        """run_docker_fix_loop dispatches to fix_missing_acl for ACL errors."""
+        from odoo_gen_utils.auto_fix import run_docker_fix_loop
+
+        module_dir = tmp_path / "test_module"
+        (module_dir / "models").mkdir(parents=True)
+        (module_dir / "models" / "__init__.py").write_text("from . import sale\n", encoding="utf-8")
+        (module_dir / "models" / "sale.py").write_text(textwrap.dedent("""\
+            from odoo import fields, models
+
+            class Sale(models.Model):
+                _name = "test.sale"
+                _description = "Test Sale"
+
+                name = fields.Char(required=True)
+        """), encoding="utf-8")
+        (module_dir / "__manifest__.py").write_text(textwrap.dedent("""\
+            {
+                "name": "Test",
+                "version": "17.0.1.0.0",
+                "license": "LGPL-3",
+                "depends": ["base"],
+                "data": [],
+            }
+        """), encoding="utf-8")
+
+        error_text = "No access rule defined for model test.sale. ir.model.access entry required."
+        result = run_docker_fix_loop(module_dir, error_text)
+        assert result is True
+
+    def test_dispatches_manifest_load_order(self, tmp_path: Path):
+        """run_docker_fix_loop dispatches to fix_manifest_load_order for action reference errors."""
+        from odoo_gen_utils.auto_fix import run_docker_fix_loop
+
+        module_dir = tmp_path / "test_module"
+        (module_dir / "views").mkdir(parents=True)
+        (module_dir / "views" / "actions.xml").write_text(textwrap.dedent("""\
+            <odoo>
+                <record id="action_test" model="ir.actions.act_window">
+                    <field name="name">Test</field>
+                    <field name="res_model">test.model</field>
+                </record>
+            </odoo>
+        """), encoding="utf-8")
+        (module_dir / "views" / "menus.xml").write_text(textwrap.dedent("""\
+            <odoo>
+                <menuitem id="menu_test" action="action_test"/>
+            </odoo>
+        """), encoding="utf-8")
+        (module_dir / "__manifest__.py").write_text(textwrap.dedent("""\
+            {
+                "name": "Test",
+                "version": "17.0.1.0.0",
+                "license": "LGPL-3",
+                "depends": ["base"],
+                "data": ["views/menus.xml", "views/actions.xml"],
+            }
+        """), encoding="utf-8")
+
+        error_text = "External ID not found: action_test. ir.actions.act_window does not exist"
+        result = run_docker_fix_loop(module_dir, error_text)
+        assert result is True
