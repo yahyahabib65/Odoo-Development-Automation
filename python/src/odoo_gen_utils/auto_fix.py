@@ -319,13 +319,30 @@ def run_pylint_fix_loop(
         if not violations:
             break
 
-        # Check if any are fixable
-        has_fixable = any(is_fixable_pylint(v) for v in violations)
+        # Handle W0611 (unused-import) via fix_unused_imports
+        w0611_violations = [v for v in violations if v.rule_code == "W0611"]
+        non_w0611 = tuple(v for v in violations if v.rule_code != "W0611")
+
+        if w0611_violations:
+            w0611_files = {v.file for v in w0611_violations}
+            for rel_file in w0611_files:
+                file_path = module_path / rel_file
+                if file_path.exists():
+                    if fix_unused_imports(file_path):
+                        total_fixed += sum(
+                            1 for v in w0611_violations if v.file == rel_file
+                        )
+
+        # Check if any remaining are fixable by pylint fixer
+        has_fixable = any(is_fixable_pylint(v) for v in non_w0611)
         if not has_fixable:
-            remaining = violations
+            remaining = non_w0611
+            if not w0611_violations:
+                break
+            # W0611 was handled; if nothing else fixable, stop
             break
 
-        cycle_fixed, remaining = fix_pylint_violations(violations, module_path)
+        cycle_fixed, remaining = fix_pylint_violations(non_w0611, module_path)
         total_fixed += cycle_fixed
 
         if cycle_fixed == 0:
@@ -499,6 +516,79 @@ def fix_missing_mail_thread(module_path: Path) -> bool:
 
     model_file.write_text(new_content, encoding="utf-8")
     return True
+
+
+# -------------------------------------------------------------------------
+# Docker auto-fix dispatch loop
+# -------------------------------------------------------------------------
+
+# Additional keyword patterns for pylint-reported unused imports
+_DOCKER_UNUSED_IMPORT_KEYWORDS: tuple[str, ...] = (
+    "unused-import",
+    "unused import",
+    "w0611",
+)
+
+
+def run_docker_fix_loop(module_path: Path, error_output: str) -> bool:
+    """Dispatch Docker error fixes based on error pattern identification.
+
+    Calls identify_docker_fix() to detect the error pattern, then dispatches
+    to the appropriate fix function. Also handles unused-import patterns
+    that may appear in Docker/pylint output.
+
+    Args:
+        module_path: Root path of the Odoo module.
+        error_output: The error text from Docker validation.
+
+    Returns:
+        True if a fix was applied, False otherwise.
+    """
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    if not error_output or not error_output.strip():
+        logger.debug("run_docker_fix_loop: empty error output, no fix needed")
+        return False
+
+    # Check for unused-import pattern first (not in Docker patterns)
+    error_lower = error_output.lower()
+    if any(kw in error_lower for kw in _DOCKER_UNUSED_IMPORT_KEYWORDS):
+        logger.info("run_docker_fix_loop: detected unused-import pattern")
+        models_dir = module_path / "models"
+        if models_dir.is_dir():
+            applied = False
+            for py_file in sorted(models_dir.glob("*.py")):
+                if py_file.name == "__init__.py":
+                    continue
+                if fix_unused_imports(py_file):
+                    logger.info("run_docker_fix_loop: fixed unused imports in %s", py_file)
+                    applied = True
+            if applied:
+                return True
+
+    # Standard Docker pattern identification
+    pattern_id = identify_docker_fix(error_output)
+
+    if pattern_id is None:
+        logger.debug("run_docker_fix_loop: no fixable pattern identified")
+        return False
+
+    logger.info("run_docker_fix_loop: detected pattern '%s'", pattern_id)
+
+    dispatch: dict[str, object] = {
+        "missing_mail_thread": fix_missing_mail_thread,
+    }
+
+    fix_func = dispatch.get(pattern_id)
+    if fix_func is None:
+        logger.debug("run_docker_fix_loop: no fix function for pattern '%s'", pattern_id)
+        return False
+
+    result = fix_func(module_path)  # type: ignore[operator]
+    logger.info("run_docker_fix_loop: fix for '%s' returned %s", pattern_id, result)
+    return result
 
 
 # -------------------------------------------------------------------------

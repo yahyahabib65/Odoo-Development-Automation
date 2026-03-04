@@ -756,3 +756,134 @@ class TestUpdatedConstants:
             "oe_chatter div found but model lacks mail.thread"
         )
         assert result == "missing_mail_thread"
+
+
+# ---------------------------------------------------------------------------
+# run_docker_fix_loop -- dispatches to fix functions
+# ---------------------------------------------------------------------------
+
+
+class TestRunDockerFixLoop:
+    """Tests for run_docker_fix_loop dispatcher."""
+
+    def test_mail_thread_error_calls_fix_and_returns_true(self, tmp_path: Path):
+        """run_docker_fix_loop with mail.thread error text dispatches fix_missing_mail_thread."""
+        from odoo_gen_utils.auto_fix import run_docker_fix_loop
+
+        module_dir = tmp_path / "test_module"
+        (module_dir / "models").mkdir(parents=True)
+        (module_dir / "views").mkdir(parents=True)
+        (module_dir / "models" / "model.py").write_text(textwrap.dedent("""\
+            from odoo import fields, models
+
+            class HrTraining(models.Model):
+                _name = "hr.training"
+                _description = "HR Training"
+
+                name = fields.Char(string="Name", required=True)
+        """), encoding="utf-8")
+        (module_dir / "views" / "model_views.xml").write_text(textwrap.dedent("""\
+            <odoo>
+                <record id="view_form" model="ir.ui.view">
+                    <field name="arch" type="xml">
+                        <form>
+                            <sheet><group><field name="name"/></group></sheet>
+                            <div class="oe_chatter">
+                                <field name="message_follower_ids"/>
+                            </div>
+                        </form>
+                    </field>
+                </record>
+            </odoo>
+        """), encoding="utf-8")
+
+        error_text = "Error: model hr.training uses oe_chatter but lacks mail.thread inheritance"
+        result = run_docker_fix_loop(module_dir, error_text)
+        assert result is True
+
+        content = (module_dir / "models" / "model.py").read_text(encoding="utf-8")
+        assert "mail.thread" in content
+
+    def test_unused_import_error_returns_true(self, tmp_path: Path):
+        """run_docker_fix_loop with unused import keywords dispatches fix."""
+        from odoo_gen_utils.auto_fix import run_docker_fix_loop
+
+        module_dir = tmp_path / "test_module"
+        (module_dir / "models").mkdir(parents=True)
+        model_file = module_dir / "models" / "model.py"
+        model_file.write_text(textwrap.dedent("""\
+            from odoo import api, fields, models
+            from odoo.exceptions import ValidationError
+
+            class TestModel(models.Model):
+                _name = "test.model"
+                _description = "Test"
+
+                name = fields.Char(required=True)
+        """), encoding="utf-8")
+
+        error_text = "W0611: Unused import ValidationError (unused-import)"
+        result = run_docker_fix_loop(module_dir, error_text)
+        assert result is True
+
+    def test_unrecognized_error_returns_false(self, tmp_path: Path):
+        """run_docker_fix_loop with unrecognized error returns False."""
+        from odoo_gen_utils.auto_fix import run_docker_fix_loop
+
+        module_dir = tmp_path / "test_module"
+        module_dir.mkdir(parents=True)
+
+        error_text = "Something completely unknown with no matching pattern"
+        result = run_docker_fix_loop(module_dir, error_text)
+        assert result is False
+
+    def test_empty_error_returns_false(self, tmp_path: Path):
+        """run_docker_fix_loop with empty error text returns False."""
+        from odoo_gen_utils.auto_fix import run_docker_fix_loop
+
+        module_dir = tmp_path / "test_module"
+        module_dir.mkdir(parents=True)
+
+        result = run_docker_fix_loop(module_dir, "")
+        assert result is False
+
+
+# ---------------------------------------------------------------------------
+# run_pylint_fix_loop -- fix_unused_imports for W0611
+# ---------------------------------------------------------------------------
+
+
+class TestPylintFixLoopUnusedImports:
+    """run_pylint_fix_loop calls fix_unused_imports when W0611 detected."""
+
+    def test_pylint_loop_calls_fix_unused_imports_for_w0611(self):
+        """When pylint reports W0611, fix_unused_imports should be invoked on that file."""
+        w0611_v = Violation(
+            file="models/m.py", line=2, column=0,
+            rule_code="W0611", symbol="unused-import",
+            severity="warning", message="Unused import ValidationError",
+        )
+
+        def mock_run_pylint(*args, **kwargs):
+            return (w0611_v,)
+
+        with tempfile.TemporaryDirectory() as d:
+            mod = Path(d)
+            model_file = mod / "models" / "m.py"
+            model_file.parent.mkdir(parents=True)
+            model_file.write_text(textwrap.dedent("""\
+                from odoo import fields, models
+                from odoo.exceptions import ValidationError
+
+                class M(models.Model):
+                    _name = "m"
+                    _description = "M"
+
+                    name = fields.Char(required=True)
+            """), encoding="utf-8")
+
+            with patch("odoo_gen_utils.auto_fix.run_pylint_odoo", side_effect=mock_run_pylint):
+                total_fixed, remaining = run_pylint_fix_loop(mod)
+
+            content = model_file.read_text(encoding="utf-8")
+            assert "ValidationError" not in content
