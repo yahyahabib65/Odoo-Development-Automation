@@ -121,7 +121,11 @@ Plans:
   2. Both pylint and Docker fix loops are capped at a configurable maximum (default: 5 iterations); when the cap is reached, remaining errors are reported and the loop stops
   3. Running `validate --auto-fix` on a module with known pylint violations (unused import, missing mail.thread) resolves them automatically, verified by an integration test that runs in CI without Docker
   4. Each new Docker fix pattern has unit tests with sample error output proving the pattern matches and the fix is applied correctly
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 18-01-PLAN.md — Implement 3 Docker fix functions (xml_parse_error, missing_acl, manifest_load_order) + configurable iteration caps
+- [ ] 18-02-PLAN.md — Integration test for validate --auto-fix CLI with fixture module
 
 ### Phase 19: Enhancements
 **Goal**: Agents have access to live Odoo documentation via Context7 and the generation pipeline exposes observable state for debugging failures
@@ -141,7 +145,7 @@ Plans:
 | 15. Odoo Dev Instance | v2.0 | 2/2 | Complete | 2026-03-04 |
 | 16. Odoo MCP Server | v2.0 | 2/2 | Complete | 2026-03-04 |
 | 17. Inline Environment Verification | v2.0 | Complete    | 2026-03-04 | 2026-03-04 |
-| 18. Auto-Fix Hardening | v2.1 | 0/? | Pending | - |
+| 18. Auto-Fix Hardening | v2.1 | 0/2 | Planned | - |
 | 19. Enhancements | v2.1 | 0/? | Pending | - |
 
 ---
