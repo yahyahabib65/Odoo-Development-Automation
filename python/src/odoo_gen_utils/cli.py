@@ -9,7 +9,7 @@ from pathlib import Path
 import click
 
 from odoo_gen_utils import __version__
-from odoo_gen_utils.auto_fix import format_escalation, run_pylint_fix_loop
+from odoo_gen_utils.auto_fix import format_escalation, run_docker_fix_loop, run_pylint_fix_loop
 from odoo_gen_utils.i18n_extractor import extract_translatable_strings, generate_pot
 from odoo_gen_utils.kb_validator import validate_kb_directory, validate_kb_file
 from odoo_gen_utils.search import build_oca_index, get_github_token, get_index_status
@@ -432,6 +432,15 @@ def validate(
             install_result = docker_install_module(mod_path)
             if install_result.log_output:
                 error_logs.append(install_result.log_output)
+
+            # Step 2b: Auto-fix Docker errors if --auto-fix enabled
+            if auto_fix and not install_result.success and install_result.log_output:
+                fixed = run_docker_fix_loop(mod_path, install_result.log_output)
+                if fixed:
+                    click.echo("Auto-fix: applied Docker error fix, retrying validation...")
+                    install_result = docker_install_module(mod_path)
+                    if install_result.log_output:
+                        error_logs.append(install_result.log_output)
 
             # Step 3: Run tests if install succeeded
             if install_result.success:

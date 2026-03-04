@@ -853,6 +853,15 @@ class TestRunDockerFixLoop:
 # ---------------------------------------------------------------------------
 
 
+class TestRunDockerFixLoopImport:
+    """Verify run_docker_fix_loop is importable and callable."""
+
+    def test_import_run_docker_fix_loop(self):
+        from odoo_gen_utils.auto_fix import run_docker_fix_loop
+
+        assert callable(run_docker_fix_loop)
+
+
 class TestPylintFixLoopUnusedImports:
     """run_pylint_fix_loop calls fix_unused_imports when W0611 detected."""
 
