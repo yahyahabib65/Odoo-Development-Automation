@@ -22,7 +22,7 @@ import os
 import urllib.error
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 logger = logging.getLogger("odoo-gen.context7")
 
@@ -191,17 +191,14 @@ class Context7Client:
                 logger.warning("Context7 docs query returned non-list: %s", type(data))
                 return []
 
-            snippets: list[DocSnippet] = []
-            for item in data:
-                snippets = [
-                    *snippets,
-                    DocSnippet(
-                        title=str(item.get("title", "")),
-                        content=str(item.get("content", "")),
-                        source_url=str(item.get("sourceUrl", "")),
-                    ),
-                ]
-            return snippets
+            return [
+                DocSnippet(
+                    title=str(item.get("title", "")),
+                    content=str(item.get("content", "")),
+                    source_url=str(item.get("sourceUrl", "")),
+                )
+                for item in data
+            ]
 
         except Exception as exc:
             logger.warning("Context7 query_docs error (degrading gracefully): %s", exc)
