@@ -143,10 +143,11 @@
 | MCP-02 | Phase 16: Odoo MCP Server | Pending |
 | MCP-03 | Phase 17: Inline Environment Verification | Pending |
 | MCP-04 | Phase 17: Inline Environment Verification | Pending |
-| DFIX-01 | Phase 18: Auto-Fix Hardening | Pending |
-| MCP-05 | Phase 19: Enhancements | Pending |
-| AFIX-01 | Phase 18: Auto-Fix Hardening | Pending |
-| AFIX-02 | Phase 18: Auto-Fix Hardening | Pending |
-| OBS-01 | Phase 19: Enhancements | Pending |
+| DFIX-01 | Phase 18: Auto-Fix Hardening | Deferred to v2.1 |
+| MCP-05 | Phase 19: Enhancements | Deferred to v2.1 |
+| AFIX-01 | Phase 18: Auto-Fix Hardening | Deferred to v2.1 |
+| AFIX-02 | Phase 18: Auto-Fix Hardening | Deferred to v2.1 |
+| OBS-01 | Phase 19: Enhancements | Deferred to v2.1 |
 
-**Coverage:** 9/9 requirements mapped
+**v2.0 scope:** 5 requirements (MCP-01 through MCP-04, mapped to Phases 15-17)
+**v2.1 scope:** 4 requirements (DFIX-01, AFIX-01, AFIX-02, MCP-05, OBS-01, mapped to Phases 18-19)

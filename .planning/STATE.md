@@ -7,7 +7,7 @@ stopped_at: roadmap created
 last_updated: "2026-03-04T12:00:00Z"
 last_activity: 2026-03-04 -- v2.0 roadmap created (5 phases, 9 requirements mapped)
 progress:
-  total_phases: 5
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -39,9 +39,9 @@ Progress: [░░░░░░░░░░] 0%
 - Version: v2.0 (major architectural shift, not incremental)
 - MCP structure: Integrated into odoo-gen codebase (not standalone)
 - Odoo dev instance: Docker Compose with Odoo 17 CE + PostgreSQL
-- Scope: 9 requirements (5 must, 3 should, 1 could) across 5 phases
+- Scope: 5 requirements across 3 phases (Phases 15-17); 4 requirements deferred to v2.1 (Phases 18-19)
 - Branching: Per milestone (gsd/v2.0-environment-aware-generation)
-- Phase 18 (Auto-Fix) is independent of MCP phases and can run in parallel
+- Phases 18-19 deferred to v2.1 (auto-fix hardening + enhancements)
 
 ## Blockers/Concerns
 

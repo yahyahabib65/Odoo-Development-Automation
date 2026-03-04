@@ -5,7 +5,8 @@
 - **v1.0 Odoo Module Automation MVP** — Phases 1-9 (shipped 2026-03-03) | [Archive](milestones/v1.0-ROADMAP.md)
 - **v1.1 Tech Debt Cleanup** — Phases 10-11 (shipped 2026-03-03)
 - **v1.2 Template Quality** — Phases 12-14 (shipped 2026-03-04) | [Archive](milestones/v1.2-ROADMAP.md)
-- **v2.0 Environment-Aware Generation** — Phases 15-19 (in progress)
+- **v2.0 Environment-Aware Generation** — Phases 15-17 (in progress)
+- **v2.1 Auto-Fix & Enhancements** — Phases 18-19 (planned)
 
 ## Phases
 
@@ -45,13 +46,16 @@
 
 </details>
 
-### v2.0 Environment-Aware Generation (Phases 15-19)
+### v2.0 Environment-Aware Generation (Phases 15-17)
 
-**Milestone Goal:** Move from "generate then validate" to "verify as you generate" by connecting agents to a live Odoo instance via MCP, expanding auto-fix coverage, and adding pipeline observability.
+**Milestone Goal:** Move from "generate then validate" to "verify as you generate" by connecting agents to a live Odoo instance via MCP.
 
 - [ ] **Phase 15: Odoo Dev Instance** - Docker Compose Odoo 17 CE dev environment with XML-RPC access
 - [ ] **Phase 16: Odoo MCP Server** - 6-tool MCP server for live model introspection via XML-RPC
 - [ ] **Phase 17: Inline Environment Verification** - Model and view agents verify against live instance during generation
+
+### v2.1 Auto-Fix & Enhancements (Phases 18-19) — PLANNED
+
 - [ ] **Phase 18: Auto-Fix Hardening** - Expand Docker fix patterns to 5/5, cap fix loops, integration test
 - [ ] **Phase 19: Enhancements** - Context7 live docs and generation pipeline observability
 
@@ -120,8 +124,8 @@
 | 15. Odoo Dev Instance | v2.0 | 0/? | Not started | - |
 | 16. Odoo MCP Server | v2.0 | 0/? | Not started | - |
 | 17. Inline Environment Verification | v2.0 | 0/? | Not started | - |
-| 18. Auto-Fix Hardening | v2.0 | 0/? | Not started | - |
-| 19. Enhancements | v2.0 | 0/? | Not started | - |
+| 18. Auto-Fix Hardening | v2.1 | 0/? | Deferred | - |
+| 19. Enhancements | v2.1 | 0/? | Deferred | - |
 
 ---
 *Roadmap created: 2026-03-01*
