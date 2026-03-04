@@ -1,254 +1,240 @@
 # Project Research Summary
 
-**Project:** Odoo Module Automation (odoo-gen)
-**Domain:** GSD extension for automated Odoo 17.0 module code generation
-**Researched:** 2026-03-01
-**Revised:** 2026-03-01 (architecture pivot to GSD extension)
-**Confidence:** MEDIUM-HIGH
-
-## Architecture Update (2026-03-01)
-
-**IMPORTANT:** This research was originally conducted for a standalone Python CLI tool. The architecture has since pivoted to a GSD (Get Shit Done) extension. Key changes:
-
-- **No standalone CLI**: GSD provides the command system, state, checkpoints, agent spawning
-- **No Typer/Rich**: GSD + AI coding assistant handles the interface
-- **No custom orchestration**: GSD's wave-based execution replaces asyncio subprocess management
-- **Python utilities still needed**: Jinja2 rendering, pylint-odoo, Docker validation, ChromaDB search
-- **New prior art**: 7 additional repos analyzed (see PRIOR_ART.md)
-
-The stack recommendations, feature analysis, architecture patterns, and pitfalls remain valid — they inform what we build ON TOP OF GSD. The "how we build" changed; the "what we build" for Odoo is the same.
+**Project:** Odoo Module Automation — Agent Lightning + Cognee Integration (v3.0)
+**Domain:** RL-based agent optimization + knowledge graph pipeline for existing Odoo module generation system
+**Researched:** 2026-03-04
+**Confidence:** MEDIUM
 
 ## Executive Summary
 
-This project is a GSD extension that specializes the GSD orchestration framework for automated Odoo 17.0 module development. GSD provides the orchestration layer (context management, state persistence, hallucination prevention, checkpoint coordination, agent spawning). We build Odoo-specific agents, knowledge base, validation tools, and generation workflows on top.
+This research covers adding two intelligence layers to the existing Odoo Module Automation v2.1 system: Agent Lightning (Microsoft, MIT) for prompt optimization via APO (Automatic Prompt Optimization), and Cognee (Topoteretes, Apache-2.0) for knowledge graph-enhanced retrieval. The central finding is that **both tools have a fundamental architectural mismatch with our system**: our agents are markdown files consumed by external AI coding assistants (Claude Code, Gemini), not Python agent runtimes with interceptable LLM call loops. Neither Agent Lightning nor Cognee was designed for this deployment model. What is valuable are the underlying concepts — APO's collect-critique-rewrite loop and Cognee's entity-relationship extraction — implemented as lightweight custom modules rather than full framework integrations.
 
-The original research identified that heavyweight frameworks like CrewAI and LangGraph are the wrong abstraction for CLI-based AI agents. GSD validates this finding — it is a lightweight orchestration layer that coordinates AI coding assistants (Claude Code, Gemini, Codex, OpenCode) through markdown-based state and fresh context windows per task, not through complex API-based agent frameworks.
+The recommended approach is concept extraction over framework adoption. For knowledge enrichment: skip full Cognee installation (30+ transitive deps, FastAPI/Uvicorn bloat, dual vector store problem, mandatory LLM API keys for routine operation) and instead build a lightweight graph layer using NetworkX alongside existing ChromaDB. For prompt optimization: skip Agent Lightning's full infrastructure (Lightning Server, Client, LightningStore) and implement only the APO feedback loop as a standalone Python module: `validation_outcome -> LLM_critique -> improved_agent_markdown`. Both paths should be pursued in sequence — knowledge graph first (lower risk, immediate value, independent of Agent Lightning), prompt optimization second (requires training data that accumulates during normal usage).
 
-The critical constraint remains Odoo 17's Python version lock: 3.10-3.12 only. Python 3.13+ will silently break Odoo validation. Python utilities (template rendering, validation, search) must use Python 3.12.
-
-The top risks remain: (1) Odoo version confusion in generated code, (2) the "god agent" anti-pattern, (3) Docker validation false confidence, and (4) context window overflow. GSD directly mitigates risk #4 (fresh context per agent). The other three require Odoo-specific solutions built in our extension.
+The most critical risks are: (1) over-engineering a working system — the current KB of 13 files and 80+ WRONG/CORRECT pairs may already be sufficient, and no baseline metrics exist to prove otherwise; (2) cold start for prompt optimization — APO needs 50+ diverse module generation outcomes before it produces meaningful improvements; and (3) dual vector store anti-pattern — ChromaDB and Cognee's LanceDB must not coexist. All three risks are preventable if the roadmap enforces a Feasibility and Baseline phase before any integration work begins.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The stack is split into two layers: GSD extension (inherited, not built) and Python utilities (built by us).
+The existing stack (Python 3.12, Jinja2, Click, pylint-odoo, ChromaDB, Docker, uv) remains unchanged and correct. For new additions, research strongly recommends the minimal path: `networkx` for knowledge graph modeling (already a Cognee transitive dependency, lightweight, no server, JSON-serializable), `agentlightning[apo]>=0.3.0` only if building the full APO loop (the `[apo]` extra adds only `poml` beyond the core package), and `litellm>=1.76` as the shared LLM proxy. PyTorch, vLLM, Neo4j, LanceDB, FastAPI, Uvicorn, Mistral, and sentence-transformers should all be avoided — they serve VERL/full-framework modes not applicable to our architecture.
 
-**Layer 1: GSD Extension (INHERITED)**
-- **GSD framework** -- Orchestration, context management, state, checkpoints, agent spawning
-- **AI coding assistant** -- Claude Code, Gemini, Codex, OpenCode (user's choice)
-- **Markdown-based state** -- .planning/ directory structure, STATE.md, PLAN.md, config.json
+**Core technologies:**
+- `networkx` — knowledge graph for KB relationship modeling — zero-config, JSON-serializable, no server required, already in Cognee's transitive dep tree
+- `agentlightning[apo]>=0.3.0` (conditional) — APO concept extraction only; CPU-only, no PyTorch, MIT license; only if building full feedback loop
+- `litellm>=1.76` — unified LLM proxy for APO critique calls and optional KB entity extraction; shared across both tools with compatible version floors
+- ChromaDB (existing) — keep as SOLE vector store for both module search AND KB embeddings; do NOT add LanceDB as a second vector database
+- Python 3.12 — confirmed compatible with all new packages: `agentlightning` (>=3.10), `cognee` (>=3.10, <3.14), `kuzu==0.11.3`, `fastembed` (<3.13)
 
-**Layer 2: Python Utilities (WE BUILD)**
-- **Python 3.12** -- Runtime. Maximum Odoo 17 supported version. 3.13+ breaks Odoo.
-- **uv** -- Package/project manager. 10-100x faster than pip/poetry.
-- **Pydantic** -- Data validation. Type-safe module specs.
-- **Jinja2** -- Code templating. Module scaffolding with template inheritance.
-- **sentence-transformers + ChromaDB** -- Local semantic search (Phase 8). Offline, free.
-- **PyGithub** -- GitHub API access for module discovery (Phase 8).
-- **Docker SDK + pylint-odoo** -- Validation pipeline (Phase 3). Real Odoo 17 installation testing.
-- **Ruff** -- Linter + formatter for generated Python code.
+**Do NOT add:**
+- `cognee` as a direct dependency — 30+ transitive deps including FastAPI, Uvicorn, SQLAlchemy, Alembic, LanceDB, OpenAI, LiteLLM, Mistral
+- `torch` / PyTorch — VERL mode only; APO is CPU-only via LLM API; adding PyTorch alone adds ~2GB
+- `sentence-transformers` — ChromaDB uses built-in ONNX embeddings; `fastembed` (ONNX) handles remaining use cases
+- `neo4j` / `lancedb` — server-based infrastructure not needed at current scale (13 KB files, ~200 graph nodes)
 
-**Removed from stack (provided by GSD):**
-- ~~Typer + Rich~~ -- GSD command system + AI assistant UI
-- ~~asyncio subprocess orchestration~~ -- GSD agent spawning
-- ~~Custom state management~~ -- GSD STATE.md
-- ~~pydantic-settings[toml]~~ -- GSD config.json
-- **Jinja2** -- Code templating. Module scaffolding with template inheritance.
-- **Ruff** -- Linter + formatter. Replaces Flake8+Black+isort. 150x faster.
-
-**Critical version constraint:** `requires-python = ">=3.12,<3.13"`. This is non-negotiable.
-
-**Dependency warning:** sentence-transformers pulls PyTorch (~2GB). Offer CPU-only install and pre-built embedding index as alternatives.
+**Total new dependency footprint:** ~100-150MB (networkx + agentlightning core + litellm) vs ~280-350MB if full Cognee is installed. PyTorch alternative would be 2GB+.
 
 ### Expected Features
 
-**Must have (table stakes -- P1):**
-- Natural language input with structured follow-up questions -- the entry point to the tool
-- Complete module file generation (models, views, security, manifest, tests) with real content, not stubs
-- Security layer generation (ACLs + record rules + group hierarchy) -- the most commonly botched part of Odoo modules
-- OCA quality compliance via pylint-odoo -- automated quality gate
-- Human review checkpoints after each generation stage -- essential for trust in ERP code
-- Docker-based validation (install + test execution) -- the only reliable proof a module works
-- Test generation with actual assertions (TransactionCase, access rights tests)
-- CLI interface with rich terminal output
+The features research identified a critical architectural constraint: our agents are markdown prompt files, not Python agent runtimes. This shapes every feature decision and priority.
 
-**Should have (differentiators -- P2):**
-- Semantic search of GitHub/OCA repositories -- the "search-first" core differentiator
-- Fork-and-extend workflow -- adapt existing modules instead of rebuilding from scratch
-- Multi-agent specialization -- different agents for models, views, security, tests
-- Incremental diff review at each generation stage
-- Manifest dependency resolution -- auto-detect correct module dependencies
+**Must have (table stakes):**
+- Reward signal from validation outcomes — pylint score (0-10 normalized), Docker install success (binary), test pass rate (0-1 continuous), combined weighted 0-1 score; this is the foundation for everything else
+- Knowledge graph from 13 KB markdown files — entity extraction, relationship modeling (e.g., "Many2one" requires comodel_name, requires depends), graph plus vector hybrid search
+- Incremental KB updates without full rebuild — only re-process changed files; supported by both Cognee and custom NetworkX approaches
+- Per-agent outcome attribution — when a module fails, identify WHICH agent prompt contributed, not just that "it failed"
 
-**Defer (v2+):**
-- Module adaptation intelligence (deep Odoo ORM understanding for fork modification)
-- Actionable validation feedback (parsing Odoo logs to diagnose failures)
-- CE/EE edition awareness
-- Odoo 18.0 support -- only after 17.0 pipeline is proven solid
+**Should have (competitive differentiators):**
+- APO feedback loop for `odoo-model-gen` as proof of concept before expanding to all eight agents
+- MCP tool `search_knowledge` exposing knowledge graph search to AI coding assistant during generation
+- Outcome collector (`outcome_collector.py`) logging `(module_spec, agent_prompt_version, generated_code, validation_outcome)` as JSONL — addresses cold start proactively
+- Version-aware KB rules (Odoo 17 vs 18) via temporal tagging or separate KB sections
 
-**Anti-features (explicitly avoid):**
-- Web UI (developers live in terminals; adds months of scope for marginal UX gain)
-- Autonomous production deployment (ERP modules affect live business data; human deploys)
-- Multi-version support in v1 (version blindness is the #1 AI code generation flaw per Odoo Experience 2025)
-- Full business logic generation without review (silent failures in ERP are the worst outcome)
+**Defer to v2+ (not essential for v3.0 launch):**
+- APO for all 8 agents simultaneously — prove it on one first, then expand
+- Code graph pipeline for OCA repositories — high value but high LLM cost per repo; start with 5 most-referenced modules only after KB integration proves the pipeline
+- Memify self-improvement loop — only meaningful after graph has significant usage history
+- RL fine-tuning (VERL/PPO/GRPO) — not applicable; we do not control the LLM
+- Neo4j migration — Kuzu/NetworkX sufficient at current scale (~200 nodes)
+- Custom RL algorithms — zero training data exists today
+
+**Priority order:** Cognee KB integration concept first (lower risk, immediate value), Agent Lightning APO second (requires execution harness and training data), code graph pipeline third (highest value, highest cost).
 
 ### Architecture Approach
 
-The system is a five-layer architecture: CLI (user interface), Orchestration (pipeline control + state + checkpoints), Agent Execution (adapter pattern wrapping each AI CLI tool), Search/Retrieval (semantic module matching), and Validation (Docker + linting). The pipeline is sequential with checkpoint gates -- models must exist before views, views before security, everything before tests. Each generation task uses a maker-checker loop (one agent generates, another validates, max 3 iterations). State is persisted after every stage for crash recovery and resume capability.
+The proposed architecture adds a Layer 5 "Intelligence Layer" above the existing 4-layer stack. Two components form this layer: an APO Trainer (offline, batch, spawns AI coding assistant subprocess via `claude --print`, captures output, runs validation, generates prompt critiques) and a Knowledge Engine (ingests KB markdown, builds entity graph, serves hybrid graph plus vector search). The critical design principle is disaggregation: optimization happens offline, not in the generation hot path. APO runs periodically as a standalone command `/odoo-gen:optimize`; knowledge enrichment is pre-computed at the start of each generation session and cached per module domain.
 
 **Major components:**
-1. **Pipeline Controller** -- orchestrates the sequential generation flow with stage transitions and checkpoint gates
-2. **Agent Adapters** -- uniform interface wrapping Claude Code, Codex CLI, Gemini CLI as interchangeable subprocesses
-3. **Interactive Questioner** -- LLM-powered requirement gathering with Odoo-specific follow-up questions
-4. **Search Engine** -- GitHub/OCA API search + embedding-based semantic re-ranking with version/quality filtering
-5. **Generator Tasks** -- per-file-type code generation (models, views, security, logic, tests, i18n) with Odoo domain prompts
-6. **Validation Pipeline** -- pylint-odoo + Docker install + test execution as the quality gate
-7. **State Manager** -- persistent pipeline state for resumability; immutable state transitions
+1. `cognee_bridge.py` (Layer 3, new) — wraps knowledge engine: `ingest_kb()`, `enrich_context(query)`, `rebuild_graph()`; keeps KB markdown as source of truth; Cognee is derived index, not source
+2. `outcome_collector.py` (Layer 3, new) — extends validation pipeline to emit structured JSONL; foundation for APO training data; provides observability value independently
+3. `grader.py` (Layer 3, new) — converts `PylintResult + DockerResult` to `OutcomeReward(pylint_score, install_score, test_score, overall)` on 0.0-1.0 scale with weighted combination
+4. `rollout_runner.py` (Layer 5, new) — spawns AI coding assistant as subprocess for each training task; captures generated module files; most novel and unproven component
+5. `apo_trainer.py` (Layer 5, new) — implements APO collect-critique-rewrite loop; loads agent markdown, runs rollouts, generates LLM critiques, rewrites prompt, validates on held-out set
+6. MCP tool `search_knowledge` (Layer 3, new) — exposes knowledge graph search to AI coding assistant; pre-computes context at generation start, not per-invocation
+7. ChromaDB (Layer 3, existing, UNCHANGED) — module similarity search continues unchanged; do NOT merge with knowledge graph collections
 
-**Key patterns:**
-- Sequential pipeline with checkpoint gates (not parallel, due to file dependencies)
-- Adapter pattern for multi-LLM support (swap agents without pipeline changes)
-- Maker-checker loops for quality (generator + reviewer agent per task)
-- Persistent state for resumability (JSON files, `odoo-gen resume` command)
-- Two-path decision router (fork-and-extend vs. build-from-scratch based on search results)
+**Critical anti-patterns confirmed by architecture research:**
+- Replacing ChromaDB with Cognee for module search — different data, different purpose
+- Running APO in the generation pipeline — 30-120 sec per Docker validation per rollout, prohibitively slow in hot path
+- Cognifying every OCA repository — prohibitive LLM cost at 200+ repos
+- Abandoning markdown KB files as source of truth — Cognee/graph is derived index
 
 ### Critical Pitfalls
 
-1. **Odoo version confusion** -- LLMs mix v8-v18 patterns. Generated code uses deprecated `@api.multi`, `_columns`, or `openerp` imports. Prevention: version-pinned pylint-odoo on every output, Odoo 17 API examples in every agent prompt, version canary tests. Address in Phase 1.
+All top pitfalls rated HIGH confidence by the pitfalls researcher. The honest assessment: the CONCEPT of both tools is valuable; the FRAMEWORKS are wrong for our architecture.
 
-2. **God agent anti-pattern** -- Single agent generating all files produces inconsistent cross-references (views referencing non-existent fields, security ACLs with wrong model names). 79% of multi-agent system failures originate from specification/coordination issues. Prevention: single-responsibility agents with strict input/output contracts, no prompt exceeding 6K tokens. Address in Phase 3.
+1. **Fundamental abstraction mismatch** — Agent Lightning expects a Python agent runtime to instrument; our agents are markdown files in external AI coding assistants. Do NOT install Agent Lightning's full framework. Implement only the APO algorithm's core loop as lightweight standalone Python. Effort for concept extraction: 2-3 days. Effort for full framework integration: 2-3 weeks (and it will not work because there is no execution surface for LightningStore/tracer).
 
-3. **Security as afterthought** -- ACLs generated after models create mismatches. Missing record rules, wrong model references, flat group hierarchies. The most common "looks done but isn't" failure. Prevention: generate security IN PARALLEL with models, automated cross-reference validation. Address in Phase 3.
+2. **Cognee dependency explosion** — Full `cognee` install pulls 30+ mandatory dependencies including FastAPI, Uvicorn, SQLAlchemy, Alembic, LanceDB, OpenAI, LiteLLM, Mistral — transforming a 3-dependency CLI tool into a full-stack web application. Use `networkx` (already a Cognee transitive dep) for graph modeling, existing ChromaDB for vector search, rule-based entity extraction for structured markdown parsing without LLM API calls. Effort for NetworkX graph: 3-5 days. Effort for full Cognee: 2-3 weeks (dependency conflicts, dual vector store).
 
-4. **Docker validation false confidence** -- Tests pass against empty database with admin user. Module breaks in production with existing data, restricted users, other modules installed. Prevention: install common base modules (sale, purchase, account), test as non-admin user, seed demo data. Address in Phase 2.
+3. **No reward signal — RL without a grading function is random walking** — APO requires a continuous multi-signal reward function designed and validated before any optimization attempt. Reward must be granular (not binary), multi-dimensional (pylint + Docker + test + pattern match), and per-agent attributable. Design and validate against 10+ diverse module specs before any APO run.
 
-5. **Context window overflow** -- Module context grows beyond effective attention. Field names become inconsistent across files. "Lost in the middle" phenomenon degrades output silently. Prevention: pass schema references not full code, cap agent context at 50% of window, cross-file consistency checks. Address in Phase 3.
+4. **Over-engineering a working system** — No baseline metrics exist for current system performance. Before adding any technology: measure first-pass validation rate, top 5 failure categories, ChromaDB search relevance, and frequency of KB-documented WRONG patterns appearing in agent output. Without baselines, success criteria cannot be defined and improvement cannot be proven. The knowledge graph adds zero value for 13 files if ChromaDB already finds the right patterns.
 
-6. **Search returning noise** -- GitHub API limitations (10 req/min code search, 1000 result cap). OCA module descriptions are vague. Wrong-version modules appear as top results. Prevention: filter by Odoo version first, check maintenance signals, prefer OCA repos, pre-index locally. Address in Phase 4.
+5. **Cold start — APO needs data you do not have yet** — APO needs 50+ diverse `(module_spec, prompt_version, output, validation_outcome)` records before optimization is meaningful. At 30-120 seconds per Docker validation, this dataset takes hours of unattended compute to build. Build the outcome collector first, let data accumulate during normal usage, enforce a hard data readiness gate (50+ examples across 5+ module categories with both passing and failing examples) before triggering any optimization.
 
-7. **Fork-and-extend producing unmaintainable code** -- AI rewrites core methods instead of using Odoo inheritance (`_inherit`, xpath). Merge conflicts with upstream become impossible. Prevention: 40% modification threshold (exceed it = build from scratch), enforce inheritance patterns, track fork divergence. Address in Phase 4.
+## Implications for Roadmap
 
-## Implications for Roadmap (SUPERSEDED — see .planning/ROADMAP.md for current 9-phase plan)
+Based on combined research, the recommended phase structure prioritizes: (1) establishing baselines before changing anything, (2) knowledge enrichment before prompt optimization, (3) offline and batch over real-time integration.
 
-> **WARNING:** The 5-phase plan below was written for the standalone CLI architecture. It has been SUPERSEDED by the 9-phase GSD-extension roadmap in `.planning/ROADMAP.md`. The domain insights (pitfalls, dependencies, research flags) are still valid but the phase structure and stack references (Typer, Rich) are outdated.
+### Phase 1: Baseline Measurement and Feasibility
 
-Based on combined research, here is the suggested phase structure. The ordering is driven by three principles: (1) dependencies (you cannot validate what you have not generated), (2) risk front-loading (tackle the hardest unknowns early), and (3) incremental value delivery (each phase produces a usable artifact).
+**Rationale:** The pitfalls research ranks this as the highest priority gate. Adding intelligence to a system with no performance metrics is "solving a problem that does not exist yet." This phase gates everything else — if the current system already achieves a high first-pass validation rate, the entire v3.0 intelligence layer may be unnecessary or should target a different bottleneck.
 
-### Phase 1: Foundation (CLI + Scaffold + Configuration)
+**Delivers:** Baseline metrics document (first-pass validation rate, top failure categories, ChromaDB search precision@5 on representative queries), architecture decision record (concept extraction vs framework adoption for both tools), dependency compatibility spike (verify networkx + agentlightning[apo] resolve cleanly on Python >=3.12,<3.13 with existing deps).
 
-**Rationale:** Everything depends on the CLI skeleton, configuration system, and project structure. Building this first establishes the frame that all subsequent phases plug into.
-**Delivers:** `odoo-gen` CLI with `new`, `validate`, `resume` commands. Jinja2 templates for Odoo 17.0 module structure. Configuration system (TOML-based). Pipeline state management (JSON persistence). Project scaffolding that creates valid but empty Odoo modules.
-**Addresses features:** CLI interface, basic module scaffolding
-**Avoids pitfalls:** Odoo version confusion (version-pinned templates from day one), API key exposure (environment/keychain only), CLI UX failures (progress feedback, interactive mode)
-**Stack elements:** Python 3.12, uv, Typer, Rich, Pydantic, Jinja2, Ruff, mypy, pre-commit
+**Addresses:** Over-engineering pitfall (Pitfall 4), abstraction mismatch validation (Pitfall 1), dependency explosion prevention (Pitfall 2).
 
-### Phase 2: Validation Pipeline
+**Avoids:** Committing to integration scope before knowing whether integration is warranted or solving the right problem.
 
-**Rationale:** Build the quality gate BEFORE building the code generator. Without validation, you cannot verify that generation works. This also front-loads Docker infrastructure risk.
-**Delivers:** `odoo-gen validate <module_path>` command. Docker manager (container lifecycle via Docker SDK). pylint-odoo integration with `--valid-odoo-versions=17.0`. Odoo install + test runner. Quality scoring and reporting. Realistic test environment (common modules installed, demo data, non-admin user).
-**Addresses features:** Docker-based validation, OCA quality compliance
-**Avoids pitfalls:** Docker validation false confidence (realistic environment from the start), version confusion (pylint-odoo catches wrong-version patterns)
-**Stack elements:** Docker SDK, pylint-odoo, pytest, pytest-docker
+**Research flag:** This phase IS the research materialized as measurement. No `/gsd:research-phase` needed — upstream research is complete. Execution is pure measurement and decision-making.
 
-### Phase 3: Single-Agent Generation Pipeline
+### Phase 2: Knowledge Graph Foundation (NetworkX + ChromaDB)
 
-**Rationale:** Deliver the core value proposition with minimal complexity. Start with one agent (Claude Code, the strongest general coder) to prove the generation pipeline end-to-end. This is where the highest technical risk lies (prompt engineering, cross-file consistency) and must be tackled before adding multi-agent complexity.
-**Delivers:** End-to-end module generation from natural language input. Interactive questioner for requirement gathering. Sequential generation (models -> views -> security -> logic -> tests -> i18n). Human checkpoint system with approval/rejection. Maker-checker loop (generate + validate per stage). Single agent adapter (Claude Code).
-**Addresses features:** Natural language input, complete module generation, security layer generation, test generation, human review checkpoints
-**Avoids pitfalls:** God agent (decompose into per-file-type tasks even with single agent), security afterthought (generate security alongside models), context overflow (schema-based context, not full code), version confusion (Odoo 17 examples in every prompt)
-**Stack elements:** Pydantic-AI, asyncio, Jinja2 templates, agent adapter pattern
-**Research flag:** NEEDS DEEPER RESEARCH. Prompt engineering for Odoo module components (models vs views vs security) requires iterative experimentation. Agent subprocess I/O behavior for Claude Code needs a spike.
+**Rationale:** Knowledge graph integration is independent of Agent Lightning, has fewer dependencies, delivers immediate value (enriched context for existing agents), and creates better training data for prompt optimization. Build it first. Use NetworkX (lightweight, no server, JSON-serializable) not full Cognee. Keep ChromaDB as sole vector store — add a separate collection `odoo_knowledge` for KB embeddings rather than introducing LanceDB.
 
-### Phase 4: Search and Retrieval
+**Delivers:** `cognee_bridge.py` with `ingest_kb()`, `enrich_context(query)`, and `rebuild_graph()`, `kb_sync.py` for incremental re-ingestion on KB file changes, MCP tool `search_knowledge` exposed to AI coding assistant, rule-based entity extraction from structured KB markdown (no LLM API calls for routine operation — one-time LLM-assisted bootstrap acceptable for initial graph construction).
 
-**Rationale:** The "search-first" strategy is the project's core differentiator, but it is an enhancement to generation, not a prerequisite. You can generate modules without search; search makes them better. Building it after the generation pipeline means the fork-and-extend path has a proven from-scratch path to fall back on.
-**Delivers:** `odoo-gen search <description>` command. GitHub/OCA repository search. Embedding index for semantic module matching. Decision router (fork vs. scratch, 0.7 threshold). Fork-and-extend handler with Odoo inheritance patterns. Curated index of top 200 OCA modules for Odoo 17.0.
-**Addresses features:** Semantic search, fork-and-extend workflow, manifest dependency resolution
-**Avoids pitfalls:** Search noise (version filter first, quality thresholds, prefer OCA), Frankenstein forks (40% modification cap, enforce inheritance, track divergence)
-**Stack elements:** sentence-transformers, ChromaDB, PyGithub
-**Research flag:** NEEDS DEEPER RESEARCH. OCA repo structure and manifest parsing need investigation. Embedding effectiveness on Odoo module descriptions needs benchmarking. GitHub API rate limits need workaround strategy.
+**Uses:** `networkx`, existing ChromaDB (new `odoo_knowledge` collection), existing KB markdown files (unchanged as source of truth).
 
-### Phase 5: Multi-Agent + Quality Loops
+**Implements:** Knowledge Engine component from proposed 5-layer architecture.
 
-**Rationale:** Adding multiple LLM agents requires a stable pipeline to enhance. This phase improves output quality through agent specialization and competition, not by changing the pipeline structure.
-**Delivers:** Additional agent adapters (Codex CLI, Gemini CLI). Agent routing (best agent per task type). Maker-checker loops across different agents (one generates, another reviews). Fallback chains (if preferred agent fails, try next). Parallel execution for independent tasks.
-**Addresses features:** Multi-agent specialization, incremental diff review
-**Avoids pitfalls:** God agent (specialized agents with bounded prompts), tight coupling to single LLM (adapter pattern)
-**Stack elements:** asyncio parallel execution, additional agent adapters
-**Research flag:** NEEDS SPIKE. Each CLI agent (Claude Code, Codex, Gemini) has different subprocess I/O behavior. Routing heuristics (which agent for which task) need empirical testing.
+**Avoids:** Cognee dependency explosion (Pitfall 2), dual vector store anti-pattern (Pitfall 5), LLM API key requirement for basic functionality (Pitfall 7).
+
+**Research flag:** Standard patterns. NetworkX graph modeling, ChromaDB multiple-collections, and structured markdown parsing are all well-documented. No additional research phase needed.
+
+### Phase 3: Outcome Collection Infrastructure
+
+**Rationale:** This is a prerequisite for prompt optimization and is independently valuable for observability. The outcome collector instruments the existing validation pipeline with small, low-risk changes: extend result dataclasses with `to_reward_signal()` methods, add JSONL logging, and build the grader function. Records accumulate during normal usage, solving the cold start problem before any optimization is attempted.
+
+**Delivers:** `outcome_collector.py` emitting `(module_spec, agent_name, prompt_version, generated_files, validation_outcome)` JSONL, `grader.py` with `OutcomeReward` dataclass (pylint_score, install_score, test_score, overall) and weighted 0-1 scoring, validation pipeline extended with structured outcome reporting, count dashboard toward the 50-example data readiness threshold.
+
+**Uses:** Existing validation pipeline (pylint_runner, docker_runner), existing result dataclasses.
+
+**Implements:** Outcome Collector and Grader components from proposed architecture.
+
+**Avoids:** No reward signal problem (Pitfall 3 — grader designed before optimization), cold start problem (Pitfall 6 — data collection starts well before optimization is attempted).
+
+**Research flag:** Standard patterns. Extending dataclasses and writing JSONL are straightforward Python instrumentation. No additional research needed.
+
+### Phase 4: APO Prompt Optimization (Single Agent, Proof of Concept)
+
+**Rationale:** By this phase, the knowledge graph delivers enriched context, outcome data has been accumulating through Phases 2-3, and the grader function is validated against diverse module types. APO can now be attempted with sufficient data. Start with `odoo-model-gen` only — model generation is responsible for the most foundational artifacts, and model failures are directly attributable via per-agent pylint scoring on models.py. Validate that optimization on one agent measurably improves its held-out validation rate before expanding to all eight.
+
+**Delivers:** `rollout_runner.py` spawning AI coding assistant subprocess (`claude --print --system-prompt agents/odoo-model-gen.md`) for training tasks, `apo_trainer.py` implementing the APO collect-critique-rewrite loop, CLI command `/odoo-gen:optimize [agent-name]` for offline batch optimization runs, A/B test protocol comparing optimized vs original prompt on held-out validation set (not training set), version-controlled agent markdown with optimization history headers.
+
+**Uses:** `agentlightning[apo]>=0.3.0` OR custom APO implementation (decision depends on feasibility findings from Phase 1 spike), `litellm>=1.76` for LLM critique and rewrite calls, training dataset accumulated from Phase 3 outcome collector.
+
+**Implements:** APO Trainer and Rollout Runner from proposed 5-layer architecture.
+
+**Avoids:** Abstraction mismatch (Pitfall 1 — rollout runner uses subprocess, not Agent Lightning's native tracer), binary reward (Pitfall 3 — grader is multi-signal continuous), cold start (Pitfall 6 — 50+ examples required as hard gate before this phase begins), prompt overfitting (held-out validation set required before deploying any optimized prompt).
+
+**Research flag:** This phase needs a 2-3 day technical spike before full planning. The subprocess-based rollout runner is novel and unproven. Key question: can `claude --print --system-prompt agents/odoo-model-gen.md` reliably generate graded training data? If the subprocess approach fails, fall back to manual data labeling (generate modules manually, record outcomes, run APO offline on collected JSONL) rather than blocking the entire phase.
+
+### Phase 5: Expanded Optimization and Selective Code Graph
+
+**Rationale:** After Phase 4 proves the optimization loop works on one agent with measurable improvement on held-out data, expand to the remaining seven agents in priority order (based on failure rate data from the outcome collector). Also adds a code graph pipeline for the top 5-10 most-referenced OCA modules — enabling queries like "how does OCA implement approval workflows?" beyond what text similarity provides. Limit to the most commonly forked modules; do NOT run cognify on all 200+ OCA repos (prohibitive LLM cost).
+
+**Delivers:** APO optimization applied to remaining 7 agents in failure-rate priority order, code graph pipeline for top 5-10 OCA modules via `run_code_graph_pipeline()` equivalent, `SearchType.CODE` equivalent for querying code structure patterns, feedback loop extracting APO-discovered rules as new WRONG/CORRECT pairs back into the KB markdown.
+
+**Avoids:** Co-optimizing all agents simultaneously (credit assignment impossible without per-agent attribution), cognifying all 200+ OCA repos (must be scoped to high-value subset).
+
+**Research flag:** Code graph pipeline needs a cost spike before planning. Run the pipeline on ONE popular OCA module, measure LLM token usage and API cost, extrapolate to the planned 5-10 module set. If total cost exceeds $10 for the batch, reconsider approach (e.g., reduce scope to top 3 modules or use rule-based code parsing).
 
 ### Phase Ordering Rationale
 
-- **Foundation before everything** because CLI, state management, and configuration are dependencies for every other component.
-- **Validation before generation** because without validation you cannot verify generated code works. Building validation early means every subsequent phase can be tested against real Odoo 17.0.
-- **Single-agent generation before search** because the from-scratch pipeline is simpler, delivers core value, and provides a fallback for the fork-and-extend path. Generation is the core promise; search is the differentiator.
-- **Search after generation** because search enhances generation quality but does not enable it. A working from-scratch pipeline must exist before fork-and-extend can be built.
-- **Multi-agent last** because orchestrating multiple LLMs is the highest-complexity, lowest-urgency enhancement. The pipeline must be stable before adding this dimension.
-- **Human checkpoints woven into Phase 3** (not a separate phase) because they are integral to the generation flow, not a bolt-on feature.
+- Baseline first prevents investing weeks in integrations that solve non-existent problems. If the current system already achieves 90%+ first-pass validation rates, the intelligence layer targets a non-bottleneck.
+- Knowledge graph before optimization because enriched context improves APO training data quality (agents trained with better context learn more specific rules) and delivers independent value.
+- Outcome collection before optimization because APO without training data is random walking. These must run in sequence with a hard 50-example threshold gate enforced before any optimization run.
+- One agent before all agents because the subprocess-based rollout runner is novel and unproven. Scope must be limited until feasibility is confirmed by a measurable improvement on held-out data.
+- Selective code graph last because it is highest cost (LLM API per repo) and can be indefinitely deferred if the KB knowledge graph provides sufficient improvement at lower cost.
 
 ### Research Flags
 
-Phases likely needing deeper research during planning:
-- **Phase 3 (Single-Agent Generation):** Prompt engineering for Odoo module components is iterative and domain-specific. Need to research effective few-shot examples, context structures, and Odoo 17 API patterns for each file type (models, views, security, wizards). Agent subprocess I/O behavior for Claude Code needs a spike.
-- **Phase 4 (Search and Retrieval):** OCA repository structure is not well-documented for automated parsing. Need to research manifest schema, README conventions, and effective embedding strategies for code module descriptions. GitHub API rate limits need workaround design.
-- **Phase 5 (Multi-Agent):** Agent routing heuristics (which LLM is best for which Odoo task) need empirical benchmarking. Subprocess I/O differs across agents.
+Phases likely needing deeper research or spikes during planning:
 
-Phases with standard patterns (skip research-phase):
-- **Phase 1 (Foundation):** CLI frameworks, configuration, project structure are well-documented. Typer, Pydantic, Jinja2 have excellent docs.
-- **Phase 2 (Validation):** Docker-based testing and pylint-odoo integration are well-documented by Odoo and OCA. Standard patterns apply.
+- **Phase 4 (APO Proof of Concept):** The subprocess-based rollout runner (`claude --print --system-prompt`) is novel and undocumented in Agent Lightning's official materials. A 2-3 day technical spike is mandatory before phase planning. If subprocess approach fails, redesign around manual data labeling rather than blocking.
+- **Phase 5 (Code Graph):** OCA repository cognify cost is unknown. A cost spike (run one repo, measure LLM usage) is required before committing to the full code graph plan. Scope to top 3 modules if cost exceeds $10 total.
+
+Phases with standard patterns where additional research can be skipped:
+
+- **Phase 1 (Baseline Measurement):** Running existing validation pipeline on representative module specs; measuring ChromaDB search precision — pure execution, no research needed.
+- **Phase 2 (Knowledge Graph Foundation):** NetworkX graph modeling, ChromaDB multiple collections, structured markdown parsing — all well-documented with ample prior art.
+- **Phase 3 (Outcome Collection):** Extending dataclasses with reward signal methods and JSONL logging — standard Python instrumentation.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All versions verified via PyPI and official docs. Python 3.12 constraint is firm and verified against Odoo 17 Docker image. Every library supports 3.12. |
-| Features | MEDIUM | Table stakes are clear from competitor analysis and Odoo Experience 2025 talks. Differentiator value (search-first, fork-and-extend) is logical but unproven in this specific domain. Anti-features are well-reasoned. |
-| Architecture | MEDIUM | Subprocess-adapter pattern validated by multiple OSS projects. Sequential pipeline with checkpoints is standard. The specific combination (multi-LLM + semantic search + Odoo domain + fork-and-extend) is novel enough that integration patterns need validation. |
-| Pitfalls | MEDIUM-HIGH | Odoo version confusion, security afterthought, and Docker false confidence are well-documented by OCA and Odoo Experience talks. God agent and context overflow are supported by peer-reviewed research. Fork divergence risks come from ICSE 2020 paper. |
+| Stack | HIGH | All package versions verified via PyPI and official docs. Python 3.12 compatibility confirmed for all new packages. No dependency conflicts between Agent Lightning (litellm>=1.74) and Cognee (litellm>=1.76) — resolver picks >=1.76 satisfying both. The key recommendation (avoid full Cognee install, use NetworkX + ChromaDB) is conservative and independently verifiable against Cognee's pyproject.toml. |
+| Features | MEDIUM | Feature landscape well-documented for both tools. Mapping to our specific architecture (markdown agents in AI coding assistants, not Python agent runtimes) required significant inference. The priority order (knowledge graph first, APO second, code graph third) is based on complexity and risk analysis, not empirical testing against our system. |
+| Architecture | MEDIUM | The 5-layer proposed architecture is coherent and addresses all known pitfalls. The subprocess-based rollout runner (key innovation for APO) is novel and unproven — LOW confidence on that specific component alone. Everything else (cognee_bridge, outcome_collector, grader) follows standard patterns with HIGH confidence. |
+| Pitfalls | HIGH | Pitfalls research is thorough with verified sources for each major pitfall. Abstraction mismatch (Pitfall 1), dependency explosion (Pitfall 2), and cold start (Pitfall 6) are independently verifiable against official documentation. The "over-engineering" pitfall (Pitfall 4) is a judgment call but is supported by multiple independent sources and the absence of any baseline metrics in the current system. |
 
-**Overall confidence:** MEDIUM-HIGH
+**Overall confidence:** MEDIUM
 
 ### Gaps to Address
 
-- **Agent subprocess behavior:** How exactly do Claude Code, Codex CLI, and Gemini CLI differ in subprocess I/O (stdin prompts, stdout format, exit codes, error handling)? Need a practical spike before Phase 3.
-- **OCA repo indexing:** How are OCA repos organized? What metadata is in each `__manifest__.py`? How many Odoo 17.0 modules exist across OCA? Need to crawl and analyze before Phase 4.
-- **Embedding effectiveness on Odoo descriptions:** How well does all-MiniLM-L6-v2 perform on short module descriptions and README content? Need benchmarking with real OCA modules before Phase 4.
-- **Prompt engineering for Odoo:** What prompting patterns produce the best Odoo model/view/security code? This is iterative and will need continuous research during Phase 3.
-- **Token cost per module:** With unconstrained API budget, still worth understanding cost to set expectations. Maker-checker loops could mean 12-48 API calls per module.
-- **CE vs EE structural differences:** How do Community and Enterprise edition modules differ? Impacts template design if EE support is added later.
+- **Subprocess rollout runner feasibility (LOW confidence):** Can `claude --print --system-prompt agents/odoo-model-gen.md` reliably generate module code in a way that is capturable and gradeable? This is the critical technical unknown for the entire APO integration. Must be spiked in Phase 4 planning before committing full implementation scope. Fallback: manual data labeling rather than automated rollouts.
+
+- **Baseline metrics do not yet exist:** No current measurement of first-pass validation rate, top failure categories, or ChromaDB search precision. These must be collected in Phase 1. If baseline metrics show the current system's failures are due to infrastructure issues (Docker stability, spec ambiguity) rather than prompt quality or knowledge retrieval, the intelligence layer targets the wrong bottleneck.
+
+- **Training data diversity threshold:** Research suggests 50+ diverse examples as minimum for APO, extrapolated from Agent Lightning's published benchmarks on simpler classification tasks. The actual threshold for Odoo module generation (multi-file, multi-stage, 8-agent pipeline) is unknown. Be prepared to raise to 100+ if early APO results show random walking rather than convergence.
+
+- **Rule-based entity extraction quality:** KB ingestion relies on parsing structured markdown (headings, code blocks, WRONG/CORRECT pairs) without LLM calls. This is feasible for the current 13 files which follow consistent format, but relationship quality depends on how well the markdown structure encodes relationships. A one-time LLM-assisted extraction pass to bootstrap the graph (acceptable as a build-time dependency) followed by rule-based incremental updates is the recommended hybrid approach.
+
+- **Cognee Python 3.12 strict constraint:** Odoo 17 requires `>=3.12,<3.13`. If any Cognee transitive dependency requires Python 3.13+ features (e.g., future versions of `fastembed`, `onnxruntime` moving beyond the <3.13 ceiling), Cognee cannot be installed at all. This risk is why the concept-extraction approach (NetworkX only) is strongly preferred over full Cognee installation — it eliminates this version risk entirely.
+
+- **LLM API cost for KB entity extraction:** Each `cognify()` call (or equivalent custom LLM extraction call) uses LLM API tokens for entity and relationship identification. With 13 KB files, this is manageable as a one-time build cost. But if KB rebuilds become frequent or the KB grows significantly, costs accumulate. Design the ingestion pipeline to minimize LLM calls: parse structure with rules, use LLM only for ambiguous relationship inference.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- [Odoo 17 Docker Hub](https://hub.docker.com/_/odoo) -- Docker image tags, Python compatibility
-- [Odoo 17.0 Developer Documentation](https://www.odoo.com/documentation/17.0/developer/tutorials/backend.html) -- Module structure, ORM API, security
-- [Odoo 17.0 Security Documentation](https://www.odoo.com/documentation/17.0/developer/reference/backend/security.html) -- ACLs, record rules, groups
-- [OCA pylint-odoo](https://github.com/OCA/pylint-odoo) -- Version 10.0.1, official OCA linting
-- [OCA Coding Standards](https://odoo-community.org/resources/code) -- Quality requirements
-- [GitHub REST API Rate Limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api) -- API constraints
-- [Microsoft Azure Architecture Center: AI Agent Design Patterns](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/ai-agent-design-patterns) -- Orchestration patterns
-- [PyPI verified versions](https://pypi.org) -- Typer 0.24.1, Rich 14.3.3, Pydantic 2.12.5, Pydantic-AI 1.63.0, ChromaDB 1.5.2, sentence-transformers 5.2.3, Ruff 0.15.4, pytest 9.0.2
-- [uv documentation](https://docs.astral.sh/uv/) -- Package manager
-- [Evil Martians: CLI UX Best Practices](https://evilmartians.com/chronicles/cli-ux-best-practices-3-patterns-for-improving-progress-displays) -- CLI design patterns
-- [Fork Management Challenges (ICSE 2020)](https://dl.acm.org/doi/10.1145/3377813.3381362) -- Fork divergence research
+- [Agent Lightning Official Documentation](https://microsoft.github.io/agent-lightning/latest/) — architecture, APO algorithm, Python requirements, training guide
+- [Agent Lightning GitHub Repository](https://github.com/microsoft/agent-lightning) — pyproject.toml, source code, releases page
+- [Agent Lightning PyPI](https://pypi.org/project/agentlightning/) — verified version 0.3.0, wheel size 612KB, Python >=3.10 classifiers
+- [Agent Lightning arXiv Paper](https://arxiv.org/abs/2508.03680) — APO algorithm validation, performance benchmarks, architecture deep-dive
+- [Microsoft Research Blog on Agent Lightning](https://www.microsoft.com/en-us/research/blog/agent-lightning-adding-reinforcement-learning-to-ai-agents-without-code-rewrites/) — architecture philosophy and design intent
+- [Cognee GitHub Repository](https://github.com/topoteretes/cognee) — pyproject.toml with 30+ mandatory dependencies verified
+- [Cognee PyPI](https://pypi.org/project/cognee/) — verified version 0.5.3, Python 3.10-3.13, 1.7MB wheel
+- [Cognee Official Documentation](https://docs.cognee.ai/) — vector stores, graph stores, embedding providers, search types, add/cognify/search API
+- [APO Algorithm Documentation](https://microsoft.github.io/agent-lightning/latest/algorithm-zoo/apo/) — beam search parameters, reward function requirements, textual gradient concept
 
 ### Secondary (MEDIUM confidence)
-- [Why Multi-Agent LLM Systems Fail (arXiv)](https://arxiv.org/html/2503.13657v1) -- 79% failure rate from specification issues
-- [Anthropic 2026 Agentic Coding Trends Report](https://resources.anthropic.com/hubfs/2026%20Agentic%20Coding%20Trends%20Report.pdf) -- Industry patterns
-- [Beyond Code Generation: AI in Odoo SDLC (Odoo Experience 2025)](https://oduist.com/blog/odoo-experience-2025-ai-summaries-2/305-beyond-code-generation-integrating-ai-into-odoo-s-development-lifecycle-lessons-learned-306) -- Version blindness, human review
-- [Developing Odoo Modules Using AI (Odoo Experience 2025)](https://oduist.com/blog/odoo-experience-2025-ai-summaries-2/357-developing-odoo-modules-using-ai-a-practical-guide-358) -- Practical patterns
-- [AI-Agents-Orchestrator (GitHub)](https://github.com/hoangsonww/AI-Agents-Orchestrator) -- Multi-LLM adapter pattern
-- [Factory.ai: Context Window Problem](https://factory.ai/news/context-window-problem) -- Attention degradation
-- [A Plan-Do-Check-Act Framework for AI Code Generation (InfoQ)](https://www.infoq.com/articles/PDCA-AI-code-generation/) -- Checkpoint patterns
-- [Gemini-Odoo-Module-Generator (GitHub)](https://github.com/jeevanism/Gemini-Odoo-Module-Generator) -- Competitor analysis
+- [Agent Lightning Training Tutorial](https://microsoft.github.io/agent-lightning/latest/how-to/train-first-agent/) — 29 samples sufficient for simple tasks; code generation complexity extrapolation required
+- [Cognee + LanceDB Case Study](https://lancedb.com/blog/case-study-cognee/) — storage backend behavior and integration patterns
+- [Cognee + Kuzu Blog Post](https://blog.kuzudb.com/post/cognee-kuzu-relational-data-to-knowledge-graph/) — graph construction pipeline stages
+- [LiteLLM + Agent Lightning Integration](https://docs.litellm.ai/docs/projects/Agent%20Lightning) — shared dependency compatibility confirmation
+- [Cognee Memory Architecture Blog](https://www.cognee.ai/blog/fundamentals/how-cognee-builds-ai-memory) — cognify pipeline 6 stages
+- [Cognee Memify Pipeline](https://www.cognee.ai/blog/cognee-news/product-update-memify) — edge strengthening, derived facts, usage-based graph evolution
+- [Cognee Repo-to-Knowledge-Graph Guide](https://www.cognee.ai/blog/deep-dives/repo-to-knowledge-graph) — code graph pipeline for OCA repos
 
-### Tertiary (LOW confidence)
-- [Claude Code Bridge (GitHub)](https://github.com/bfly123/claude_code_bridge) -- Multi-AI collaboration reference
-- [Claude Octopus (GitHub)](https://github.com/nyldn/claude-octopus) -- Multi-agent coordinator reference
-- [Parallel Code (GitHub)](https://github.com/johannesjo/parallel-code) -- Worktree-based parallel execution
-- [Faros AI: Best AI Coding Agents 2026](https://www.faros.ai/blog/best-ai-coding-agents-2026) -- Single commercial source
-- [dasroot.net: Multi-Agent Multi-LLM Systems 2026](https://dasroot.net/posts/2026/02/multi-agent-multi-llm-systems-future-ai-architecture-guide-2026/) -- Single source
+### Tertiary (LOW confidence — needs validation during implementation)
+- [State of RL for LLM Reasoning (Sebastian Raschka)](https://sebastianraschka.com/blog/2025/the-state-of-reinforcement-learning-for-llm-reasoning.html) — training data requirements; extrapolated to code generation complexity
+- [Prompt Overfitting in RL (NAACL 2025)](https://aclanthology.org/2025.findings-naacl.390.pdf) — 30% performance drop on reformulated inputs; APO-specific risk
+- [Production-ready Knowledge Graphs 2025](https://medium.com/@claudiubranzan/from-llms-to-knowledge-graphs-building-production-ready-graph-systems-in-2025-2b4aff1ec99a) — when KGs are worth building vs simpler alternatives
+- [KG-based repository-level code generation](https://arxiv.org/html/2505.14394v1) — +25% improvement benchmark; caveat: measured against systems without existing structured KB
 
 ---
-*Research completed: 2026-03-01*
+*Research completed: 2026-03-04*
 *Ready for roadmap: yes*

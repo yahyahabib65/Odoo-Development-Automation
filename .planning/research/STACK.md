@@ -1,225 +1,387 @@
-# Stack Research
+# Stack Research: Agent Lightning + Cognee Integration
 
-> **ARCHITECTURE UPDATE (2026-03-01):** This research was conducted for a standalone Python CLI architecture. The project has since pivoted to a **GSD extension**. Typer, Rich, asyncio subprocess orchestration, pydantic-settings, and custom state management are NO LONGER NEEDED — GSD provides these. Python 3.12, Jinja2, pylint-odoo, Docker SDK, ChromaDB, sentence-transformers, and Ruff remain relevant as our Python utility layer. See `.planning/ROADMAP.md` for the current architecture.
+**Domain:** RL-based agent optimization + knowledge graph pipeline for Odoo module automation
+**Researched:** 2026-03-04
+**Confidence:** MEDIUM (both libraries are actively evolving; Agent Lightning is pre-1.0, Cognee is beta)
 
-**Domain:** Multi-agent AI orchestration for Odoo module code generation
-**Researched:** 2026-03-01
-**Confidence:** MEDIUM-HIGH (verified via PyPI, GitHub, official docs; some agent-orchestration patterns are emerging/unstable)
+> **SCOPE:** This research covers ONLY the new stack additions for v3.0. The existing stack (Python 3.12, Jinja2, Click, pylint-odoo, ChromaDB, Docker, uv) is validated and unchanged. See the original STACK.md header for prior research.
 
-## Recommended Stack
+---
 
-### Core Technologies
+## New Stack Additions
 
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| Python | 3.12.x | Runtime language | Odoo 17 supports 3.10-3.12. Python 3.12 is the highest version Odoo 17 supports, gives access to modern features (f-strings in logging, improved error messages, per-interpreter GIL), and is compatible with every library in this stack. Python 3.13+ breaks Odoo 17. **Confidence: HIGH** (verified via Odoo docs and Docker image) |
-| uv | latest | Package/project manager | 10-100x faster than pip, replaces pip+poetry+pyenv+virtualenv in one tool. Written in Rust by Astral. Community consensus in 2026 is to use uv for new projects. Uses standard `pyproject.toml`. **Confidence: HIGH** (verified via official docs, massive adoption) |
-| Typer | 0.24.x | CLI framework | Built on Click, uses Python type hints for zero-boilerplate command definitions. Auto-generates help text, supports subcommands, shell completion. Cleaner than raw Click for our use case (`odoo-gen describe`, `odoo-gen search`, `odoo-gen generate`). **Confidence: HIGH** (verified via PyPI: 0.24.1, requires Python >=3.10) |
-| Rich | 14.3.x | Terminal UI (progress bars, panels, tables) | The standard library for beautiful terminal output in Python. Progress bars for agent execution, panels for checkpoint reviews, tables for search results, syntax highlighting for generated code preview. **Confidence: HIGH** (verified via PyPI: 14.3.3) |
-| Pydantic | 2.12.x | Data validation, settings, schemas | Industry standard for Python data validation. Defines module specs, agent configs, search results, checkpoint data as typed models. Used by every major AI framework. **Confidence: HIGH** (verified via PyPI: 2.12.5 stable, 2.13.0b2 pre-release) |
+### Agent Lightning (RL-Based Agent Optimization)
 
-### Agent Orchestration
+| Attribute | Value | Confidence |
+|-----------|-------|------------|
+| **Package name** | `agentlightning` | HIGH (verified PyPI) |
+| **Latest stable** | 0.3.0 (Dec 24, 2024) | HIGH (verified PyPI + GitHub releases) |
+| **Latest dev** | 0.3.1+ (main branch) | MEDIUM (pyproject.toml on GitHub shows 0.3.1) |
+| **Python requirement** | >=3.10 | HIGH (verified pyproject.toml) |
+| **Python 3.12 compatible** | YES | HIGH |
+| **License** | MIT | HIGH |
+| **Wheel size** | 612 KB | HIGH (verified PyPI) |
+| **Source size** | 1.3 MB | HIGH (verified PyPI) |
+| **GPU required** | NO (APO mode is CPU-only, uses LLM API calls) | HIGH (verified: APO tests run on GitHub Actions Ubuntu runners) |
+| **PyTorch required** | NO (optional, only for VERL/SFT modes) | HIGH (verified: PyTorch is in optional extras, not core deps) |
 
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| asyncio (stdlib) | 3.12 built-in | Async subprocess management | `asyncio.create_subprocess_exec()` spawns Claude Code, Codex CLI, Gemini CLI as independent subprocesses. Native to Python, no dependency. Enables parallel agent execution with timeout control, stdout/stderr streaming, and graceful cancellation. **Confidence: HIGH** (stdlib, well-documented) |
-| Custom orchestrator (not CrewAI/LangGraph) | N/A | Agent coordination layer | Build a thin custom orchestrator because: (1) Claude Code, Codex CLI, Gemini CLI are CLI tools spawned as subprocesses, not API-based agents that fit CrewAI/LangGraph models; (2) our orchestration is deterministic (fixed pipeline: search -> scaffold -> models -> views -> security -> tests), not conversational multi-agent debate; (3) avoiding a heavy framework dependency for what is fundamentally "run CLI tools in sequence with checkpoints." MCO validates this subprocess-adapter pattern but is too generic for our domain-specific pipeline. **Confidence: MEDIUM** (pattern validated by MCO, claude-octopus, parallel-code projects) |
-| Pydantic-AI | 1.63.x | Structured LLM output parsing | When calling LLM APIs directly (for intent parsing, module spec generation, code review), Pydantic-AI gives type-safe structured outputs with validation. Model-agnostic (supports Anthropic, OpenAI, Gemini). Use this for the "brain" tasks; use subprocess for the "hands" tasks (Claude Code writing files). **Confidence: MEDIUM** (verified via PyPI: 1.63.0, relatively new but backed by Pydantic team) |
+#### Core Dependencies (what it pulls in)
 
-### Semantic Search & Matching
+| Dependency | Version | Size Impact | Overlap with Our Stack |
+|------------|---------|-------------|----------------------|
+| litellm[proxy] | >=1.74 | ~50MB (moderate) | NEW - also used by Cognee (>=1.76) - compatible |
+| pydantic | >=2.11 | ~5MB | COMPATIBLE - we already use pydantic |
+| openai | (unversioned) | ~10MB | NEW - required for APO LLM calls |
+| fastapi | (unversioned) | ~5MB | NEW - used for internal dashboard/API |
+| uvicorn | (unversioned) | ~2MB | NEW - ASGI server |
+| gunicorn | (unversioned) | ~1MB | NEW |
+| flask | (unversioned) | ~3MB | NEW - used for legacy endpoints |
+| aiohttp | (unversioned) | ~5MB | NEW |
+| rich | (unversioned) | ~3MB | COMPATIBLE - we already use rich |
+| graphviz | (unversioned) | ~1MB | NEW |
+| psutil | (unversioned) | ~1MB | NEW |
+| gpustat | (unversioned) | ~1MB | NEW (harmless on CPU-only) |
+| agentops | >=0.4.13 | ~5MB | NEW - agent observability |
+| opentelemetry-api/sdk/exporter | >=1.35 | ~15MB | NEW - telemetry |
+| portpicker | (unversioned) | ~1MB | NEW |
+| aiologic | (unversioned) | ~1MB | NEW |
 
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| sentence-transformers | 5.2.x | Embedding generation | State-of-the-art text embedding library. Use `all-MiniLM-L6-v2` model (22MB, 384-dim, 5x faster than alternatives, good quality for our domain). Encodes module descriptions, README content, manifest data into vectors for semantic matching. **Confidence: HIGH** (verified via PyPI: 5.2.3, mature library by Hugging Face) |
-| ChromaDB | 1.5.x | Local vector database | Stores and queries module embeddings locally. No external service needed. Persistent storage via Apache Arrow format. Rust-core rewrite in 2025 gives 4x performance. Simple Python API: `collection.add()`, `collection.query()`. Perfect for our scale (thousands of modules, not millions). **Confidence: HIGH** (verified via PyPI: 1.5.2, active development) |
-| PyGithub | 2.8.x | GitHub API access | Typed Python interface to GitHub REST API v3. Search repos, read files, clone URLs, read README content. Well-maintained, 6k+ GitHub stars. **Confidence: HIGH** (verified via PyPI: 2.8.1) |
+**Total estimated new dependency footprint (APO mode):** ~100-120MB
+**With PyTorch (VERL mode):** +2GB (not recommended for our use case)
 
-### Odoo Tooling
+#### What We Actually Need: APO Only
 
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| Docker (official odoo image) | `odoo:17.0` | Module validation environment | Official Odoo Docker image for installing and testing generated modules. Nightly builds ensure latest patches. Use `docker-compose` with Odoo + PostgreSQL for isolated validation. **Confidence: HIGH** (verified via Docker Hub, actively maintained) |
-| docker (Python SDK) | 7.1.x | Programmatic Docker control | Python SDK for Docker Engine API. Build containers, run `odoo -i module_name --test-enable`, stream logs, check exit codes -- all from Python. Preferred over shelling out to `docker` CLI. **Confidence: HIGH** (verified via GitHub: 7.1.0, official Docker project) |
-| pylint-odoo | 10.0.x | OCA quality linting | Official OCA pylint plugin. Validates Odoo coding standards, manifest structure, security declarations, i18n patterns. Use with `--valid-odoo-versions=17.0` flag. **Confidence: HIGH** (verified via PyPI: 10.0.1, official OCA tool) |
-| Jinja2 | 3.1.x | Module code templating | Template engine for generating Odoo module boilerplate (models, views, security XML, manifests). Template inheritance for base patterns + customization. Battle-tested, used by Ansible/Cookiecutter for similar scaffolding. **Confidence: HIGH** (verified via PyPI: 3.1.6) |
-
-### Testing
-
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| pytest | 9.0.x | Test runner | Standard Python test framework. Fixtures for Docker containers, parameterized tests for different module types, async support. **Confidence: HIGH** (verified via PyPI: 9.0.2) |
-| pytest-asyncio | latest | Async test support | Tests for async subprocess orchestration, parallel agent execution. **Confidence: HIGH** (mature pytest plugin) |
-| pytest-cov | latest | Coverage reporting | 80% coverage target per project rules. **Confidence: HIGH** |
-| pytest-docker | latest | Docker fixture management | Manage Odoo Docker containers in test fixtures. Spin up/teardown per test session. **Confidence: MEDIUM** (useful but may need custom fixtures) |
-
-### Development Tools
-
-| Tool | Version | Purpose | Notes |
-|------|---------|---------|-------|
-| Ruff | 0.15.x | Linter + formatter | Replaces Flake8+Black+isort. 150-200x faster. Single tool. 2026 style guide. Used by FastAPI, Pandas, SciPy. Run alongside pylint-odoo (Ruff handles Python style, pylint-odoo handles Odoo-specific rules). **Confidence: HIGH** (verified: 0.15.4) |
-| mypy | latest | Type checking | Static type checking for the orchestrator codebase. Pydantic models + type hints give strong type safety. **Confidence: HIGH** |
-| pre-commit | latest | Git hook management | Run ruff, mypy, pylint-odoo checks before commits. **Confidence: HIGH** |
-
-## Installation
+For our use case (optimizing agent prompts based on validation outcomes), we ONLY need APO:
 
 ```bash
-# Initialize project with uv
-uv init odoo-gen
-cd odoo-gen
-
-# Set Python version (critical: must be 3.12 for Odoo 17 compat)
-uv python pin 3.12
-
-# Core dependencies
-uv add typer rich pydantic pydantic-ai
-uv add sentence-transformers chromadb
-uv add PyGithub docker jinja2
-uv add pylint-odoo
-
-# Dev dependencies
-uv add --dev pytest pytest-asyncio pytest-cov pytest-docker
-uv add --dev ruff mypy pre-commit
+pip install agentlightning[apo]
 ```
 
-## Alternatives Considered
+The `[apo]` extra adds only `poml` (Prompt Optimization Markup Language), a lightweight package. The heavy extras (verl, torch-stable, torch-gpu-stable) are NOT needed.
 
-| Recommended | Alternative | When to Use Alternative |
-|-------------|-------------|-------------------------|
-| Typer (CLI) | Click | If you need lower-level control over CLI parsing or complex middleware chains. Typer wraps Click, so you can drop down when needed. |
-| Typer (CLI) | argparse | Never for this project. Too verbose, no auto-completion, no rich help formatting. |
-| ChromaDB (vector DB) | FAISS | If you need pure speed at millions of vectors. ChromaDB is simpler for our scale (thousands of modules) and handles persistence natively. |
-| ChromaDB (vector DB) | Qdrant/Milvus | If you need a production search service. Overkill for a local CLI tool. |
-| Custom orchestrator | CrewAI | If agents were API-based LLM calls with conversational handoffs. Our agents are CLI subprocesses with deterministic pipelines. CrewAI adds complexity without matching our execution model. |
-| Custom orchestrator | LangGraph | If you need complex conditional branching between LLM calls with state machines. Our pipeline is linear with checkpoints, not a graph. |
-| Custom orchestrator | MCO | If you wanted a generic multi-agent dispatcher. MCO is a good reference architecture but too generic -- we need domain-specific pipeline logic (search -> scaffold -> models -> views -> etc). |
-| Pydantic-AI (structured output) | LangChain | If you needed a full RAG pipeline with memory, chains, retrieval. Massive dependency tree for what we need (structured LLM output). Pydantic-AI is lighter and type-safe. |
-| sentence-transformers (embeddings) | OpenAI text-embedding-3-small | If you want API-based embeddings. Adds cost per query and network dependency. Local embeddings are free, fast, and work offline. |
-| Ruff (linter/formatter) | Flake8 + Black + isort | Never for new projects in 2026. Ruff does all three, 150x faster, single config. |
-| uv (package manager) | Poetry | If publishing a library to PyPI (Poetry has better publishing workflow). For an application/CLI tool, uv is superior in every way. |
-| uv (package manager) | pip + venv | Never for new projects. uv is a strict superset with 10-100x speed improvement. |
-| Docker Python SDK | subprocess + docker CLI | If you want simpler code at the cost of error handling. SDK gives typed responses, event streaming, and proper error classes. |
-| PyGithub (GitHub API) | requests + GitHub REST API | If you need only 1-2 API calls. PyGithub gives typed models, pagination, rate limit handling for comprehensive repo search. |
+#### How APO Works (Relevant to Our Agents)
 
-## What NOT to Use
+1. **Emit spans**: Wrap agent calls with `agl.emit_xxx()` helpers or use tracer
+2. **Define reward**: Score agent output (e.g., 1.0 if module passes pylint + Docker, 0.0 if not)
+3. **APO optimizes**: Uses LLM-generated "textual gradients" to iteratively improve prompt templates
+4. **Output**: Optimized `PromptTemplate` objects (NOT fine-tuned models)
+
+APO uses two LLM calls per optimization step:
+- **Gradient model** (default: gpt-4-mini): Generates critique of current prompt
+- **Apply-edit model** (default: gpt-4-mini): Rewrites prompt based on critique
+
+Configuration parameters:
+- `beam_width`: 4 (top prompts retained per round)
+- `branch_factor`: 4 (new candidates per parent)
+- `beam_rounds`: 3 (optimization iterations)
+- Training a single agent takes ~10 minutes with 8 parallel runners
+
+---
+
+### Cognee (Knowledge Graph Pipeline)
+
+| Attribute | Value | Confidence |
+|-----------|-------|------------|
+| **Package name** | `cognee` | HIGH (verified PyPI) |
+| **Latest stable** | 0.5.3 (Feb 27, 2026) | HIGH (verified PyPI) |
+| **Python requirement** | >=3.10, <3.14 | HIGH (verified pyproject.toml) |
+| **Python 3.12 compatible** | YES | HIGH |
+| **License** | Apache-2.0 | HIGH |
+| **Wheel size** | 1.7 MB | HIGH (verified PyPI) |
+| **Source size** | 14.6 MB | HIGH (verified PyPI) |
+| **Development status** | Beta (4 - Beta) | HIGH |
+| **LLM API key required** | YES (default: OpenAI; configurable to Anthropic, Ollama, etc.) | HIGH |
+
+#### Core Dependencies (37 packages)
+
+| Dependency | Version | Size Impact | Overlap with Our Stack |
+|------------|---------|-------------|----------------------|
+| openai | >=1.80.1 | ~10MB | SHARED with Agent Lightning |
+| litellm | >=1.76.0 | ~50MB | SHARED with Agent Lightning (>=1.74) - compatible |
+| pydantic | >=2.10.5 | ~5MB | COMPATIBLE - we already use pydantic |
+| pydantic-settings | (unversioned) | ~1MB | COMPATIBLE |
+| numpy | >=1.26.4, <=4.0.0 | ~30MB | NEW |
+| sqlalchemy | >=2.0.39, <3.0.0 | ~10MB | NEW |
+| aiosqlite | (unversioned) | ~1MB | NEW |
+| tiktoken | (unversioned) | ~10MB | NEW |
+| instructor | >=1.9.1, <2.0.0 | ~5MB | NEW - structured LLM output |
+| fastembed | <=0.6.0 | ~20MB | NEW - local ONNX embeddings (like ChromaDB's built-in) |
+| onnxruntime | <=1.22.1 | ~50MB | NEW - needed by fastembed |
+| lancedb | >=0.24.0, <1.0.0 | ~30MB | NEW - default vector store |
+| kuzu | ==0.11.3 | ~20MB | NEW - default graph database |
+| jinja2 | (unversioned) | ~1MB | COMPATIBLE - we already use jinja2 |
+| networkx | (unversioned) | ~5MB | NEW - graph algorithms |
+| fastapi | (unversioned) | ~5MB | SHARED with Agent Lightning |
+| uvicorn | (unversioned) | ~2MB | SHARED with Agent Lightning |
+| gunicorn | (unversioned) | ~1MB | SHARED with Agent Lightning |
+| aiohttp | (unversioned) | ~5MB | SHARED with Agent Lightning |
+| alembic | (unversioned) | ~5MB | NEW - DB migrations |
+| rdflib | (unversioned) | ~5MB | NEW - RDF/knowledge graph |
+| pypdf | (unversioned) | ~3MB | NEW - PDF parsing |
+| structlog | (unversioned) | ~1MB | NEW - structured logging |
+| Other (15+ small pkgs) | various | ~20MB | NEW |
+
+**Total estimated new dependency footprint (core only):** ~250-300MB
+**With ChromaDB extra:** +ChromaDB (already installed) + pypika (~1MB)
+
+#### Storage Backends
+
+**Vector Store (default: LanceDB - file-based)**
+| Backend | Type | Setup | Our Use |
+|---------|------|-------|---------|
+| LanceDB | File-based (default) | Zero config | Use this - no infrastructure needed |
+| ChromaDB | HTTP server | `cognee[chromadb]` extra | CAN point to our existing ChromaDB instance |
+| PGVector | PostgreSQL | Needs postgres | Overkill |
+| Qdrant | Server | Needs Qdrant | Overkill |
+| Redis | Server | Needs Redis | Overkill |
+| FalkorDB | Server | Needs FalkorDB | Overkill |
+
+**Graph Store (default: Kuzu - file-based)**
+| Backend | Type | Setup | Our Use |
+|---------|------|-------|---------|
+| Kuzu | File-based (default) | Zero config, included in core deps | Use this - embedded, no infrastructure |
+| Neo4j | Server | Needs Neo4j | Production option for later |
+| Neptune | AWS cloud | Needs AWS | Overkill |
+| Memgraph | Server | Needs Memgraph | Overkill |
+| NetworkX | In-memory | Zero config | Too limited for persistence |
+
+**Embedding Provider (default: OpenAI)**
+| Backend | Type | API Key? | Our Use |
+|---------|------|----------|---------|
+| OpenAI | API | YES | Default but costs money |
+| **Fastembed** | **Local ONNX** | **NO** | **Use this - CPU-friendly, no API key, included by default** |
+| Ollama | Local server | NO | Alternative local option |
+
+**RECOMMENDATION:** Use defaults (LanceDB + Kuzu + Fastembed) for zero-infrastructure local operation. This means NO external services needed beyond the LLM API for graph generation.
+
+#### ChromaDB Overlap Analysis
+
+**Critical finding:** Cognee and our existing stack both touch vector search, but they serve DIFFERENT purposes:
+
+| Concern | Our ChromaDB | Cognee's Vector Store |
+|---------|-------------|----------------------|
+| **Purpose** | Semantic search for OCA/GitHub module matching | Knowledge graph embeddings for Odoo documentation |
+| **Data** | Module manifests, READMEs, descriptions | Odoo patterns, OCA standards, API docs, KB articles |
+| **Query pattern** | "Find modules similar to X" | "What are the relationships between sale.order and account.move?" |
+| **Overlap** | NONE - different data, different queries | NONE |
+
+**Decision:** Keep both. ChromaDB for module search, Cognee's LanceDB for knowledge graph embeddings. They store different data and serve different retrieval needs. No need to consolidate.
+
+**Optional:** If desired later, Cognee CAN be configured to use our existing ChromaDB as its vector backend via `VECTOR_DB_PROVIDER=chromadb` and `VECTOR_DB_URL=http://localhost:3002`. But LanceDB default is simpler (file-based, no server).
+
+---
+
+## Compatibility Analysis
+
+### Python 3.12 Compatibility Matrix
+
+| Package | Python 3.12 Support | Verified |
+|---------|-------------------|----------|
+| agentlightning | YES (>=3.10) | PyPI classifiers |
+| cognee | YES (>=3.10, <3.14) | PyPI + pyproject.toml |
+| litellm | YES (>=3.9, <4.0) | PyPI |
+| kuzu | YES | PyPI (pinned ==0.11.3) |
+| lancedb | YES | PyPI |
+| fastembed | YES (Python <3.13) | PyPI + community reports |
+| onnxruntime | YES | PyPI |
+
+**Verdict:** All packages support Python 3.12. No blockers.
+
+### Shared Dependency Compatibility
+
+Both Agent Lightning and Cognee depend on several shared packages. Here is the conflict analysis:
+
+| Dependency | Agent Lightning | Cognee | Compatible? |
+|------------|----------------|--------|-------------|
+| litellm | >=1.74 | >=1.76 | YES - Cognee's floor is higher, resolver picks >=1.76 |
+| pydantic | >=2.11 | >=2.10.5 | YES - Agent Lightning's floor is higher, resolver picks >=2.11 |
+| openai | unversioned (core-stable: >=2.0) | >=1.80.1 | YES - both want recent openai |
+| fastapi | unversioned | unversioned | YES - no conflict |
+| uvicorn | unversioned | unversioned | YES - no conflict |
+| aiohttp | unversioned | unversioned | YES - no conflict |
+
+**Verdict:** No dependency conflicts detected. Both can coexist in the same venv.
+
+### Can Both Coexist in Same Venv?
+
+**YES.** Analysis:
+1. Shared deps (litellm, pydantic, openai, fastapi, uvicorn, aiohttp) have compatible version ranges
+2. No mutually exclusive version pins
+3. Both target Python >=3.10, our env is 3.12
+4. Both use pydantic v2 (no v1/v2 split)
+5. Agent Lightning's litellm[proxy]>=1.74 satisfies with Cognee's litellm>=1.76 (resolver picks >=1.76)
+
+**Recommendation:** Single venv. No isolation needed. Use `uv add` to install both.
+
+---
+
+## Recommended Installation
+
+```bash
+# Agent Lightning - APO mode only (no PyTorch, no GPU)
+uv add agentlightning[apo]
+
+# Cognee - core with ChromaDB support as optional bridge
+uv add cognee
+
+# If you want Cognee to use our existing ChromaDB instance (optional)
+# uv add "cognee[chromadb]"
+
+# Environment variables needed
+# For Cognee knowledge graph generation:
+export LLM_API_KEY="your-openai-or-anthropic-key"
+export LLM_PROVIDER="openai"  # or "anthropic"
+export LLM_MODEL="gpt-4.1-mini"  # or "claude-sonnet-4-20250514"
+
+# For local embeddings (no API key needed):
+export EMBEDDING_PROVIDER="fastembed"
+export EMBEDDING_MODEL="sentence-transformers/all-MiniLM-L6-v2"
+export EMBEDDING_DIMENSIONS="384"
+
+# For Agent Lightning APO:
+export OPENAI_API_KEY="your-openai-key"  # APO uses OpenAI for prompt optimization
+```
+
+### Updated pyproject.toml Additions
+
+```toml
+[project]
+dependencies = [
+    # ... existing deps ...
+    "agentlightning[apo]>=0.3.0",
+    "cognee>=0.5.3",
+]
+
+[project.optional-dependencies]
+# Full RL training (requires GPU + PyTorch)
+rl-full = [
+    "agentlightning[verl]>=0.3.0",
+    "torch>=2.8.0",
+]
+# Cognee with ChromaDB bridge
+cognee-chromadb = [
+    "cognee[chromadb]>=0.5.3",
+]
+```
+
+---
+
+## What NOT to Add
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| Python 3.13+ | Odoo 17 does not support Python 3.13 or later. Module validation will fail. | Python 3.12.x |
-| Python 3.9 or lower | Too old for Typer (>=3.10), sentence-transformers (>=3.10), pydantic-ai (>=3.10) | Python 3.12.x |
-| LangChain (for orchestration) | Massive dependency tree (~50+ packages), abstractions designed for RAG/chat not CLI subprocess orchestration, version churn | Pydantic-AI for structured output, asyncio for subprocess management |
-| CrewAI / AutoGen | Designed for conversational multi-agent debate patterns, not deterministic CLI tool pipelines | Custom orchestrator with asyncio subprocess |
-| n8n / Temporal / Airflow | Workflow engines add infrastructure complexity (servers, databases, UIs) for a CLI tool that runs on a developer's machine | Python asyncio with checkpoint files |
-| Pinecone / Weaviate | Cloud vector databases requiring API keys, network calls, and ongoing costs for what can be done locally with ChromaDB | ChromaDB (local, free, sufficient scale) |
-| Flake8 + Black + isort | Three separate tools, 150x slower than Ruff, more config files to maintain | Ruff (single tool, single config) |
-| Poetry | Slower dependency resolution, heavier than uv, less actively developed | uv |
-| setup.py / setup.cfg | Legacy Python packaging formats | pyproject.toml with uv |
-| YAML for app config | Security risks with arbitrary code execution, type ambiguity (Norway problem), no built-in Python support | TOML (built-in tomllib in 3.12, safe by design) |
+| `agentlightning[verl]` | Pulls in PyTorch (~2GB), vLLM, CUDA deps. Only needed for model fine-tuning, which is overkill for prompt optimization. | `agentlightning[apo]` - prompt optimization via LLM API calls |
+| `agentlightning[torch-stable]` | Same as above - massive dependency for GPU training | `agentlightning[apo]` |
+| `cognee[neo4j]` | Requires running a Neo4j server. Kuzu (default) is embedded and file-based. | Default Kuzu graph store |
+| `cognee[postgres]` | Requires PostgreSQL with pgvector. LanceDB (default) is file-based. | Default LanceDB vector store |
+| `sentence-transformers` | Was in original STACK.md but ChromaDB uses built-in ONNX embedding. Cognee uses fastembed (also ONNX). No need for sentence-transformers + PyTorch. | ChromaDB built-in embeddings + Cognee fastembed |
+| `langchain` / `langgraph` | Neither Agent Lightning nor Cognee require these for our use case. Adds massive dependency trees. | Direct API integration |
+| `transformers` (huggingface) | Only needed for Cognee's huggingface/ollama/codegraph extras. Not needed for core knowledge graphs. | Fastembed for embeddings |
+| `torch` / `pytorch` | Not needed. APO is CPU-only (LLM API). Cognee uses fastembed (ONNX). ChromaDB uses ONNX. Zero PyTorch. | ONNX-based alternatives |
 
-## Stack Patterns by Variant
+---
 
-**If building the "brain" (intent parsing, spec generation, code review):**
-- Use Pydantic-AI with structured output models
-- Define Pydantic schemas for ModuleSpec, SearchQuery, CodeReviewResult
-- Call Anthropic/OpenAI/Gemini APIs with type-safe responses
-- Because: need reliable structured data from LLMs, not free-form text
+## Dependency Size Impact Summary
 
-**If building the "hands" (actual code generation):**
-- Use asyncio.create_subprocess_exec() to spawn Claude Code / Codex CLI / Gemini CLI
-- Pass prompts via stdin or temp files, capture stdout/stderr
-- Because: these CLI tools handle file creation, context management, and multi-file editing better than raw API calls
+| Component | Estimated Size | Notes |
+|-----------|---------------|-------|
+| agentlightning (core) | 612 KB | Wheel only |
+| agentlightning deps (new) | ~100 MB | litellm, opentelemetry, agentops, etc. |
+| cognee (core) | 1.7 MB | Wheel only |
+| cognee deps (new) | ~250 MB | numpy, sqlalchemy, kuzu, lancedb, fastembed, onnxruntime, etc. |
+| Shared deps (deduplicated) | -70 MB | litellm, pydantic, openai, fastapi, aiohttp already counted once |
+| **Total new footprint** | **~280-350 MB** | Without PyTorch (compare: PyTorch alone is 2GB) |
 
-**If building the "validator" (module quality checks):**
-- Use Docker Python SDK to manage Odoo containers
-- Run `odoo -i module_name --test-enable --stop-after-init` in container
-- Run `pylint --load-plugins=pylint_odoo --valid-odoo-versions=17.0` on generated code
-- Because: only a real Odoo instance can validate module installation, and pylint-odoo is the OCA standard
+This is a SIGNIFICANT increase from the current lean stack but justified because:
+1. Cognee replaces static markdown KB with a queryable knowledge graph (much richer retrieval)
+2. Agent Lightning enables agents to improve over time (measurable quality gains)
+3. We avoided PyTorch entirely (saved 2GB) by using APO + fastembed + ONNX
+4. The alternative (building custom KG + RL) would be far more code and maintenance
 
-**If building the "search" (finding existing modules):**
-- Use PyGithub to search GitHub/OCA repos
-- Use sentence-transformers + ChromaDB for semantic matching
-- Build an index of module manifests (name, description, depends, data files)
-- Because: keyword search misses semantic matches ("leave management" should find "hr_holidays")
+---
 
-## Version Compatibility
+## Alternatives Considered
 
-| Package | Compatible With | Notes |
-|---------|-----------------|-------|
-| Python 3.12 | Odoo 17.0 | Maximum supported version. Do NOT use 3.13+. |
-| Python 3.12 | All recommended packages | Every package in this stack supports 3.12. |
-| Typer 0.24.x | Click 8.x | Typer wraps Click. Both installed together. |
-| Typer 0.24.x | Rich 14.x | Typer uses Rich for help formatting when installed. |
-| Pydantic 2.12.x | Pydantic-AI 1.63.x | Pydantic-AI requires Pydantic v2. |
-| sentence-transformers 5.2.x | torch 2.x | Requires PyTorch. Large dependency (~2GB). Consider CPU-only install. |
-| ChromaDB 1.5.x | sentence-transformers 5.2.x | ChromaDB can use sentence-transformers as embedding function. |
-| pylint-odoo 10.0.x | pylint 3.x | Requires specific pylint version range. Check compatibility. |
-| Docker SDK 7.1.x | Docker Engine 24+ | Requires Docker daemon running locally. |
+| Recommended | Alternative | Why Not |
+|-------------|-------------|---------|
+| Cognee (knowledge graphs) | Custom NetworkX + ChromaDB | Cognee provides the full pipeline (ingest, cognify, memify, search) out of the box. Building custom would take weeks and produce worse results. |
+| Cognee (knowledge graphs) | LlamaIndex Knowledge Graphs | LlamaIndex pulls in more dependencies, is less focused on knowledge graphs, and doesn't provide the graph+vector hybrid search Cognee offers. |
+| Cognee (knowledge graphs) | GraphRAG (Microsoft) | GraphRAG is research code, not a maintained library. Cognee is actively developed with proper packaging. |
+| Agent Lightning APO | DSPy | DSPy does prompt optimization but is more complex, less framework-agnostic, and doesn't integrate as cleanly with arbitrary agents. |
+| Agent Lightning APO | TextGrad | TextGrad is research code. Agent Lightning is maintained by Microsoft with proper packaging and docs. |
+| Agent Lightning APO | Custom prompt tuning | Manual A/B testing of prompts doesn't scale. APO automates this with measurable reward signals. |
+| Kuzu (graph DB) | Neo4j | Neo4j requires running a server. Kuzu is embedded (file-based), zero config, and sufficient for our scale. |
+| LanceDB (vector DB for Cognee) | Reuse our ChromaDB | LanceDB is Cognee's default, requires zero setup. Using ChromaDB would require running it as an HTTP server. Different data anyway. |
+| Fastembed (embeddings for Cognee) | OpenAI text-embedding-3-large | Fastembed is local, free, no API key. OpenAI embeddings cost money per call. For KB indexing, local is better. |
 
-## Configuration
+---
 
-```toml
-# pyproject.toml (key sections)
+## Integration Architecture
 
-[project]
-name = "odoo-gen"
-version = "0.1.0"
-requires-python = ">=3.12,<3.13"
-dependencies = [
-    "typer>=0.24",
-    "rich>=14.0",
-    "pydantic>=2.12",
-    "pydantic-ai>=1.60",
-    "sentence-transformers>=5.2",
-    "chromadb>=1.5",
-    "PyGithub>=2.8",
-    "docker>=7.1",
-    "jinja2>=3.1",
-    "pylint-odoo>=10.0",
-]
+```
+Existing Stack (unchanged)          New Stack (v3.0)
+================================    ================================
+ChromaDB                            Cognee
+  - Module search embeddings           - Knowledge graph (Kuzu)
+  - OCA/GitHub module matching         - KB embeddings (LanceDB)
+  - ONNX built-in embeddings           - Fastembed (ONNX)
+                                       - Replaces static markdown KB
 
-[project.scripts]
-odoo-gen = "odoo_gen.cli:app"
-
-[tool.ruff]
-target-version = "py312"
-line-length = 120
-
-[tool.ruff.lint]
-select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "TCH"]
-
-[tool.mypy]
-python_version = "3.12"
-strict = true
-
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
+8 Specialized Agents                Agent Lightning (APO)
+  - model-gen, view-gen, etc.          - Wraps agent invocations
+  - Static prompt templates            - Collects reward signals
+  - No learning/improvement            - Optimizes prompts over time
+                                       - Stores optimized templates
 ```
 
-## Dependency Size Warning
+### Data Flow
 
-sentence-transformers pulls in PyTorch (~2GB for CPU-only). For development this is fine, but for distribution consider:
-1. CPU-only PyTorch: `uv add torch --extra-index-url https://download.pytorch.org/whl/cpu`
-2. Pre-built embedding index: compute embeddings once, ship the ChromaDB database
-3. API-based fallback: offer OpenAI text-embedding-3-small as an alternative for users who want smaller installs
+```
+1. KNOWLEDGE GRAPH (Cognee):
+   Odoo docs + OCA standards + KB files
+     → cognee.add(documents)
+     → cognee.cognify()  [extracts entities, relationships]
+     → Knowledge graph (Kuzu) + embeddings (LanceDB)
+     → cognee.search("how does sale.order relate to account.move?")
+     → Structured, connected results (not just similarity)
+
+2. AGENT OPTIMIZATION (Agent Lightning):
+   Agent executes (e.g., model-gen generates models.py)
+     → agl.emit_xxx() captures prompt + output
+     → Validator scores result (pylint pass=0.5, Docker pass=1.0, fail=0.0)
+     → APO analyzes scored trajectories
+     → Generates improved prompt template
+     → Next execution uses optimized prompt
+```
+
+---
 
 ## Sources
 
-- [Odoo 17 Docker Hub](https://hub.docker.com/_/odoo) -- Docker image tags and compatibility (HIGH confidence)
-- [Odoo 17 Python compatibility](https://www.vrajatechnologies.com/blog/1/complete-odoo-installation-guide-for-odoo-17-18-19-82) -- Python 3.10-3.12 requirement (HIGH confidence)
-- [Typer PyPI](https://pypi.org/project/typer/) -- Version 0.24.1, Python >=3.10 (HIGH confidence)
-- [Rich PyPI](https://pypi.org/project/rich/) -- Version 14.3.3 (HIGH confidence)
-- [Pydantic PyPI](https://pypi.org/project/pydantic/) -- Version 2.12.5 (HIGH confidence)
-- [Pydantic-AI PyPI](https://pypi.org/project/pydantic-ai/) -- Version 1.63.0 (MEDIUM confidence, newer library)
-- [sentence-transformers PyPI](https://pypi.org/project/sentence-transformers/) -- Version 5.2.3 (HIGH confidence)
-- [ChromaDB PyPI](https://pypi.org/project/chromadb/) -- Version 1.5.2 (HIGH confidence)
-- [PyGithub PyPI](https://pypi.org/project/PyGithub/) -- Version 2.8.1 (HIGH confidence)
-- [Docker Python SDK GitHub](https://github.com/docker/docker-py) -- Version 7.1.0 (HIGH confidence)
-- [pylint-odoo PyPI](https://pypi.org/project/pylint-odoo/) -- Version 10.0.1 (HIGH confidence)
-- [Ruff PyPI](https://pypi.org/project/ruff/) -- Version 0.15.4 (HIGH confidence)
-- [pytest PyPI](https://pypi.org/project/pytest/) -- Version 9.0.2 (HIGH confidence)
-- [uv docs](https://docs.astral.sh/uv/) -- Package manager (HIGH confidence)
-- [MCO GitHub](https://github.com/mco-org/mco) -- Subprocess adapter pattern reference (MEDIUM confidence)
-- [Jinja2 PyPI](https://pypi.org/project/Jinja2/) -- Version 3.1.6 (HIGH confidence)
+### Agent Lightning
+- [GitHub Repository](https://github.com/microsoft/agent-lightning) (HIGH confidence)
+- [Official Documentation](https://microsoft.github.io/agent-lightning/latest/) (HIGH confidence)
+- [PyPI Package](https://pypi.org/project/agentlightning/) (HIGH confidence)
+- [Installation Guide](https://microsoft.github.io/agent-lightning/latest/tutorials/installation/) (HIGH confidence)
+- [APO Algorithm](https://microsoft.github.io/agent-lightning/latest/algorithm-zoo/apo/) (HIGH confidence)
+- [Training Tutorial](https://microsoft.github.io/agent-lightning/latest/how-to/train-first-agent/) (HIGH confidence)
+- [Microsoft Research Blog](https://www.microsoft.com/en-us/research/blog/agent-lightning-adding-reinforcement-learning-to-ai-agents-without-code-rewrites/) (HIGH confidence)
+- [arXiv Paper](https://arxiv.org/abs/2508.03680) (HIGH confidence)
+- [GitHub Releases](https://github.com/microsoft/agent-lightning/releases) (HIGH confidence)
+
+### Cognee
+- [GitHub Repository](https://github.com/topoteretes/cognee) (HIGH confidence)
+- [PyPI Package](https://pypi.org/project/cognee/) (HIGH confidence)
+- [Official Documentation - Vector Stores](https://docs.cognee.ai/setup-configuration/vector-stores) (HIGH confidence)
+- [Official Documentation - Graph Stores](https://docs.cognee.ai/setup-configuration/graph-stores) (HIGH confidence)
+- [Official Documentation - Embedding Providers](https://docs.cognee.ai/setup-configuration/embedding-providers) (HIGH confidence)
+- [Cognee + LanceDB Case Study](https://lancedb.com/blog/case-study-cognee/) (MEDIUM confidence)
+- [Cognee + Kuzu Blog Post](https://blog.kuzudb.com/post/cognee-kuzu-relational-data-to-knowledge-graph/) (MEDIUM confidence)
+
+### Shared Dependencies
+- [LiteLLM PyPI](https://pypi.org/project/litellm/) (HIGH confidence)
+- [LiteLLM + Agent Lightning Docs](https://docs.litellm.ai/docs/projects/Agent%20Lightning) (MEDIUM confidence)
 
 ---
-*Stack research for: Agentic Odoo Module Development Workflow*
-*Researched: 2026-03-01*
+*Stack research for: Agent Lightning + Cognee Integration (v3.0)*
+*Researched: 2026-03-04*
