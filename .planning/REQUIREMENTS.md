@@ -139,7 +139,7 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MCP-01 | Phase 15: Odoo Dev Instance | Pending |
+| MCP-01 | Phase 15: Odoo Dev Instance | Complete |
 | MCP-02 | Phase 16: Odoo MCP Server | Pending |
 | MCP-03 | Phase 17: Inline Environment Verification | Pending |
 | MCP-04 | Phase 17: Inline Environment Verification | Pending |
