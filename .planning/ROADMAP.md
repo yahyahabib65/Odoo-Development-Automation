@@ -73,8 +73,8 @@
 **Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 15-01-PLAN.md — Docker Compose dev environment config + management script + XML-RPC smoke test
-- [ ] 15-02-PLAN.md — Unit tests (config validation) + Docker integration tests (live instance verification)
+- [x] 15-01-PLAN.md — Docker Compose dev environment config + management script + XML-RPC smoke test
+- [x] 15-02-PLAN.md — Unit tests (config validation) + Docker integration tests (live instance verification)
 
 ### Phase 16: Odoo MCP Server
 **Goal**: Code generation agents can query the live Odoo instance for model schemas, field definitions, installed modules, and view architectures through a standardized MCP tool interface
@@ -85,7 +85,11 @@ Plans:
   2. Each tool returns structured data (e.g., `get_model_fields` returns field name, type, relation, required, readonly for any model)
   3. MCP server handles Odoo-unreachable gracefully (returns error response, does not crash)
   4. Unit tests with mocked XML-RPC responses cover all 6 tools
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 16-01-PLAN.md — OdooClient wrapper + MCP server with 6 tools + unit tests (TDD)
+- [ ] 16-02-PLAN.md — Claude Code MCP configuration + live instance verification checkpoint
 
 ### Phase 17: Inline Environment Verification
 **Goal**: Model and view generation agents verify inheritance chains, field references, and view targets against the live Odoo instance during generation, catching errors at source instead of during Docker validation
@@ -125,8 +129,8 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 15. Odoo Dev Instance | 2/2 | Complete    | 2026-03-04 | - |
-| 16. Odoo MCP Server | v2.0 | 0/? | Not started | - |
+| 15. Odoo Dev Instance | v2.0 | 2/2 | Complete | 2026-03-04 |
+| 16. Odoo MCP Server | v2.0 | 0/2 | Planned | - |
 | 17. Inline Environment Verification | v2.0 | 0/? | Not started | - |
 | 18. Auto-Fix Hardening | v2.1 | 0/? | Deferred | - |
 | 19. Enhancements | v2.1 | 0/? | Deferred | - |
