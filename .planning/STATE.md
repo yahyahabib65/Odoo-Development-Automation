@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Auto-Fix & Enhancements
-status: complete
-stopped_at: Completed 19-03-PLAN.md
-last_updated: "2026-03-04T17:31:28Z"
-last_activity: 2026-03-04 — Phase 19 Plan 03 complete (v2.1 milestone done)
+status: shipped
+stopped_at: Milestone v2.1 archived
+last_updated: "2026-03-04T18:00:00Z"
+last_activity: 2026-03-04 — v2.1 milestone archived and tagged
 progress:
-  total_phases: 7
-  completed_phases: 7
-  total_plans: 15
-  completed_plans: 15
+  total_phases: 2
+  completed_phases: 2
+  total_plans: 5
+  completed_plans: 5
   percent: 100
 ---
 
@@ -22,46 +22,22 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 
 **Core value:** Compress months of repetitive Odoo module development into days by extending GSD's orchestration with Odoo-specialized agents, knowledge, and validation.
 **Architecture:** GSD extension (not standalone CLI)
-**Current focus:** v2.1 — Auto-Fix & Enhancements (Phases 18-19)
+**Current focus:** Planning next milestone
 
 ## Current Position
 
-Milestone: v2.1 Auto-Fix & Enhancements
-Phase: 19-enhancements
-Plan: 03 of 03
-Status: Complete
-Last activity: 2026-03-04 — Phase 19 Plan 03 complete (v2.1 milestone done)
+Milestone: v2.1 Auto-Fix & Enhancements — SHIPPED
+Next: Ready for `/gsd:new-milestone`
 
-Progress: [██████████] 100%
+## Shipped Milestones
 
-## Key Decisions (v2.1)
+- v1.0 MVP (9 phases, 26 plans) — 2026-03-03
+- v1.1 Tech Debt Cleanup (2 phases) — 2026-03-03
+- v1.2 Template Quality (3 phases, 4 plans) — 2026-03-04
+- v2.0 Environment-Aware Generation (3 phases, 6 plans) — 2026-03-04
+- v2.1 Auto-Fix & Enhancements (2 phases, 5 plans) — 2026-03-04
 
-- missing_import Docker pattern excluded from auto-fix dispatch -- requires human action (install package or add module dependency)
-- run_docker_fix_loop returns tuple[bool, str] for richer error reporting downstream
-- Iteration cap default raised from 2 to 5 for both pylint and Docker fix loops
-- Mock run_pylint_odoo with multi-cycle behavior to simulate realistic line-number shifts after import removal
-- Test mail.thread fix separately via direct function call (Docker-detected pattern, not pylint)
-- Context7 REST client uses stdlib-only urllib.request (no httpx/requests), cached library resolution to avoid redundant API calls
-- Artifact state tracker uses stdlib-only (no new dependencies), immutable transition pattern, warning-only enforcement for invalid transitions
-- State tracking in render_module uses lazy import + try/except to never block generation (OBS-01)
-- CLI commands (show-state, context7-status) use lazy imports following existing pattern
-
-## Accumulated Context
-
-- v2.0 shipped: 3 phases (15-17), 6 plans, MCP server + inline verification + Docker dev environment
-- v1.2 shipped: 3 phases (12-14), 4 plans, template correctness + golden path E2E + auto-fix wiring
-- v1.0 shipped: 9 phases, 26 plans, full MVP pipeline
-- Total: 17 phases, 40 plans, 381 tests, 11,000+ LOC Python
-- v2.1 Phase 18 Plan 01: 3 new Docker fix functions + configurable iteration caps (61 auto_fix tests, 399 total)
-- v2.1 Phase 18 Plan 02: Integration test + bug fix for W0611 line-number shift (67 auto_fix tests, 405 total)
-- v2.1 Phase 19 Plan 01: Context7 REST client with cached library resolution, doc querying, graceful fallback (17 new tests, 441 total)
-- v2.1 Phase 19 Plan 02: Artifact state tracker with frozen dataclass, JSON sidecar, immutable transitions, CLI display (19 new tests, 441 total)
-- v2.1 Phase 19 Plan 03: Integration wiring -- show-state + context7-status CLI, render_module state tracking, 3 integration tests (444 total)
-- v2.1 milestone complete: 2 phases, 5 plans, Context7 + artifact state + auto-fix hardening
-- Branching strategy: per-milestone (gsd/v2.0-environment-aware-generation shipped to origin/v2.0)
-- Model profile: quality (Opus)
-- Python 3.12 constraint (Odoo 17: 3.10-3.12 only)
-- Docker dev instance at localhost:8069 (Odoo 17 CE + PostgreSQL)
+**Total:** 19 phases, 45 plans, 270+ commits, 444 tests, 15,700+ LOC Python
 
 ## Blockers/Concerns
 
@@ -69,7 +45,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-04T17:31:28Z
-Stopped at: Completed 19-03-PLAN.md
+Last session: 2026-03-04
+Stopped at: v2.1 milestone archived
 Resume file: None
-Next step: v2.1 milestone complete -- ready for next milestone planning
+Next step: `/gsd:new-milestone` to define next direction

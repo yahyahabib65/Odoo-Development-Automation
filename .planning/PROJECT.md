@@ -8,24 +8,19 @@ A domain-specific extension of the GSD (Get Shit Done) framework that automates 
 
 ## Current State
 
-**Shipped:** v2.0 (2026-03-04) — Environment-Aware Generation
-- 17 phases total across 4 milestones, 40 plans, 197+ commits over 4 days
+**Shipped:** v2.1 (2026-03-04) — Auto-Fix & Enhancements
+- 19 phases total across 5 milestones, 45 plans, 270+ commits over 4 days
+- Auto-fix pipeline handles all 5 common Docker error patterns with bounded iterations
+- Context7 REST client for live Odoo documentation queries (graceful fallback)
+- Artifact state tracking with JSON sidecar persistence and CLI display
 - MCP server with 6 tools for live Odoo introspection (XML-RPC)
-- EnvironmentVerifier: inline model/view verification during generation
 - Docker Compose dev environment with Odoo 17 CE + PostgreSQL
-- 381 tests passing, 11,000+ LOC Python
+- 444 tests passing, 15,700+ LOC Python (src + tests)
 - See: `.planning/MILESTONES.md` for full history
 
-## Current Milestone: v2.1 Auto-Fix & Enhancements
+## Next Milestone Goals
 
-**Goal:** Harden the auto-fix pipeline to handle all common Docker error patterns with bounded iterations, add Context7 MCP for live docs, and introduce generation pipeline observability.
-
-**Target features:**
-- Expanded Docker fix patterns (5/5 error types handled)
-- Bounded auto-fix iterations (cap loops, escalate to human)
-- CLI --auto-fix integration test (end-to-end verification)
-- Context7 MCP for live Odoo documentation
-- Generation pipeline observability (artifact state tracking)
+No milestone currently planned. Ready for `/gsd:new-milestone` to define next direction.
 
 ## Core Value
 
@@ -113,9 +108,16 @@ Layer 4: AI Coding Assistant (USER'S ENVIRONMENT)
 - Inline view verification: field references and inherited view targets checked against live instance — v2.0
 - Graceful degradation when MCP/Odoo unavailable (warnings, not blocks) — v2.0
 
-### Active (v2.1 — Auto-Fix & Enhancements)
+**Auto-Fix & Enhancements (v2.1):**
+- Docker auto-fix pipeline identifies 5 error patterns, auto-fixes 4 mechanically deterministic ones — v2.1
+- Pylint and Docker fix loops capped at configurable max (default 5) with escalation — v2.1
+- validate --auto-fix resolves violations end-to-end, verified by CI-safe integration test — v2.1
+- Context7 MCP for live Odoo docs with graceful fallback (KB remains primary) — v2.1
+- Artifact state tracking (pending/generated/validated/approved) with JSON sidecar and CLI display — v2.1
 
-See: `.planning/REQUIREMENTS.md` for full requirement IDs and acceptance criteria
+### Active
+
+No active requirements — ready for next milestone definition
 
 ### Out of Scope
 
@@ -137,8 +139,8 @@ See: `.planning/REQUIREMENTS.md` for full requirement IDs and acceptance criteri
 - 8 specialized agents: odoo-scaffold, odoo-model-gen, odoo-view-gen, odoo-test-gen, odoo-security-gen, odoo-validator, odoo-search, odoo-extend
 - 12 user commands via /odoo-gen:* prefix (new, validate, search, plan, extend, etc.)
 - 13 knowledge base files covering Odoo 17.0/18.0 OCA standards
-- v2.1 adds: Expanded Docker fixes, bounded iterations, Context7, observability
-- Remaining tech debt: CLI --auto-fix path has no integration test, FIXABLE_DOCKER_PATTERNS handles 1/5 patterns
+- v2.1 shipped: Docker auto-fix hardening (5 patterns), Context7 REST client, artifact state tracking
+- Remaining tech debt: Context7 query_docs not wired into generation pipeline (available on-demand for agents)
 - Distribution: users clone into `~/.claude/odoo-gen/` and run `install.sh`
 
 ## Constraints
@@ -173,6 +175,11 @@ See: `.planning/REQUIREMENTS.md` for full requirement IDs and acceptance criteri
 | Version-aware template fallback | FileSystemLoader([version_dir, shared_dir]) | Good — clean 17.0/18.0 separation |
 | AST-based import analysis | More reliable than regex for complex Python imports | Good — precise unused import detection |
 | Immutable read-transform-write | Read file → create new content → compare → write if changed | Good — safe auto-fix pattern |
+| Configurable iteration caps (default 5) | Prevent infinite fix loops, escalate to human | Good — replaced hardcoded 2 |
+| missing_import excluded from auto-dispatch | Requires human judgment (install package vs add dep) | Good — right boundary |
+| Context7 stdlib-only (urllib.request) | No new deps for simple GET calls | Good — zero dependency growth |
+| JSON sidecar for artifact state | .odoo-gen-state.json alongside module | Good — non-intrusive observability |
+| Warning-only invalid state transitions | Log warnings but never block generation | Good — observability never interferes |
 
 ## Prior Art
 
@@ -191,4 +198,4 @@ See: `.planning/REQUIREMENTS.md` for full requirement IDs and acceptance criteri
 | **Context7** | INTEGRATE | Live documentation MCP for real-time Odoo API reference |
 
 ---
-*Last updated: 2026-03-04 — v2.1 Auto-Fix & Enhancements started*
+*Last updated: 2026-03-04 — after v2.1 milestone shipped*

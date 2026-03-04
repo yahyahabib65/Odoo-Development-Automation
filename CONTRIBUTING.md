@@ -43,7 +43,7 @@ uv run odoo-gen-utils --version
 
 # Run tests
 uv run pytest tests/ -v
-# → 309 passed
+# → 444 passed
 ```
 
 ### Environment Variables

@@ -41,8 +41,11 @@ You: "I need a module to track employee training courses and sessions"
 - **8 Specialized AI Agents** — Model generation, view generation, security patterns, test generation, validation, search, scaffolding, fork-and-extend
 - **24 Jinja2 Templates** — Version-aware templates for Odoo 17.0 and 18.0 with shared fallback
 - **Validation Pipeline** — pylint-odoo linting + Docker-based Odoo installation + test execution
-- **Auto-Fix** — Automatically fixes pylint violations, missing `mail.thread` inheritance, unused imports (AST-based)
+- **Auto-Fix** — Automatically fixes pylint violations, missing `mail.thread` inheritance, unused imports (AST-based), XML parse errors, missing ACLs, manifest load order — with configurable 5-iteration caps
 - **Knowledge Base** — 13 domain files with 80+ WRONG/CORRECT example pairs preventing AI hallucinations
+- **Context7 Integration** — Live Odoo documentation queries via Context7 REST API with graceful fallback
+- **Artifact State Tracking** — Generation pipeline observability with JSON sidecar persistence and CLI display
+- **MCP Server** — 6 tools for live Odoo introspection (list_models, get_model_fields, check_module_dependency, etc.)
 - **Human Review** — 3 checkpoint-based review gates before code generation
 - **Edition Support** — Community and Enterprise, Odoo 17.0 (primary) and 18.0
 
@@ -141,6 +144,13 @@ Clones an OCA module and sets up a companion `_ext` module for customization.
 | `/odoo-gen:history` | Show generation history |
 | `/odoo-gen:help` | Show available commands and usage |
 
+### Observability Commands
+
+| Command | Description |
+|---------|-------------|
+| `odoo-gen-utils show-state ./module` | Show artifact generation state with status icons |
+| `odoo-gen-utils context7-status` | Check Context7 API configuration and Odoo library resolution |
+
 ## Architecture
 
 ```
@@ -208,7 +218,7 @@ odoo-gen/
     │   ├── kb_validator.py
     │   ├── search/         # ChromaDB, GitHub, fork
     │   └── validation/     # Docker, pylint, reports
-    └── tests/              # 309 tests (pytest)
+    └── tests/              # 444 tests (pytest)
 ```
 
 ## Python Utilities (odoo-gen-utils)
@@ -338,6 +348,7 @@ Default settings in `defaults.json`:
 Override via `/odoo-gen:config` or environment variables:
 - `GITHUB_TOKEN` — GitHub API access for OCA search
 - `ODOO_VERSION` — Target Odoo version (17.0 or 18.0)
+- `CONTEXT7_API_KEY` — Context7 API key for live Odoo documentation queries (optional)
 
 ## Knowledge Base
 
@@ -360,8 +371,10 @@ Extend the knowledge base by adding files to `knowledge/custom/`. These are auto
 | v1.0 | MVP | 1-9 | Shipped 2026-03-03 |
 | v1.1 | Tech Debt Cleanup | 10-11 | Shipped 2026-03-03 |
 | v1.2 | Template Quality | 12-14 | Shipped 2026-03-04 |
+| v2.0 | Environment-Aware Generation | 15-17 | Shipped 2026-03-04 |
+| v2.1 | Auto-Fix & Enhancements | 18-19 | Shipped 2026-03-04 |
 
-**Stats:** 14 phases, 34 plans, 168+ commits, 10,999 LOC Python, 309 tests
+**Stats:** 19 phases, 45 plans, 270+ commits, 15,700 LOC Python, 444 tests
 
 ## License
 

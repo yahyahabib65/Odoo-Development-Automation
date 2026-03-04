@@ -104,18 +104,66 @@
 
 ---
 
+## Milestone: v2.1 — Auto-Fix & Enhancements
+
+**Shipped:** 2026-03-04
+**Phases:** 2 (18-19) | **Plans:** 5 | **Commits:** 25 | **Timeline:** 1 day
+
+### What Was Built
+
+1. 3 Docker fix functions (XML parse error, missing ACL, manifest load order) wired into auto-fix dispatch pipeline
+2. Configurable 5-iteration caps on both pylint and Docker fix loops with escalation to human review
+3. Integration test suite proving validate --auto-fix resolves violations end-to-end (CI-safe, no Docker)
+4. Context7 REST client with cached library resolution, doc querying, and graceful fallback (stdlib only)
+5. Artifact state tracker with frozen dataclass, JSON sidecar (.odoo-gen-state.json), immutable transitions, CLI display
+6. Full pipeline wiring: render_module() state tracking for 5 artifact kinds + show-state and context7-status CLI commands
+
+### What Worked
+
+- **TDD 3-commit pattern**: RED/GREEN/REFACTOR with separate commits made every plan execute cleanly with zero regressions
+- **Wave-based parallelism**: Plans 19-01 and 19-02 executed in parallel (3 min each), then 19-03 wired them together (4 min)
+- **Stdlib-only approach**: Both Context7 (urllib.request) and artifact state (json/dataclasses) added zero new dependencies
+- **Graceful fallback consistency**: Following the existing `build_*_from_env` + `try/except` pattern kept all new features non-blocking
+- **Milestone audit process**: The tech_debt audit correctly identified the stale help text which was fixed before archival
+
+### What Was Inefficient
+
+- **Roadmap parser fragility**: `roadmap get-phase 19` returned `found: false` throughout the session due to corrupted v2.0 `<details>` formatting. Required workarounds in every tool call.
+- **Context window used for milestone completion**: Archiving workflows consume significant context for file reads and updates. Should consider doing milestone completion in a fresh session.
+
+### Patterns Established
+
+- **Lazy import pattern for CLI commands**: All new CLI commands use function-body imports to avoid circular dependencies
+- **JSON sidecar pattern**: `.odoo-gen-state.json` alongside generated module for structured metadata
+- **Status icon convention**: `[ ]` pending, `[G]` generated, `[V]` validated, `[A]` approved
+- **Immutable transition pattern**: `ModuleState.transition()` returns new instance, never mutates
+
+### Key Lessons
+
+1. **Keep ROADMAP.md clean**: Corrupted formatting in `<details>` sections breaks downstream tooling. Always validate ROADMAP.md structure after edits.
+2. **Stdlib is enough for simple HTTP clients**: urllib.request handles Context7's simple REST API without needing httpx or requests.
+3. **Single-day milestones are achievable**: 2 phases, 5 plans, 25 commits executed in one session when requirements are clear and codebase is well-tested.
+
+### Cost Observations
+
+- Model mix: 100% Opus (quality profile), Sonnet for plan-checker and verifier agents
+- Sessions: 2 context windows (execution + completion/audit)
+- Notable: Plan execution averaged 3.4 min — fastest milestone yet
+
+---
+
 ## Cross-Milestone Trends
 
-| Metric | v1.0 | v1.2 |
-|--------|------|------|
-| Phases | 9 | 3 |
-| Plans | 26 | 4 |
-| Requirements | 68 | 12 |
-| LOC (Python) | 4,150 | 10,999 |
-| Tests | 243 | 309 |
-| Commits | 139 | 29 |
-| Timeline (days) | 3 | 2 |
-| Avg plan duration | 4.4 min | 4 min |
+| Metric | v1.0 | v1.2 | v2.1 |
+|--------|------|------|------|
+| Phases | 9 | 3 | 2 |
+| Plans | 26 | 4 | 5 |
+| Requirements | 68 | 12 | 5 |
+| LOC (Python) | 4,150 | 10,999 | 15,700 |
+| Tests | 243 | 309 | 444 |
+| Commits | 139 | 29 | 25 |
+| Timeline (days) | 3 | 2 | 1 |
+| Avg plan duration | 4.4 min | 4 min | 3.4 min |
 
 ---
 *Last updated: 2026-03-04*

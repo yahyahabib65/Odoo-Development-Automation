@@ -1,5 +1,21 @@
 # Milestones
 
+## v2.1 Auto-Fix & Enhancements (Shipped: 2026-03-04)
+
+**Phases completed:** 2 phases (18-19), 5 plans | 25 commits | +4,994 net LOC Python
+**Timeline:** 2026-03-04 (1 day)
+**Tests:** 444 passing (up from 381)
+
+**Key accomplishments:**
+1. 3 Docker fix functions (XML parse error, missing ACL, manifest load order) with dispatch wiring into auto-fix pipeline
+2. Configurable 5-iteration caps on both pylint and Docker fix loops with escalation to human review
+3. Integration test suite proving validate --auto-fix resolves violations end-to-end (CI-safe, no Docker required)
+4. Context7 REST client with cached library resolution, doc querying, and graceful fallback on all failure paths (stdlib only)
+5. Artifact state tracker with frozen dataclass, JSON sidecar persistence, immutable transitions, and CLI display with status icons
+6. Full pipeline wiring: render_module() state tracking for 5 artifact kinds + show-state and context7-status CLI commands
+
+---
+
 ## v2.0 Environment-Aware Generation (Shipped: 2026-03-04)
 
 **Phases completed:** 3 phases (15-17), 6 plans | 18 commits | +1,200 net LOC Python
