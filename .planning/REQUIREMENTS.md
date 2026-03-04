@@ -13,11 +13,11 @@
 
 ### MCP
 
-- [ ] **MCP-05**: Agents can query Odoo 17.0/18.0 API documentation on demand via Context7 MCP, with the knowledge base remaining the primary source and Context7 supplementing; generation works without Context7 configured (graceful fallback)
+- [x] **MCP-05**: Agents can query Odoo 17.0/18.0 API documentation on demand via Context7 MCP, with the knowledge base remaining the primary source and Context7 supplementing; generation works without Context7 configured (graceful fallback)
 
 ### Observability
 
-- [ ] **OBS-01**: Each artifact (model, view, security, test) has a tracked state (pending, generated, validated, approved) stored as structured metadata, visible via CLI output or log; state tracking does not block generation if it fails
+- [x] **OBS-01**: Each artifact (model, view, security, test) has a tracked state (pending, generated, validated, approved) stored as structured metadata, visible via CLI output or log; state tracking does not block generation if it fails
 
 ## Future Requirements
 
@@ -39,8 +39,8 @@ None currently — v2.1 closes remaining v2.0 deferrals.
 | DFIX-01 | Phase 18: Auto-Fix Hardening | Complete |
 | AFIX-01 | Phase 18: Auto-Fix Hardening | Complete |
 | AFIX-02 | Phase 18: Auto-Fix Hardening | Complete |
-| MCP-05 | Phase 19: Enhancements | Pending |
-| OBS-01 | Phase 19: Enhancements | Pending |
+| MCP-05 | Phase 19: Enhancements | Complete |
+| OBS-01 | Phase 19: Enhancements | Complete |
 
 **Coverage:**
 - v2.1 requirements: 5 total
