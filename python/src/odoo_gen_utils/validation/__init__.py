@@ -25,6 +25,7 @@ from odoo_gen_utils.validation.report import (  # noqa: F401
 )
 from odoo_gen_utils.validation.types import (  # noqa: F401
     InstallResult,
+    Result,
     TestResult,
     ValidationReport,
     Violation,
@@ -32,6 +33,7 @@ from odoo_gen_utils.validation.types import (  # noqa: F401
 
 __all__ = [
     "InstallResult",
+    "Result",
     "TestResult",
     "ValidationReport",
     "Violation",
