@@ -440,3 +440,215 @@ class TestFunctionSizeLimits:
         source = inspect.getsource(render_module)
         line_count = len(source.splitlines())
         assert line_count < 80, f"render_module is {line_count} lines, should be < 80"
+
+
+# ---------------------------------------------------------------------------
+# Phase 27: Integration tests for relationship patterns in rendered output
+# ---------------------------------------------------------------------------
+
+
+def _make_through_spec():
+    """Spec with m2m_through relationship for integration tests."""
+    return {
+        "module_name": "test_university",
+        "module_title": "Test University",
+        "summary": "Test module",
+        "author": "Test",
+        "website": "https://test.example.com",
+        "license": "LGPL-3",
+        "category": "Education",
+        "odoo_version": "17.0",
+        "depends": ["base"],
+        "application": True,
+        "models": [
+            {
+                "name": "test_university.course",
+                "description": "Course",
+                "fields": [{"name": "name", "type": "Char", "required": True}],
+            },
+            {
+                "name": "test_university.student",
+                "description": "Student",
+                "fields": [{"name": "name", "type": "Char", "required": True}],
+            },
+        ],
+        "relationships": [
+            {
+                "type": "m2m_through",
+                "from": "test_university.course",
+                "to": "test_university.student",
+                "through_model": "test_university.enrollment",
+                "through_fields": [
+                    {"name": "grade", "type": "Float"},
+                    {"name": "enrollment_date", "type": "Date", "default": "fields.Date.today"},
+                ],
+            }
+        ],
+        "wizards": [],
+    }
+
+
+def _make_self_m2m_spec():
+    """Spec with self_m2m relationship for integration tests."""
+    return {
+        "module_name": "test_university",
+        "module_title": "Test University",
+        "summary": "Test module",
+        "author": "Test",
+        "website": "https://test.example.com",
+        "license": "LGPL-3",
+        "category": "Education",
+        "odoo_version": "17.0",
+        "depends": ["base"],
+        "application": True,
+        "models": [
+            {
+                "name": "test_university.course",
+                "description": "Course",
+                "fields": [{"name": "name", "type": "Char", "required": True}],
+            },
+        ],
+        "relationships": [
+            {
+                "type": "self_m2m",
+                "model": "test_university.course",
+                "field_name": "prerequisite_ids",
+                "inverse_field_name": "dependent_ids",
+                "string": "Prerequisites",
+                "inverse_string": "Dependent Courses",
+            }
+        ],
+        "wizards": [],
+    }
+
+
+def _make_hierarchical_spec():
+    """Spec with hierarchical model for integration tests."""
+    return {
+        "module_name": "test_university",
+        "module_title": "Test University",
+        "summary": "Test module",
+        "author": "Test",
+        "website": "https://test.example.com",
+        "license": "LGPL-3",
+        "category": "Education",
+        "odoo_version": "17.0",
+        "depends": ["base"],
+        "application": True,
+        "models": [
+            {
+                "name": "test_university.department",
+                "description": "Department",
+                "hierarchical": True,
+                "fields": [{"name": "name", "type": "Char", "required": True}],
+            },
+        ],
+        "wizards": [],
+    }
+
+
+class TestRenderModelsThroughModel:
+    """Integration tests for rendered through-model output."""
+
+    def test_through_model_has_two_m2one_fks(self, tmp_path):
+        spec = _make_through_spec()
+        files, _ = render_module(spec, None, tmp_path)
+        through_py = (tmp_path / "test_university" / "models" / "test_university_enrollment.py").read_text()
+        assert "fields.Many2one(" in through_py
+        assert 'comodel_name="test_university.course"' in through_py
+        assert 'comodel_name="test_university.student"' in through_py
+        assert "required=True" in through_py
+
+    def test_through_model_has_extra_fields(self, tmp_path):
+        spec = _make_through_spec()
+        files, _ = render_module(spec, None, tmp_path)
+        through_py = (tmp_path / "test_university" / "models" / "test_university_enrollment.py").read_text()
+        assert "grade" in through_py
+        assert "enrollment_date" in through_py
+
+    def test_ondelete_cascade_rendered(self, tmp_path):
+        spec = _make_through_spec()
+        files, _ = render_module(spec, None, tmp_path)
+        through_py = (tmp_path / "test_university" / "models" / "test_university_enrollment.py").read_text()
+        assert 'ondelete="cascade"' in through_py
+
+
+class TestRenderManifestThroughModel:
+    """Integration tests: through-model in __init__.py."""
+
+    def test_init_py_imports_through_model(self, tmp_path):
+        spec = _make_through_spec()
+        files, _ = render_module(spec, None, tmp_path)
+        init_py = (tmp_path / "test_university" / "models" / "__init__.py").read_text()
+        assert "test_university_enrollment" in init_py
+
+
+class TestRenderSecurityThroughModel:
+    """Integration tests: through-model ACL entries."""
+
+    def test_access_csv_has_through_model_entries(self, tmp_path):
+        spec = _make_through_spec()
+        files, _ = render_module(spec, None, tmp_path)
+        csv_content = (tmp_path / "test_university" / "security" / "ir.model.access.csv").read_text()
+        assert "test_university_enrollment" in csv_content
+
+
+class TestRenderModelsSelfM2M:
+    """Integration tests for rendered self-referential M2M output."""
+
+    def test_many2many_with_relation_params(self, tmp_path):
+        spec = _make_self_m2m_spec()
+        files, _ = render_module(spec, None, tmp_path)
+        course_py = (tmp_path / "test_university" / "models" / "test_university_course.py").read_text()
+        assert "fields.Many2many(" in course_py
+        assert "relation=" in course_py
+        assert "column1=" in course_py
+        assert "column2=" in course_py
+
+    def test_inverse_field_reversed_columns(self, tmp_path):
+        spec = _make_self_m2m_spec()
+        files, _ = render_module(spec, None, tmp_path)
+        course_py = (tmp_path / "test_university" / "models" / "test_university_course.py").read_text()
+        # Both prerequisite_ids and dependent_ids should be present
+        assert "prerequisite_ids" in course_py
+        assert "dependent_ids" in course_py
+
+
+class TestRenderModelsHierarchical:
+    """Integration tests for rendered hierarchical model output."""
+
+    def test_parent_store_class_attribute(self, tmp_path):
+        spec = _make_hierarchical_spec()
+        files, _ = render_module(spec, None, tmp_path)
+        dept_py = (tmp_path / "test_university" / "models" / "test_university_department.py").read_text()
+        assert "_parent_store = True" in dept_py
+        assert '_parent_name = "parent_id"' in dept_py
+
+    def test_parent_id_field_rendered(self, tmp_path):
+        spec = _make_hierarchical_spec()
+        files, _ = render_module(spec, None, tmp_path)
+        dept_py = (tmp_path / "test_university" / "models" / "test_university_department.py").read_text()
+        assert "parent_id = fields.Many2one(" in dept_py
+        assert 'ondelete="cascade"' in dept_py
+        assert "index=True" in dept_py
+
+    def test_child_ids_field_rendered(self, tmp_path):
+        spec = _make_hierarchical_spec()
+        files, _ = render_module(spec, None, tmp_path)
+        dept_py = (tmp_path / "test_university" / "models" / "test_university_department.py").read_text()
+        assert "child_ids = fields.One2many(" in dept_py
+        assert 'inverse_name="parent_id"' in dept_py
+
+    def test_parent_path_unaccent_false(self, tmp_path):
+        spec = _make_hierarchical_spec()
+        files, _ = render_module(spec, None, tmp_path)
+        dept_py = (tmp_path / "test_university" / "models" / "test_university_department.py").read_text()
+        assert "parent_path = fields.Char(" in dept_py
+        assert "unaccent=False" in dept_py
+        assert "index=True" in dept_py
+
+    def test_parent_path_not_in_form_view(self, tmp_path):
+        spec = _make_hierarchical_spec()
+        files, _ = render_module(spec, None, tmp_path)
+        views_xml = (tmp_path / "test_university" / "views" / "test_university_department_views.xml").read_text()
+        assert "parent_path" not in views_xml
