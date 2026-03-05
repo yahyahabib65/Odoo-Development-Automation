@@ -224,7 +224,7 @@ Phases execute in numeric order: 26 -> 27 -> 28 -> 29 -> 30 -> 31 -> 32 -> 33 ->
 | 15-17 | v2.0 | 6/6 | Complete | 2026-03-04 |
 | 18-19 | v2.1 | 5/5 | Complete | 2026-03-04 |
 | 20-25 | v3.0 | 11/11 | Complete | 2026-03-05 |
-| 26. Monetary Field Detection | 1/1 | Complete   | 2026-03-05 | - |
+| 26. Monetary Field Detection | 1/1 | Complete    | 2026-03-05 | - |
 | 27. Relationship Patterns | v3.1 | 0/TBD | Not started | - |
 | 28. Computed Chains & Cycle Detection | v3.1 | 0/TBD | Not started | - |
 | 29. Complex Constraints | v3.1 | 0/TBD | Not started | - |

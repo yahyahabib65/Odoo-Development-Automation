@@ -4,7 +4,7 @@ milestone: v3.1
 milestone_name: Design Flaws & Feature Gaps
 status: planning
 stopped_at: Completed 26-01-PLAN.md (Monetary Field Detection)
-last_updated: "2026-03-05T17:01:30.827Z"
+last_updated: "2026-03-05T17:04:03.575Z"
 last_activity: 2026-03-05 — Roadmap created for v3.1
 progress:
   total_phases: 9
