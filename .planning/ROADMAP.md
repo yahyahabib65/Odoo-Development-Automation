@@ -146,7 +146,7 @@ Plans:
   4. All generated constraint methods include proper `_()` translated error messages
 **Plans**: 1 plan
 Plans:
-- [ ] 26-01-PLAN.md — Monetary detection in renderer + template Monetary branch + currency_id injection
+- [ ] 29-01-PLAN.md — Constraint preprocessor, template extensions for temporal/cross-model/capacity constraints, unit + integration tests
 
 ### Phase 30: Scheduled Actions & Render Pipeline
 **Goal**: Generator produces ir.cron XML records with model method stubs, and new render stages are wired into the renderer pipeline
@@ -229,7 +229,7 @@ Phases execute in numeric order: 26 -> 27 -> 28 -> 29 -> 30 -> 31 -> 32 -> 33 ->
 | 26. Monetary Field Detection | 1/1 | Complete    | 2026-03-05 | - |
 | 27. Relationship Patterns | 1/1 | Complete    | 2026-03-05 | - |
 | 28. Computed Chains & Cycle Detection | 1/1 | Complete    | 2026-03-05 | - |
-| 29. Complex Constraints | v3.1 | 0/TBD | Not started | - |
+| 29. Complex Constraints | v3.1 | 0/1 | Not started | - |
 | 30. Scheduled Actions & Render Pipeline | v3.1 | 0/TBD | Not started | - |
 | 31. Reports & Analytics | v3.1 | 0/TBD | Not started | - |
 | 32. Controllers & Import/Export | v3.1 | 0/TBD | Not started | - |
