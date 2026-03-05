@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Bug Fixes & Tech Debt
-status: completed
-stopped_at: Phase 21 complete — verified 4/4 must-haves
-last_updated: "2026-03-05T07:45:25Z"
-last_activity: 2026-03-05 — Completed 21-02-PLAN.md (wizard api, ACL, display_name fixes)
+status: in-progress
+stopped_at: Completed 22-01-PLAN.md (docker run --rm fix)
+last_updated: "2026-03-05T08:12:49Z"
+last_activity: 2026-03-05 — Completed 22-01-PLAN.md (docker run --rm fix for VALD-01)
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
-  percent: 97
+  total_plans: 5
+  completed_plans: 5
+  percent: 98
 ---
 
 # Project State
@@ -22,16 +22,16 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Compress months of repetitive Odoo module development into days by extending GSD's orchestration with Odoo-specialized agents, knowledge, and validation.
 **Architecture:** GSD extension (not standalone CLI)
-**Current focus:** v3.0 Phase 22 — Validation & Search Fixes (next)
+**Current focus:** v3.0 Phase 22 — Validation & Search Fixes (in progress)
 
 ## Current Position
 
-Phase: 21 of 24 (Template Correctness)
-Plan: 2 of 2 in current phase (PHASE COMPLETE)
-Status: Phase 21 complete
-Last activity: 2026-03-05 — Completed 21-02-PLAN.md (wizard api, ACL, display_name fixes)
+Phase: 22 of 24 (Validation & Search Fixes)
+Plan: 1 of 1 completed in current phase
+Status: Phase 22 Plan 01 complete
+Last activity: 2026-03-05 — Completed 22-01-PLAN.md (docker run --rm fix for VALD-01)
 
-Progress: [█████████████████████████████░] 97% (v3.0)
+Progress: [█████████████████████████████░] 98% (v3.0)
 
 ## Performance Metrics
 
@@ -62,6 +62,8 @@ Progress: [███████████████████████
 - Phase 21 Plan 02: Wizard ACL: single user line with 1,1,1,1 (no manager line for TransientModels)
 - Phase 21 Plan 02: Version gate uses string comparison odoo_version >= "18.0" for display_name vs name_get
 
+- Phase 22 Plan 01: Matched docker_run_tests pattern exactly: up -d --wait db then run --rm -T odoo
+
 ### Pending Todos
 
 None yet.
@@ -69,7 +71,7 @@ None yet.
 ### Blockers/Concerns
 
 - AskUserQuestion tool is unreliable — use plain text questions instead.
-- Docker `exec` causes serialization failures — VALD-01 in Phase 22 fixes this.
+- Docker `exec` causes serialization failures — FIXED in 22-01 (VALD-01).
 
 ## Shipped Milestones
 
@@ -83,7 +85,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-05T07:45:25Z
-Stopped at: Completed 21-02-PLAN.md
+Last session: 2026-03-05T08:12:49Z
+Stopped at: Completed 22-01-PLAN.md
 Resume file: None
-Next step: Plan/execute Phase 22 (Validation & Search Fixes) or Phase 23 (Unified Result Type)
+Next step: Continue Phase 22 remaining plans or Phase 23 (Unified Result Type)

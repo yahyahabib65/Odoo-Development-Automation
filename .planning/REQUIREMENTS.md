@@ -19,7 +19,7 @@
 
 ### Validation Infrastructure
 
-- [ ] **VALD-01**: docker_install_module uses `docker compose run --rm` instead of `docker compose exec`, eliminating serialization race condition
+- [x] **VALD-01**: docker_install_module uses `docker compose run --rm` instead of `docker compose exec`, eliminating serialization race condition
 - [ ] **VALD-02**: Validation pipeline uses unified Result[T] type with success/data/errors fields across auto_fix, docker_runner, pylint_runner, and verifier modules
 
 ### Search Infrastructure
@@ -80,7 +80,7 @@
 | TMPL-02 | Phase 21 | Complete |
 | TMPL-03 | Phase 21 | Complete |
 | TMPL-04 | Phase 21 | Complete |
-| VALD-01 | Phase 22 | Pending |
+| VALD-01 | Phase 22 | Complete |
 | VALD-02 | Phase 23 | Pending |
 | SRCH-01 | Phase 22 | Pending |
 | SRCH-02 | Phase 22 | Pending |
