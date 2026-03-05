@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: Design Flaws & Feature Gaps
-status: planning
-stopped_at: Completed 26-01-PLAN.md (Monetary Field Detection)
-last_updated: "2026-03-05T17:04:03.575Z"
-last_activity: 2026-03-05 — Roadmap created for v3.1
+status: completed
+stopped_at: Completed 27-01-PLAN.md (Relationship Patterns)
+last_updated: "2026-03-05T17:34:20.853Z"
+last_activity: 2026-03-05 — Phase 27 Plan 01 executed
 progress:
   total_phases: 9
-  completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
-  percent: 0
+  completed_phases: 2
+  total_plans: 2
+  completed_plans: 2
+  percent: 22
 ---
 
 # Project State
@@ -22,16 +22,16 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Compress months of repetitive Odoo module development into days by extending GSD's orchestration with Odoo-specialized agents, knowledge, and validation.
 **Architecture:** GSD extension (not standalone CLI)
-**Current focus:** v3.1 Phase 26 — Monetary Field Detection
+**Current focus:** v3.1 Phase 27 — Relationship Patterns
 
 ## Current Position
 
-Phase: 26 of 34 (Monetary Field Detection)
-Plan: — (not yet planned)
-Status: Ready to plan
-Last activity: 2026-03-05 — Roadmap created for v3.1
+Phase: 27 of 34 (Relationship Patterns)
+Plan: 01 of 01 (complete)
+Status: Plan 01 complete
+Last activity: 2026-03-05 — Phase 27 Plan 01 executed
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██░░░░░░░░] 22%
 
 ## Performance Metrics
 
@@ -55,6 +55,8 @@ Progress: [░░░░░░░░░░] 0%
 - TMPL-05 (cron) before PERF-04 (archival) since archival uses cron
 - Deferred to v3.2+: Security, Business Logic, Domain/Localization, Tooling, Architecture
 - [Phase 26]: Monetary branch placed before compute branch in templates; 20 keyword patterns for financial field detection; opt-out via monetary:false
+- [Phase 27]: Through-model FK names from model last part; self-M2M relation table named {model_table}_{field_name}_rel; hierarchical detection in _build_model_context(); view_fields excludes internal fields
+- [Phase 27]: Through-model FK names from model last part; self-M2M relation table {model_table}_{field_name}_rel; hierarchical in _build_model_context(); view_fields excludes internal fields
 
 ### Pending Todos
 
@@ -80,7 +82,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-05T17:01:30.825Z
-Stopped at: Completed 26-01-PLAN.md (Monetary Field Detection)
+Last session: 2026-03-05T17:34:16.065Z
+Stopped at: Completed 27-01-PLAN.md (Relationship Patterns)
 Resume file: None
-Next step: `/gsd:plan-phase 26`
+Next step: `/gsd:plan-phase 28`
