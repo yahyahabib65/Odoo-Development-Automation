@@ -2,14 +2,15 @@
 gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: Design Flaws & Feature Gaps
-status: ready_to_plan
-last_updated: "2026-03-05"
-last_activity: 2026-03-05 — Roadmap created (9 phases, 16 requirements)
+status: planning
+stopped_at: Completed 26-01-PLAN.md (Monetary Field Detection)
+last_updated: "2026-03-05T17:01:30.827Z"
+last_activity: 2026-03-05 — Roadmap created for v3.1
 progress:
   total_phases: 9
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  completed_phases: 1
+  total_plans: 1
+  completed_plans: 1
   percent: 0
 ---
 
@@ -53,6 +54,7 @@ Progress: [░░░░░░░░░░] 0%
 - SPEC-03 + SPEC-05 paired (chains + cycle detection are natural fit)
 - TMPL-05 (cron) before PERF-04 (archival) since archival uses cron
 - Deferred to v3.2+: Security, Business Logic, Domain/Localization, Tooling, Architecture
+- [Phase 26]: Monetary branch placed before compute branch in templates; 20 keyword patterns for financial field detection; opt-out via monetary:false
 
 ### Pending Todos
 
@@ -78,7 +80,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-05
-Stopped at: Roadmap created for v3.1
+Last session: 2026-03-05T17:01:30.825Z
+Stopped at: Completed 26-01-PLAN.md (Monetary Field Detection)
 Resume file: None
 Next step: `/gsd:plan-phase 26`
