@@ -1857,3 +1857,318 @@ class TestRenderModuleMonetary:
         assert "fields.Monetary" in model_content
         assert 'currency_field="currency_id"' in model_content
         assert "currency_id = fields.Many2one(" in model_content
+
+
+# ---------------------------------------------------------------------------
+# Phase 27: _process_relationships() — M2M through-model tests
+# ---------------------------------------------------------------------------
+
+
+class TestProcessRelationshipsM2MThrough:
+    """Unit tests for _process_relationships() with m2m_through relationships."""
+
+    def _make_through_spec(self):
+        return {
+            "module_name": "test_university",
+            "depends": ["base"],
+            "models": [
+                {
+                    "name": "test_university.course",
+                    "description": "Course",
+                    "fields": [{"name": "name", "type": "Char", "required": True}],
+                },
+                {
+                    "name": "test_university.student",
+                    "description": "Student",
+                    "fields": [{"name": "name", "type": "Char", "required": True}],
+                },
+            ],
+            "relationships": [
+                {
+                    "type": "m2m_through",
+                    "from": "test_university.course",
+                    "to": "test_university.student",
+                    "through_model": "test_university.enrollment",
+                    "through_fields": [
+                        {"name": "grade", "type": "Float"},
+                        {"name": "enrollment_date", "type": "Date", "default": "fields.Date.today"},
+                    ],
+                }
+            ],
+            "wizards": [],
+        }
+
+    def test_synthesizes_through_model(self):
+        from odoo_gen_utils.renderer import _process_relationships
+
+        spec = self._make_through_spec()
+        result = _process_relationships(spec)
+        model_names = [m["name"] for m in result["models"]]
+        assert "test_university.enrollment" in model_names
+
+        through = next(m for m in result["models"] if m["name"] == "test_university.enrollment")
+        field_names = [f["name"] for f in through["fields"]]
+        # Two M2one FKs
+        assert "course_id" in field_names
+        assert "student_id" in field_names
+        # Extra through_fields
+        assert "grade" in field_names
+        assert "enrollment_date" in field_names
+
+        # FK fields are required M2one with ondelete=cascade
+        course_fk = next(f for f in through["fields"] if f["name"] == "course_id")
+        assert course_fk["type"] == "Many2one"
+        assert course_fk["required"] is True
+        assert course_fk["ondelete"] == "cascade"
+        assert course_fk["comodel_name"] == "test_university.course"
+
+        student_fk = next(f for f in through["fields"] if f["name"] == "student_id")
+        assert student_fk["type"] == "Many2one"
+        assert student_fk["required"] is True
+        assert student_fk["ondelete"] == "cascade"
+        assert student_fk["comodel_name"] == "test_university.student"
+
+    def test_injects_one2many_on_parents(self):
+        from odoo_gen_utils.renderer import _process_relationships
+
+        spec = self._make_through_spec()
+        result = _process_relationships(spec)
+
+        course = next(m for m in result["models"] if m["name"] == "test_university.course")
+        course_field_names = [f["name"] for f in course["fields"]]
+        assert "enrollment_ids" in course_field_names
+
+        student = next(m for m in result["models"] if m["name"] == "test_university.student")
+        student_field_names = [f["name"] for f in student["fields"]]
+        assert "enrollment_ids" in student_field_names
+
+    def test_no_duplicate_injection(self):
+        from odoo_gen_utils.renderer import _process_relationships
+
+        spec = self._make_through_spec()
+        # Pre-add enrollment_ids on course model
+        spec["models"][0]["fields"].append({
+            "name": "enrollment_ids",
+            "type": "One2many",
+            "comodel_name": "test_university.enrollment",
+            "inverse_name": "course_id",
+        })
+        result = _process_relationships(spec)
+        course = next(m for m in result["models"] if m["name"] == "test_university.course")
+        enrollment_fields = [f for f in course["fields"] if f["name"] == "enrollment_ids"]
+        assert len(enrollment_fields) == 1
+
+    def test_fk_name_collision_with_through_fields(self):
+        from odoo_gen_utils.renderer import _process_relationships
+
+        spec = self._make_through_spec()
+        # Add a through_field that collides with auto-generated FK name
+        spec["relationships"][0]["through_fields"].append(
+            {"name": "course_id", "type": "Char"}
+        )
+        with pytest.raises(ValueError, match="collision"):
+            _process_relationships(spec)
+
+    def test_through_model_has_synthesized_flag(self):
+        from odoo_gen_utils.renderer import _process_relationships
+
+        spec = self._make_through_spec()
+        result = _process_relationships(spec)
+        through = next(m for m in result["models"] if m["name"] == "test_university.enrollment")
+        assert through.get("_synthesized") is True
+
+    def test_immutability(self):
+        from odoo_gen_utils.renderer import _process_relationships
+        import copy
+
+        spec = self._make_through_spec()
+        original = copy.deepcopy(spec)
+        _process_relationships(spec)
+        assert spec == original
+
+
+# ---------------------------------------------------------------------------
+# Phase 27: _process_relationships() — Self-referential M2M tests
+# ---------------------------------------------------------------------------
+
+
+class TestProcessRelationshipsSelfM2M:
+    """Unit tests for _process_relationships() with self_m2m relationships."""
+
+    def _make_self_m2m_spec(self, with_inverse=True):
+        rel = {
+            "type": "self_m2m",
+            "model": "test_university.course",
+            "field_name": "prerequisite_ids",
+            "string": "Prerequisites",
+        }
+        if with_inverse:
+            rel["inverse_field_name"] = "dependent_ids"
+            rel["inverse_string"] = "Dependent Courses"
+        return {
+            "module_name": "test_university",
+            "depends": ["base"],
+            "models": [
+                {
+                    "name": "test_university.course",
+                    "description": "Course",
+                    "fields": [{"name": "name", "type": "Char", "required": True}],
+                },
+            ],
+            "relationships": [rel],
+            "wizards": [],
+        }
+
+    def test_enriches_primary_field(self):
+        from odoo_gen_utils.renderer import _process_relationships
+
+        spec = self._make_self_m2m_spec()
+        result = _process_relationships(spec)
+        course = next(m for m in result["models"] if m["name"] == "test_university.course")
+        prereq = next(f for f in course["fields"] if f["name"] == "prerequisite_ids")
+        assert prereq["type"] == "Many2many"
+        assert prereq["comodel_name"] == "test_university.course"
+        assert "relation" in prereq
+        assert "column1" in prereq
+        assert "column2" in prereq
+
+    def test_enriches_inverse_field(self):
+        from odoo_gen_utils.renderer import _process_relationships
+
+        spec = self._make_self_m2m_spec(with_inverse=True)
+        result = _process_relationships(spec)
+        course = next(m for m in result["models"] if m["name"] == "test_university.course")
+        dep = next(f for f in course["fields"] if f["name"] == "dependent_ids")
+        prereq = next(f for f in course["fields"] if f["name"] == "prerequisite_ids")
+        # Inverse has REVERSED column1/column2
+        assert dep["column1"] == prereq["column2"]
+        assert dep["column2"] == prereq["column1"]
+        # Same relation table
+        assert dep["relation"] == prereq["relation"]
+
+    def test_relation_table_naming(self):
+        from odoo_gen_utils.renderer import _process_relationships
+
+        spec = self._make_self_m2m_spec()
+        result = _process_relationships(spec)
+        course = next(m for m in result["models"] if m["name"] == "test_university.course")
+        prereq = next(f for f in course["fields"] if f["name"] == "prerequisite_ids")
+        assert prereq["relation"] == "test_university_course_prerequisite_ids_rel"
+
+    def test_no_inverse_when_not_specified(self):
+        from odoo_gen_utils.renderer import _process_relationships
+
+        spec = self._make_self_m2m_spec(with_inverse=False)
+        result = _process_relationships(spec)
+        course = next(m for m in result["models"] if m["name"] == "test_university.course")
+        field_names = [f["name"] for f in course["fields"]]
+        assert "prerequisite_ids" in field_names
+        assert "dependent_ids" not in field_names
+
+    def test_replaces_existing_field(self):
+        from odoo_gen_utils.renderer import _process_relationships
+
+        spec = self._make_self_m2m_spec(with_inverse=False)
+        # Pre-add a placeholder prerequisite_ids field
+        spec["models"][0]["fields"].append({
+            "name": "prerequisite_ids",
+            "type": "Many2many",
+            "comodel_name": "test_university.course",
+        })
+        result = _process_relationships(spec)
+        course = next(m for m in result["models"] if m["name"] == "test_university.course")
+        prereq_fields = [f for f in course["fields"] if f["name"] == "prerequisite_ids"]
+        # Should be exactly one (replaced, not duplicated)
+        assert len(prereq_fields) == 1
+        assert "relation" in prereq_fields[0]
+
+
+# ---------------------------------------------------------------------------
+# Phase 27: _build_model_context() — Hierarchical model tests
+# ---------------------------------------------------------------------------
+
+
+class TestBuildModelContextHierarchical:
+    """Unit tests for hierarchical model detection in _build_model_context()."""
+
+    def _make_hierarchical_spec(self, hierarchical=True, extra_fields=None):
+        fields = [{"name": "name", "type": "Char", "required": True}]
+        if extra_fields:
+            fields.extend(extra_fields)
+        model = {
+            "name": "test.department",
+            "description": "Department",
+            "fields": fields,
+        }
+        if hierarchical:
+            model["hierarchical"] = True
+        return _make_spec(models=[model])
+
+    def test_injects_parent_id(self):
+        spec = self._make_hierarchical_spec()
+        ctx = _build_model_context(spec, spec["models"][0])
+        parent_id = next((f for f in ctx["fields"] if f["name"] == "parent_id"), None)
+        assert parent_id is not None
+        assert parent_id["type"] == "Many2one"
+        assert parent_id["comodel_name"] == "test.department"
+        assert parent_id["index"] is True
+        assert parent_id["ondelete"] == "cascade"
+
+    def test_injects_child_ids(self):
+        spec = self._make_hierarchical_spec()
+        ctx = _build_model_context(spec, spec["models"][0])
+        child_ids = next((f for f in ctx["fields"] if f["name"] == "child_ids"), None)
+        assert child_ids is not None
+        assert child_ids["type"] == "One2many"
+        assert child_ids["comodel_name"] == "test.department"
+        assert child_ids["inverse_name"] == "parent_id"
+
+    def test_injects_parent_path(self):
+        spec = self._make_hierarchical_spec()
+        ctx = _build_model_context(spec, spec["models"][0])
+        parent_path = next((f for f in ctx["fields"] if f["name"] == "parent_path"), None)
+        assert parent_path is not None
+        assert parent_path["type"] == "Char"
+        assert parent_path["index"] is True
+        assert parent_path["internal"] is True
+
+    def test_sets_is_hierarchical_context_key(self):
+        spec = self._make_hierarchical_spec()
+        ctx = _build_model_context(spec, spec["models"][0])
+        assert ctx["is_hierarchical"] is True
+
+    def test_parent_path_excluded_from_views(self):
+        spec = self._make_hierarchical_spec()
+        ctx = _build_model_context(spec, spec["models"][0])
+        # parent_path should not be in view_fields (fields used for form/tree rendering)
+        view_fields = ctx.get("view_fields", ctx["fields"])
+        # parent_path should be in fields but filtered from view_fields
+        all_field_names = [f["name"] for f in ctx["fields"]]
+        assert "parent_path" in all_field_names
+        view_field_names = [f["name"] for f in ctx["view_fields"]]
+        assert "parent_path" not in view_field_names
+
+    def test_no_duplicate_hierarchical_fields(self):
+        spec = self._make_hierarchical_spec(
+            extra_fields=[
+                {
+                    "name": "parent_id",
+                    "type": "Many2one",
+                    "comodel_name": "test.department",
+                    "index": True,
+                    "ondelete": "cascade",
+                }
+            ]
+        )
+        ctx = _build_model_context(spec, spec["models"][0])
+        parent_ids = [f for f in ctx["fields"] if f["name"] == "parent_id"]
+        assert len(parent_ids) == 1
+
+    def test_non_hierarchical_model_unchanged(self):
+        spec = self._make_hierarchical_spec(hierarchical=False)
+        ctx = _build_model_context(spec, spec["models"][0])
+        assert ctx.get("is_hierarchical") is False
+        field_names = [f["name"] for f in ctx["fields"]]
+        assert "parent_id" not in field_names
+        assert "child_ids" not in field_names
+        assert "parent_path" not in field_names
