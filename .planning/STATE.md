@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Bug Fixes & Tech Debt
-status: completed
-stopped_at: Completed 20-02-PLAN.md (Phase 20 complete)
-last_updated: "2026-03-05T07:00:43.554Z"
-last_activity: 2026-03-05 — Completed 20-02-PLAN.md (full AST body scan for unused imports)
+status: executing
+stopped_at: Completed 21-01-PLAN.md
+last_updated: "2026-03-05T07:35:36.463Z"
+last_activity: 2026-03-05 — Completed 21-01-PLAN.md (smart mail.thread injection)
 progress:
   total_phases: 5
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
-  percent: 20
+  total_plans: 4
+  completed_plans: 3
+  percent: 93
 ---
 
 # Project State
@@ -22,16 +22,16 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Compress months of repetitive Odoo module development into days by extending GSD's orchestration with Odoo-specialized agents, knowledge, and validation.
 **Architecture:** GSD extension (not standalone CLI)
-**Current focus:** v3.0 Phase 20 — Auto-Fix AST Migration
+**Current focus:** v3.0 Phase 21 — Template Correctness
 
 ## Current Position
 
-Phase: 20 of 24 (Auto-Fix AST Migration)
-Plan: 2 of 2 in current phase (COMPLETE)
-Status: Phase complete
-Last activity: 2026-03-05 — Completed 20-02-PLAN.md (full AST body scan for unused imports)
+Phase: 21 of 24 (Template Correctness)
+Plan: 1 of 2 in current phase
+Status: In progress
+Last activity: 2026-03-05 — Completed 21-01-PLAN.md (smart mail.thread injection)
 
-Progress: [######........................] 20% (v3.0)
+Progress: [████████████████████████░░░░░░] 93% (v3.0)
 
 ## Performance Metrics
 
@@ -54,6 +54,10 @@ Progress: [######........................] 20% (v3.0)
 - Phase 20 Plan 02: Pure AST body scan replaces whitelist -- no string search fallback
 - Phase 20 Plan 02: Star imports unconditionally preserved; __all__ exports treated as used
 
+- Phase 21 Plan 01: Line item detection uses 4 criteria (Many2one, required, comodel in module, field name ends in _id)
+- Phase 21 Plan 01: Tri-state chatter flag (None=auto, True=force, False=skip)
+- Phase 21 Plan 01: In-module parent detection prevents double mail.thread injection
+
 ### Pending Todos
 
 None yet.
@@ -75,7 +79,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-05
-Stopped at: Completed 20-02-PLAN.md (Phase 20 complete)
+Last session: 2026-03-05T07:35:36.462Z
+Stopped at: Completed 21-01-PLAN.md
 Resume file: None
-Next step: Plan/execute Phase 21 or 22 (independent phases)
+Next step: Execute 21-02-PLAN.md (remaining template correctness fixes)

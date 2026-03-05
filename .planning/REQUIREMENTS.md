@@ -12,7 +12,7 @@
 
 ### Template Correctness
 
-- [ ] **TMPL-01**: mail.thread injection respects per-model chatter flag (default true for top-level business models, false for config tables, line items, wizards, and models extending parents with mail.thread)
+- [x] **TMPL-01**: mail.thread injection respects per-model chatter flag (default true for top-level business models, false for config tables, line items, wizards, and models extending parents with mail.thread)
 - [ ] **TMPL-02**: Wizard template conditionally imports api only when @api decorators are used in generated wizard methods
 - [ ] **TMPL-03**: Wizard TransientModels receive ACL entries in ir.model.access.csv alongside regular models
 - [ ] **TMPL-04**: Test template uses display_name assertion instead of deprecated name_get() method, with version gate for Odoo 18.0 compatibility
@@ -76,7 +76,7 @@
 |-------------|-------|--------|
 | AFIX-01 | Phase 20 | Complete |
 | AFIX-02 | Phase 20 | Complete |
-| TMPL-01 | Phase 21 | Pending |
+| TMPL-01 | Phase 21 | Complete |
 | TMPL-02 | Phase 21 | Pending |
 | TMPL-03 | Phase 21 | Pending |
 | TMPL-04 | Phase 21 | Pending |
