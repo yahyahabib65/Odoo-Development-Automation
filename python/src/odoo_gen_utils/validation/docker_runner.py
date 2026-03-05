@@ -40,15 +40,23 @@ def check_docker_available() -> bool:
 
 
 def get_compose_file() -> Path:
-    """Return the path to docker/docker-compose.yml shipped with the extension.
+    """Return the path to the docker-compose.yml shipped with the package.
 
-    Navigates from validation/ up to the project root's docker/ directory.
+    Resolution order:
+    1. ``ODOO_GEN_COMPOSE_FILE`` environment variable (explicit override).
+    2. ``importlib.resources`` lookup inside ``odoo_gen_utils/data/``.
+
+    Returns:
+        Path to docker-compose.yml.
     """
-    return (
-        Path(__file__).parent.parent.parent.parent.parent
-        / "docker"
-        / "docker-compose.yml"
-    )
+    env_path = os.environ.get("ODOO_GEN_COMPOSE_FILE")
+    if env_path:
+        return Path(env_path)
+
+    from importlib.resources import files
+
+    ref = files("odoo_gen_utils").joinpath("data", "docker-compose.yml")
+    return Path(str(ref))
 
 
 def _run_compose(
