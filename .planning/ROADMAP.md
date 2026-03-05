@@ -170,7 +170,10 @@ Plans:
   4. TransientModel classes get `_transient_max_hours` and `_transient_max_count` attributes
 **Plans**: 1 plan
 Plans:
-- [ ] 31-01-PLAN.md — QWeb report templates, graph/pivot dashboard views, render_reports() implementation
+- [ ] 33-01-PLAN.md — Performance preprocessor (index, store, sql_constraints, transient cleanup) + template updates
+
+
+
 
 ### Phase 34: Production Patterns
 **Goal**: Generated modules support bulk operations, reference data caching, and archival strategies for production-scale usage
@@ -205,7 +208,7 @@ Phases execute in numeric order: 26 -> 27 -> 28 -> 29 -> 30 -> 31 -> 32 -> 33 ->
 | 30. Scheduled Actions & Render Pipeline | 1/1 | Complete    | 2026-03-05 | - |
 | 31. Reports & Analytics | 1/1 | Complete    | 2026-03-05 | - |
 | 32. Controllers & Import/Export | 2/2 | Complete    | 2026-03-05 | - |
-| 33. Database Performance | v3.1 | 0/TBD | Not started | - |
+| 33. Database Performance | v3.1 | 0/1 | Not started | - |
 | 34. Production Patterns | v3.1 | 0/TBD | Not started | - |
 
 ---
