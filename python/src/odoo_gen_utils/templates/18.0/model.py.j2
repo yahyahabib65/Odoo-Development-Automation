@@ -12,6 +12,10 @@ class {{ model_name | to_class }}(models.Model):
 {% if inherit_list %}
     _inherit = [{% for inh in inherit_list %}"{{ inh }}"{% if not loop.last %}, {% endif %}{% endfor %}]
 {% endif %}
+{% if is_hierarchical is defined and is_hierarchical %}
+    _parent_name = "parent_id"
+    _parent_store = True
+{% endif %}
 
 {% if needs_currency_id %}
     currency_id = fields.Many2one(
@@ -39,15 +43,31 @@ class {{ model_name | to_class }}(models.Model):
         help="{{ field.help }}",
 {% endif %}
     )
+{% elif field.name == 'parent_path' and is_hierarchical is defined and is_hierarchical %}
+    parent_path = fields.Char(
+        index=True,
+        unaccent=False,
+    )
 {% elif field.type in ('Many2one', 'One2many', 'Many2many') %}
     {{ field.name }} = fields.{{ field.type }}(
         comodel_name="{{ field.comodel_name }}",
 {% if field.type == 'One2many' %}
         inverse_name="{{ field.inverse_name }}",
 {% endif %}
+{% if field.type == 'Many2many' and field.relation is defined %}
+        relation="{{ field.relation }}",
+        column1="{{ field.column1 }}",
+        column2="{{ field.column2 }}",
+{% endif %}
         string="{{ field.string | default(field.name | replace('_', ' ') | title) }}",
 {% if field.required is defined and field.required %}
         required=True,
+{% endif %}
+{% if field.index is defined and field.index %}
+        index=True,
+{% endif %}
+{% if field.ondelete is defined %}
+        ondelete="{{ field.ondelete }}",
 {% endif %}
 {% if field.help is defined %}
         help="{{ field.help }}",

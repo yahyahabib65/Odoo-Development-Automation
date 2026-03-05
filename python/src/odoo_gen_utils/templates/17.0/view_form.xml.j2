@@ -26,7 +26,7 @@
 {% endif %}
                 <sheet>
                     <div class="oe_title">
-{% for field in fields %}
+{% for field in view_fields | default(fields) %}
 {% if field.name == 'name' %}
                         <label for="name"/>
                         <h1>
@@ -37,7 +37,7 @@
                     </div>
                     <group>
                         <group>
-{% for field in fields %}
+{% for field in view_fields | default(fields) %}
 {% set is_state = state_field and field.name == state_field.name %}
 {% if not is_state and field.name != 'name' and field.type not in ('One2many', 'Html') %}
 {% if loop.index0 is even or loop.index0 < 2 %}
@@ -56,7 +56,7 @@
 {% endfor %}
                         </group>
                         <group>
-{% for field in fields %}
+{% for field in view_fields | default(fields) %}
 {% set is_state = state_field and field.name == state_field.name %}
 {% if not is_state and field.name != 'name' and field.type not in ('One2many', 'Html') %}
 {% if loop.index0 is odd and loop.index0 >= 2 %}
@@ -75,7 +75,7 @@
 {% endfor %}
                         </group>
                     </group>
-{% for field in fields %}
+{% for field in view_fields | default(fields) %}
 {% if field.type == 'Html' %}
                     <notebook>
                         <page string="{{ field.string | default(field.name | replace('_', ' ') | title) }}">
@@ -84,7 +84,7 @@
                     </notebook>
 {% endif %}
 {% endfor %}
-{% for field in fields %}
+{% for field in view_fields | default(fields) %}
 {% if field.type == 'One2many' %}
                     <notebook>
                         <page string="{{ field.string | default(field.name | replace('_', ' ') | title) }}">
@@ -122,7 +122,7 @@
         <field name="model">{{ model_name }}</field>
         <field name="arch" type="xml">
             <tree string="{{ model_description }}">
-{% for field in fields %}
+{% for field in view_fields | default(fields) %}
 {% if field.type not in ('One2many', 'Html', 'Text') %}
 {% if loop.index0 < 6 %}
                 <field name="{{ field.name }}"{% if loop.index0 >= 4 %} optional="hide"{% endif %}/>
@@ -139,19 +139,19 @@
         <field name="model">{{ model_name }}</field>
         <field name="arch" type="xml">
             <search string="{{ model_description }}">
-{% for field in fields %}
+{% for field in view_fields | default(fields) %}
 {% if field.type in ('Char', 'Many2one') %}
                 <field name="{{ field.name }}"/>
 {% endif %}
 {% endfor %}
-{% for field in fields %}
+{% for field in view_fields | default(fields) %}
 {% if field.type == 'Selection' %}
                 <filter string="Group by {{ field.string | default(field.name | replace('_', ' ') | title) }}"
                         name="group_by_{{ field.name }}"
                         context="{'group_by': '{{ field.name }}'}"/>
 {% endif %}
 {% endfor %}
-{% for field in fields %}
+{% for field in view_fields | default(fields) %}
 {% if field.type == 'Many2one' %}
                 <filter string="Group by {{ field.string | default(field.name | replace('_', ' ') | title) }}"
                         name="group_by_{{ field.name }}"
