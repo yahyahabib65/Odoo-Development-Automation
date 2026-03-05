@@ -1,13 +1,13 @@
 ---
 gsd_state_version: 1.0
 milestone: v3.0
-milestone_name: Bug Fixes, Flaws & Tech Debt
-status: defining_requirements
-stopped_at: Milestone v3.0 restarted
+milestone_name: Bug Fixes & Tech Debt
+status: ready_to_plan
+stopped_at: Roadmap created for v3.0
 last_updated: "2026-03-05T00:00:00Z"
-last_activity: 2026-03-05 — v3.0 milestone restarted (scope changed to BUGS_FLAWS_DEBT.md)
+last_activity: 2026-03-05 — v3.0 roadmap created (5 phases, 13 requirements)
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -22,22 +22,41 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Compress months of repetitive Odoo module development into days by extending GSD's orchestration with Odoo-specialized agents, knowledge, and validation.
 **Architecture:** GSD extension (not standalone CLI)
-**Current focus:** v3.0 — Bug Fixes, Flaws & Tech Debt
+**Current focus:** v3.0 Phase 20 — Auto-Fix AST Migration
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-03-05 — v3.0 milestone restarted
+Phase: 20 of 24 (Auto-Fix AST Migration)
+Plan: 0 of ? in current phase
+Status: Ready to plan
+Last activity: 2026-03-05 — v3.0 roadmap created
+
+Progress: [####################..........] 0% (v3.0)
+
+## Performance Metrics
+
+**Velocity:**
+- Total plans completed: 45 (across v1.0-v2.1)
+- Average duration: ~30 min
+- Total execution time: ~22 hours
 
 ## Accumulated Context
 
-- AskUserQuestion tool is unreliable — silently drops selections. Use plain text questions instead.
-- `roadmap analyze` gsd-tools command has parsing issues with `<details>` sections — use manual verification.
-- Docker `exec` causes serialization failures — always use `docker compose run --rm`.
-- Scope source: BUGS_FLAWS_DEBT.md (42 items: 12 bugs, 4 debt, 26 flaws)
-- Research phase will authenticate each issue against actual codebase before committing fixes.
+### Decisions
+
+- v3.0 scope: 13 requirements (12 bugs + 4 debt, deduplicated to 13 unique items)
+- 24 design flaws deferred to v3.1
+- Phases 20-22 are independent and can execute in any order
+- Phase 23 (Result type) must complete before Phase 24 (decomposition)
+
+### Pending Todos
+
+None yet.
+
+### Blockers/Concerns
+
+- AskUserQuestion tool is unreliable — use plain text questions instead.
+- Docker `exec` causes serialization failures — VALD-01 in Phase 22 fixes this.
 
 ## Shipped Milestones
 
@@ -49,13 +68,9 @@ Last activity: 2026-03-05 — v3.0 milestone restarted
 
 **Total:** 19 phases, 45 plans, 270+ commits, 444 tests, 15,700+ LOC Python
 
-## Blockers/Concerns
-
-None.
-
 ## Session Continuity
 
 Last session: 2026-03-05
-Stopped at: Defining v3.0 requirements (scope: BUGS_FLAWS_DEBT.md)
+Stopped at: v3.0 roadmap created
 Resume file: None
-Next step: Research to authenticate issues → define requirements → create roadmap
+Next step: `/gsd:plan-phase 20` to plan Auto-Fix AST Migration

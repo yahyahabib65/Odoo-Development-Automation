@@ -74,25 +74,25 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AFIX-01 | TBD | Pending |
-| AFIX-02 | TBD | Pending |
-| TMPL-01 | TBD | Pending |
-| TMPL-02 | TBD | Pending |
-| TMPL-03 | TBD | Pending |
-| TMPL-04 | TBD | Pending |
-| VALD-01 | TBD | Pending |
-| VALD-02 | TBD | Pending |
-| SRCH-01 | TBD | Pending |
-| SRCH-02 | TBD | Pending |
-| QUAL-01 | TBD | Pending |
-| QUAL-02 | TBD | Pending |
-| QUAL-03 | TBD | Pending |
+| AFIX-01 | Phase 20 | Pending |
+| AFIX-02 | Phase 20 | Pending |
+| TMPL-01 | Phase 21 | Pending |
+| TMPL-02 | Phase 21 | Pending |
+| TMPL-03 | Phase 21 | Pending |
+| TMPL-04 | Phase 21 | Pending |
+| VALD-01 | Phase 22 | Pending |
+| VALD-02 | Phase 23 | Pending |
+| SRCH-01 | Phase 22 | Pending |
+| SRCH-02 | Phase 22 | Pending |
+| QUAL-01 | Phase 24 | Pending |
+| QUAL-02 | Phase 24 | Pending |
+| QUAL-03 | Phase 24 | Pending |
 
 **Coverage:**
 - v3.0 requirements: 13 total
-- Mapped to phases: 0
-- Unmapped: 13
+- Mapped to phases: 13
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-05*
-*Last updated: 2026-03-05 after codebase audit*
+*Last updated: 2026-03-05 — traceability updated with phase mappings*
