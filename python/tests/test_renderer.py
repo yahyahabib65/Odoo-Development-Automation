@@ -17,6 +17,7 @@ from odoo_gen_utils.renderer import (
     _is_monetary_field,
     _process_computation_chains,
     _process_constraints,
+    _process_performance,
     _topologically_sort_fields,
     _validate_no_cycles,
     get_template_dir,
@@ -3207,3 +3208,216 @@ class TestBuildModuleContextImportExport:
         assert "import_export_wizards" in ctx
         assert len(ctx["import_export_wizards"]) == 1
         assert ctx["import_export_wizards"][0]["name"] == "academy.course.import.wizard"
+
+
+# ---------------------------------------------------------------------------
+# _process_performance: Phase 33
+# ---------------------------------------------------------------------------
+
+
+class TestProcessPerformance:
+    """Unit tests for _process_performance() preprocessor."""
+
+    def test_performance_index_search_fields(self):
+        """Char and Many2one fields get index=True (they appear in search view)."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "fields": [
+                {"name": "name", "type": "Char"},
+                {"name": "teacher_id", "type": "Many2one", "comodel_name": "hr.employee"},
+                {"name": "qty", "type": "Integer"},
+            ],
+        }])
+        result = _process_performance(spec)
+        fields = {f["name"]: f for f in result["models"][0]["fields"]}
+        assert fields["name"].get("index") is True
+        assert fields["teacher_id"].get("index") is True
+        # Integer not in search by default
+        assert fields["qty"].get("index") is not True
+
+    def test_performance_index_order_fields(self):
+        """Fields in model.order get index=True."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "order": "date desc, name",
+            "fields": [
+                {"name": "name", "type": "Char"},
+                {"name": "date", "type": "Date"},
+                {"name": "qty", "type": "Integer"},
+            ],
+        }])
+        result = _process_performance(spec)
+        fields = {f["name"]: f for f in result["models"][0]["fields"]}
+        assert fields["date"].get("index") is True
+        assert fields["name"].get("index") is True
+
+    def test_performance_index_domain_fields(self):
+        """Fields in record rule domains get index=True (company_id)."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "fields": [
+                {"name": "name", "type": "Char"},
+                {"name": "company_id", "type": "Many2one", "comodel_name": "res.company"},
+            ],
+        }])
+        result = _process_performance(spec)
+        fields = {f["name"]: f for f in result["models"][0]["fields"]}
+        assert fields["company_id"].get("index") is True
+
+    def test_performance_index_skip_virtual(self):
+        """One2many/Many2many/Html/Text/Binary are NOT indexed even if in search."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "fields": [
+                {"name": "line_ids", "type": "One2many", "comodel_name": "academy.line",
+                 "inverse_name": "course_id"},
+                {"name": "tag_ids", "type": "Many2many", "comodel_name": "academy.tag"},
+                {"name": "description", "type": "Html"},
+                {"name": "notes", "type": "Text"},
+                {"name": "attachment", "type": "Binary"},
+            ],
+        }])
+        result = _process_performance(spec)
+        for field in result["models"][0]["fields"]:
+            assert field.get("index") is not True, f"{field['name']} should not be indexed"
+
+    def test_performance_sql_constraints(self):
+        """unique_together generates sql_constraints on model."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "unique_together": [
+                {"fields": ["name", "company_id"], "message": "Name must be unique per company."},
+            ],
+            "fields": [
+                {"name": "name", "type": "Char"},
+                {"name": "company_id", "type": "Many2one", "comodel_name": "res.company"},
+            ],
+        }])
+        result = _process_performance(spec)
+        model = result["models"][0]
+        assert len(model["sql_constraints"]) == 1
+        c = model["sql_constraints"][0]
+        assert c["name"] == "unique_name_company_id"
+        assert "UNIQUE" in c["definition"]
+        assert "name" in c["definition"]
+        assert "company_id" in c["definition"]
+        assert c["message"] == "Name must be unique per company."
+
+    def test_performance_sql_constraints_validation(self):
+        """unique_together referencing non-existent field is skipped."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "unique_together": [
+                {"fields": ["name", "nonexistent"], "message": "Bad constraint."},
+            ],
+            "fields": [
+                {"name": "name", "type": "Char"},
+            ],
+        }])
+        result = _process_performance(spec)
+        model = result["models"][0]
+        assert model.get("sql_constraints", []) == []
+
+    def test_performance_store_computed_tree(self):
+        """Computed field in first 6 view_fields (tree view) gets store=True."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "fields": [
+                {"name": "name", "type": "Char"},
+                {"name": "total", "type": "Float", "compute": "_compute_total",
+                 "depends": ["qty"]},
+            ],
+        }])
+        result = _process_performance(spec)
+        total = next(f for f in result["models"][0]["fields"] if f["name"] == "total")
+        assert total.get("store") is True
+
+    def test_performance_store_computed_search(self):
+        """Computed Char field gets store=True (appears in search)."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "fields": [
+                {"name": "display_name", "type": "Char", "compute": "_compute_display_name",
+                 "depends": ["name"]},
+                {"name": "name", "type": "Char"},
+            ],
+        }])
+        result = _process_performance(spec)
+        dn = next(f for f in result["models"][0]["fields"] if f["name"] == "display_name")
+        assert dn.get("store") is True
+
+    def test_performance_store_computed_order(self):
+        """Computed field in model.order gets store=True."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "order": "total desc",
+            "fields": [
+                {"name": "name", "type": "Char"},
+                {"name": "total", "type": "Float", "compute": "_compute_total",
+                 "depends": ["qty"]},
+            ],
+        }])
+        result = _process_performance(spec)
+        total = next(f for f in result["models"][0]["fields"] if f["name"] == "total")
+        assert total.get("store") is True
+
+    def test_performance_store_already_set(self):
+        """Computed field with explicit store=True is not modified."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "fields": [
+                {"name": "name", "type": "Char"},
+                {"name": "total", "type": "Float", "compute": "_compute_total",
+                 "depends": ["qty"], "store": True},
+            ],
+        }])
+        result = _process_performance(spec)
+        total = next(f for f in result["models"][0]["fields"] if f["name"] == "total")
+        assert total.get("store") is True
+
+    def test_transient_cleanup_attrs(self):
+        """TransientModel models get transient_max_hours and transient_max_count."""
+        spec = _make_spec(models=[{
+            "name": "academy.wizard",
+            "transient": True,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        result = _process_performance(spec)
+        model = result["models"][0]
+        assert model["transient_max_hours"] == 1.0
+        assert model["transient_max_count"] == 0
+
+    def test_transient_cleanup_custom(self):
+        """Custom transient_max_hours value is preserved."""
+        spec = _make_spec(models=[{
+            "name": "academy.wizard",
+            "transient": True,
+            "transient_max_hours": 2.0,
+            "transient_max_count": 1000,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        result = _process_performance(spec)
+        model = result["models"][0]
+        assert model["transient_max_hours"] == 2.0
+        assert model["transient_max_count"] == 1000
+
+    def test_performance_no_models_passthrough(self):
+        """Empty models list returns spec unchanged."""
+        spec = _make_spec(models=[])
+        result = _process_performance(spec)
+        assert result["models"] == []
+
+    def test_performance_order_validation(self):
+        """model.order referencing non-existent field skips that field for model_order."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "order": "nonexistent desc, name asc",
+            "fields": [
+                {"name": "name", "type": "Char"},
+            ],
+        }])
+        result = _process_performance(spec)
+        model = result["models"][0]
+        # Only valid fields should be in model_order
+        if model.get("model_order"):
+            assert "nonexistent" not in model["model_order"]
