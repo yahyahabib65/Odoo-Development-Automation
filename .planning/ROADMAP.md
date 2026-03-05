@@ -154,7 +154,9 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. test_golden_path.py unwraps Result objects via .data before accessing InstallResult/TestResult fields
   2. All test files using docker_install_module or docker_run_tests correctly handle Result[T] return type
-**Plans:** 0/0 plans
+**Plans:** 1 plan
+Plans:
+- [ ] 25-01-PLAN.md — Fix Result[T] unwrapping in test_golden_path.py
 
 ## Progress
 
