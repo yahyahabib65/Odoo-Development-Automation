@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from graphlib import CycleError, TopologicalSorter
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -218,6 +219,147 @@ def _enrich_self_referential_m2m(
     target_model["fields"] = fields
 
 
+def _resolve_comodel(
+    spec: dict[str, Any], model_name: str, field_name: str
+) -> str | None:
+    """Resolve the comodel_name of a relational field on a model."""
+    for model in spec.get("models", []):
+        if model["name"] == model_name:
+            for field in model.get("fields", []):
+                if field.get("name") == field_name:
+                    return field.get("comodel_name")
+    return None
+
+
+def _validate_no_cycles(spec: dict[str, Any]) -> None:
+    """Validate that computation_chains contain no circular dependencies.
+
+    Builds a directed graph where nodes are "model.field" identifiers
+    and edges represent "depends on" relationships. Uses graphlib to
+    detect cycles.
+
+    Raises ValueError with actionable message naming cycle participants.
+    """
+    chains = spec.get("computation_chains", [])
+    if not chains:
+        return
+
+    # Build dependency graph: node = "model.field", edges = depends_on
+    graph: dict[str, set[str]] = {}
+    for chain in chains:
+        node = chain["field"]  # e.g., "university.student.gpa"
+        model_name = node.rsplit(".", 1)[0]
+        deps: set[str] = set()
+        for dep in chain.get("depends_on", []):
+            if "." in dep:
+                # Cross-model: "enrollment_ids.weighted_grade"
+                rel_field, target_field = dep.split(".", 1)
+                target_model = _resolve_comodel(spec, model_name, rel_field)
+                if target_model:
+                    deps.add(f"{target_model}.{target_field}")
+            else:
+                # Local field -- only add if it's also a chain node
+                local_node = f"{model_name}.{dep}"
+                if any(c["field"] == local_node for c in chains):
+                    deps.add(local_node)
+        graph[node] = deps
+
+    try:
+        ts = TopologicalSorter(graph)
+        list(ts.static_order())
+    except CycleError as exc:
+        cycle_nodes = exc.args[1]
+        cycle_str = " -> ".join(str(n) for n in cycle_nodes)
+        msg = (
+            f"Circular dependency detected in computation_chains: "
+            f"{cycle_str}. Break the cycle by removing one dependency."
+        )
+        raise ValueError(msg) from None
+
+
+def _process_computation_chains(spec: dict[str, Any]) -> dict[str, Any]:
+    """Enrich computed field specs from computation_chains section.
+
+    For each chain entry:
+    1. Locate the target field in the matching model
+    2. Set field.depends = chain.depends_on (the @api.depends paths)
+    3. Set field.store = True
+    4. Set field.compute if not already set (convention: _compute_{field_name})
+
+    Returns a new spec dict with enriched models. Pure function.
+    """
+    chains = spec.get("computation_chains", [])
+    if not chains:
+        return spec
+
+    # Build a lookup: model_name -> {field_name -> chain_entry}
+    chain_lookup: dict[str, dict[str, dict]] = {}
+    for chain in chains:
+        parts = chain["field"].rsplit(".", 1)
+        model_name, field_name = parts[0], parts[1]
+        chain_lookup.setdefault(model_name, {})[field_name] = chain
+
+    # Deep-copy models and enrich fields
+    new_models = []
+    for model in spec.get("models", []):
+        model_chains = chain_lookup.get(model["name"], {})
+        if not model_chains:
+            new_models.append(model)
+            continue
+
+        new_fields = []
+        for field in model.get("fields", []):
+            fname = field.get("name", "")
+            if fname in model_chains:
+                chain = model_chains[fname]
+                field = {
+                    **field,
+                    "depends": chain["depends_on"],
+                    "store": True,
+                    "compute": field.get("compute", f"_compute_{fname}"),
+                }
+            new_fields.append(field)
+        new_models.append({**model, "fields": new_fields})
+
+    return {**spec, "models": new_models}
+
+
+def _topologically_sort_fields(
+    computed_fields: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Sort computed fields so dependencies come before dependents.
+
+    Uses graphlib.TopologicalSorter. If fields have no inter-dependencies
+    (common case), preserves original order.
+    """
+    field_names = {f["name"] for f in computed_fields}
+    field_map = {f["name"]: f for f in computed_fields}
+
+    graph: dict[str, set[str]] = {}
+    for field in computed_fields:
+        deps = set()
+        for dep in field.get("depends", []):
+            # Only consider local dependencies (no dots) that are
+            # themselves computed fields
+            if "." not in dep and dep in field_names:
+                deps.add(dep)
+        graph[field["name"]] = deps
+
+    try:
+        ts = TopologicalSorter(graph)
+        sorted_names = list(ts.static_order())
+    except CycleError:
+        # Intra-model cycles caught by _validate_no_cycles already
+        return computed_fields
+
+    # Rebuild list in sorted order
+    result = []
+    for name in sorted_names:
+        if name in field_map:
+            result.append(field_map[name])
+    return result
+
+
 def _model_ref(name: str) -> str:
     """Convert Odoo dot-notation model name to external ID format.
 
@@ -391,6 +533,9 @@ def _build_model_context(spec: dict[str, Any], model: dict[str, Any]) -> dict[st
 
     # Phase 5 extensions ---------------------------------------------------
     computed_fields = [f for f in fields if f.get("compute")]
+    # Phase 28: topologically sort computed fields by dependency order
+    if len(computed_fields) > 1:
+        computed_fields = _topologically_sort_fields(computed_fields)
     onchange_fields = [f for f in fields if f.get("onchange")]
     constrained_fields = [f for f in fields if f.get("constrains")]
     sequence_fields = [
@@ -982,8 +1127,13 @@ def render_module(
     Returns:
         Tuple of (created_files, verification_warnings).
     """
+    # Phase 28: validate no circular dependencies FIRST
+    _validate_no_cycles(spec)
+
     env = create_versioned_renderer(spec.get("odoo_version", "17.0"))
     spec = _process_relationships(spec)
+    # Phase 28: process computation chains
+    spec = _process_computation_chains(spec)
     module_name = spec["module_name"]
     module_dir = output_dir / module_name
     ctx = _build_module_context(spec, module_name)

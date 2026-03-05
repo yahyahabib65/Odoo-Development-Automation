@@ -14,6 +14,9 @@ from odoo_gen_utils.renderer import (
     MONETARY_FIELD_PATTERNS,
     _build_model_context,
     _is_monetary_field,
+    _process_computation_chains,
+    _topologically_sort_fields,
+    _validate_no_cycles,
     get_template_dir,
     render_module,
 )
@@ -2172,3 +2175,346 @@ class TestBuildModelContextHierarchical:
         assert "parent_id" not in field_names
         assert "child_ids" not in field_names
         assert "parent_path" not in field_names
+
+
+# ---------------------------------------------------------------------------
+# Phase 28: _validate_no_cycles() tests
+# ---------------------------------------------------------------------------
+
+
+def _make_chain_spec(
+    models: list[dict] | None = None,
+    computation_chains: list[dict] | None = None,
+) -> dict:
+    """Helper to construct a spec with computation_chains."""
+    return {
+        "module_name": "test_module",
+        "depends": ["base"],
+        "models": models or [],
+        "wizards": [],
+        "computation_chains": computation_chains or [],
+    }
+
+
+class TestValidateNoCycles:
+    """Unit tests for _validate_no_cycles()."""
+
+    def test_valid_chains_pass(self):
+        """Spec with valid A->B chain passes without error."""
+        spec = _make_chain_spec(
+            models=[
+                {
+                    "name": "university.enrollment",
+                    "fields": [
+                        {"name": "grade", "type": "Float"},
+                        {"name": "credit_hours", "type": "Integer"},
+                        {"name": "weighted_grade", "type": "Float"},
+                    ],
+                },
+                {
+                    "name": "university.student",
+                    "fields": [
+                        {"name": "enrollment_ids", "type": "One2many",
+                         "comodel_name": "university.enrollment", "inverse_name": "student_id"},
+                        {"name": "gpa", "type": "Float"},
+                    ],
+                },
+            ],
+            computation_chains=[
+                {
+                    "field": "university.enrollment.weighted_grade",
+                    "depends_on": ["grade", "credit_hours"],
+                },
+                {
+                    "field": "university.student.gpa",
+                    "depends_on": ["enrollment_ids.weighted_grade"],
+                },
+            ],
+        )
+        # Should not raise
+        _validate_no_cycles(spec)
+
+    def test_circular_raises(self):
+        """Spec with A->B->A chain raises ValueError."""
+        spec = _make_chain_spec(
+            models=[
+                {
+                    "name": "university.enrollment",
+                    "fields": [
+                        {"name": "student_id", "type": "Many2one",
+                         "comodel_name": "university.student"},
+                        {"name": "weighted_grade", "type": "Float"},
+                    ],
+                },
+                {
+                    "name": "university.student",
+                    "fields": [
+                        {"name": "enrollment_ids", "type": "One2many",
+                         "comodel_name": "university.enrollment", "inverse_name": "student_id"},
+                        {"name": "gpa", "type": "Float"},
+                    ],
+                },
+            ],
+            computation_chains=[
+                {
+                    "field": "university.enrollment.weighted_grade",
+                    "depends_on": ["student_id.gpa"],
+                },
+                {
+                    "field": "university.student.gpa",
+                    "depends_on": ["enrollment_ids.weighted_grade"],
+                },
+            ],
+        )
+        with pytest.raises(ValueError, match="Circular dependency"):
+            _validate_no_cycles(spec)
+
+    def test_error_names_participants(self):
+        """ValueError message contains cycle field names."""
+        spec = _make_chain_spec(
+            models=[
+                {
+                    "name": "university.enrollment",
+                    "fields": [
+                        {"name": "student_id", "type": "Many2one",
+                         "comodel_name": "university.student"},
+                        {"name": "weighted_grade", "type": "Float"},
+                    ],
+                },
+                {
+                    "name": "university.student",
+                    "fields": [
+                        {"name": "enrollment_ids", "type": "One2many",
+                         "comodel_name": "university.enrollment", "inverse_name": "student_id"},
+                        {"name": "gpa", "type": "Float"},
+                    ],
+                },
+            ],
+            computation_chains=[
+                {
+                    "field": "university.enrollment.weighted_grade",
+                    "depends_on": ["student_id.gpa"],
+                },
+                {
+                    "field": "university.student.gpa",
+                    "depends_on": ["enrollment_ids.weighted_grade"],
+                },
+            ],
+        )
+        with pytest.raises(ValueError) as exc_info:
+            _validate_no_cycles(spec)
+        msg = str(exc_info.value)
+        assert "university.student.gpa" in msg or "university.enrollment.weighted_grade" in msg
+
+    def test_cross_model_cycle(self):
+        """Cycle spanning 2 models detected via comodel resolution."""
+        spec = _make_chain_spec(
+            models=[
+                {
+                    "name": "a.model",
+                    "fields": [
+                        {"name": "b_ids", "type": "One2many",
+                         "comodel_name": "b.model", "inverse_name": "a_id"},
+                        {"name": "x", "type": "Float"},
+                    ],
+                },
+                {
+                    "name": "b.model",
+                    "fields": [
+                        {"name": "a_id", "type": "Many2one", "comodel_name": "a.model"},
+                        {"name": "y", "type": "Float"},
+                    ],
+                },
+            ],
+            computation_chains=[
+                {"field": "a.model.x", "depends_on": ["b_ids.y"]},
+                {"field": "b.model.y", "depends_on": ["a_id.x"]},
+            ],
+        )
+        with pytest.raises(ValueError, match="Circular dependency"):
+            _validate_no_cycles(spec)
+
+    def test_no_chains_passthrough(self):
+        """Spec without computation_chains passes silently."""
+        spec = {
+            "module_name": "test_module",
+            "depends": ["base"],
+            "models": [{"name": "test.model", "fields": []}],
+            "wizards": [],
+        }
+        # No computation_chains key at all
+        _validate_no_cycles(spec)
+
+
+class TestProcessComputationChains:
+    """Unit tests for _process_computation_chains()."""
+
+    def test_enriches_depends(self):
+        """Chain entry sets field.depends to depends_on list."""
+        spec = _make_chain_spec(
+            models=[
+                {
+                    "name": "university.enrollment",
+                    "fields": [
+                        {"name": "grade", "type": "Float"},
+                        {"name": "credit_hours", "type": "Integer"},
+                        {"name": "weighted_grade", "type": "Float"},
+                    ],
+                },
+            ],
+            computation_chains=[
+                {
+                    "field": "university.enrollment.weighted_grade",
+                    "depends_on": ["grade", "credit_hours"],
+                },
+            ],
+        )
+        result = _process_computation_chains(spec)
+        wg = next(
+            f for f in result["models"][0]["fields"]
+            if f["name"] == "weighted_grade"
+        )
+        assert wg["depends"] == ["grade", "credit_hours"]
+
+    def test_sets_store_true(self):
+        """Chain fields get store=True."""
+        spec = _make_chain_spec(
+            models=[
+                {
+                    "name": "university.enrollment",
+                    "fields": [{"name": "weighted_grade", "type": "Float"}],
+                },
+            ],
+            computation_chains=[
+                {
+                    "field": "university.enrollment.weighted_grade",
+                    "depends_on": ["grade"],
+                },
+            ],
+        )
+        result = _process_computation_chains(spec)
+        wg = next(
+            f for f in result["models"][0]["fields"]
+            if f["name"] == "weighted_grade"
+        )
+        assert wg["store"] is True
+
+    def test_injects_compute_name(self):
+        """Field without compute= gets _compute_{name}."""
+        spec = _make_chain_spec(
+            models=[
+                {
+                    "name": "university.enrollment",
+                    "fields": [{"name": "weighted_grade", "type": "Float"}],
+                },
+            ],
+            computation_chains=[
+                {
+                    "field": "university.enrollment.weighted_grade",
+                    "depends_on": ["grade"],
+                },
+            ],
+        )
+        result = _process_computation_chains(spec)
+        wg = next(
+            f for f in result["models"][0]["fields"]
+            if f["name"] == "weighted_grade"
+        )
+        assert wg["compute"] == "_compute_weighted_grade"
+
+    def test_dotted_paths_preserved(self):
+        """'enrollment_ids.weighted_grade' preserved in depends."""
+        spec = _make_chain_spec(
+            models=[
+                {
+                    "name": "university.student",
+                    "fields": [
+                        {"name": "enrollment_ids", "type": "One2many",
+                         "comodel_name": "university.enrollment", "inverse_name": "student_id"},
+                        {"name": "gpa", "type": "Float"},
+                    ],
+                },
+            ],
+            computation_chains=[
+                {
+                    "field": "university.student.gpa",
+                    "depends_on": ["enrollment_ids.weighted_grade"],
+                },
+            ],
+        )
+        result = _process_computation_chains(spec)
+        gpa = next(
+            f for f in result["models"][0]["fields"]
+            if f["name"] == "gpa"
+        )
+        assert "enrollment_ids.weighted_grade" in gpa["depends"]
+
+    def test_no_chains_passthrough(self):
+        """Spec without computation_chains returned unchanged."""
+        spec = {
+            "module_name": "test_module",
+            "depends": ["base"],
+            "models": [{"name": "test.model", "fields": [{"name": "x", "type": "Float"}]}],
+            "wizards": [],
+        }
+        result = _process_computation_chains(spec)
+        assert result["models"][0]["fields"][0] == {"name": "x", "type": "Float"}
+
+    def test_does_not_mutate_input(self):
+        """Original spec dict is not mutated."""
+        import copy
+
+        spec = _make_chain_spec(
+            models=[
+                {
+                    "name": "university.enrollment",
+                    "fields": [{"name": "weighted_grade", "type": "Float"}],
+                },
+            ],
+            computation_chains=[
+                {
+                    "field": "university.enrollment.weighted_grade",
+                    "depends_on": ["grade"],
+                },
+            ],
+        )
+        original = copy.deepcopy(spec)
+        _process_computation_chains(spec)
+        assert spec == original
+
+
+class TestTopologicallySortFields:
+    """Unit tests for _topologically_sort_fields()."""
+
+    def test_sort_order(self):
+        """Field depending on another computed field comes after it."""
+        fields = [
+            {"name": "total", "type": "Float", "compute": "_compute_total",
+             "depends": ["subtotal"]},
+            {"name": "subtotal", "type": "Float", "compute": "_compute_subtotal",
+             "depends": ["qty", "price"]},
+        ]
+        result = _topologically_sort_fields(fields)
+        names = [f["name"] for f in result]
+        assert names.index("subtotal") < names.index("total")
+
+    def test_independent_preserves_order(self):
+        """Fields with no inter-deps keep original order."""
+        fields = [
+            {"name": "a", "type": "Float", "compute": "_compute_a", "depends": ["x"]},
+            {"name": "b", "type": "Float", "compute": "_compute_b", "depends": ["y"]},
+        ]
+        result = _topologically_sort_fields(fields)
+        names = [f["name"] for f in result]
+        # Both present, order should be preserved (no deps between them)
+        assert set(names) == {"a", "b"}
+
+    def test_single_field(self):
+        """Single computed field returned as-is."""
+        fields = [
+            {"name": "total", "type": "Float", "compute": "_compute_total",
+             "depends": ["qty"]},
+        ]
+        result = _topologically_sort_fields(fields)
+        assert len(result) == 1
+        assert result[0]["name"] == "total"
