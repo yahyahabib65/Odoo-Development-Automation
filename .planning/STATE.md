@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: Design Flaws & Feature Gaps
 status: completed
-stopped_at: Completed 29-01-PLAN.md
-last_updated: "2026-03-05T18:47:05.064Z"
-last_activity: 2026-03-05 — Phase 29 Plan 01 executed
+stopped_at: Completed 30-01-PLAN.md
+last_updated: "2026-03-05T19:10:00Z"
+last_activity: 2026-03-06 — Phase 30 Plan 01 executed
 progress:
   total_phases: 9
-  completed_phases: 4
-  total_plans: 4
-  completed_plans: 4
-  percent: 44
+  completed_phases: 6
+  total_plans: 6
+  completed_plans: 6
+  percent: 56
 ---
 
 # Project State
@@ -22,16 +22,16 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Compress months of repetitive Odoo module development into days by extending GSD's orchestration with Odoo-specialized agents, knowledge, and validation.
 **Architecture:** GSD extension (not standalone CLI)
-**Current focus:** v3.1 Phase 29 — Complex Constraints
+**Current focus:** v3.1 Phase 30 — Scheduled Actions & Render Pipeline
 
 ## Current Position
 
-Phase: 29 of 34 (Complex Constraints)
+Phase: 30 of 34 (Scheduled Actions & Render Pipeline)
 Plan: 01 of 01 (complete)
 Status: Plan 01 complete
-Last activity: 2026-03-05 — Phase 29 Plan 01 executed
+Last activity: 2026-03-06 — Phase 30 Plan 01 executed
 
-Progress: [████░░░░░░] 44%
+Progress: [██████░░░░] 56%
 
 ## Performance Metrics
 
@@ -59,6 +59,7 @@ Progress: [████░░░░░░] 44%
 - [Phase 27]: Through-model FK names from model last part; self-M2M relation table {model_table}_{field_name}_rel; hierarchical in _build_model_context(); view_fields excludes internal fields
 - [Phase 28]: graphlib.TopologicalSorter for cycle detection + field ordering; cycle validation runs first in render_module(); chain preprocessor is pure function (immutability); computation_chains enriches fields with depends/store/compute
 - [Phase 29]: Temporal constraints use @api.constrains (same-record); cross_model/capacity use create()/write() overrides (Odoo ignores dotted names in @api.constrains); single override per model with multiple _check_* calls; all messages in _() for i18n
+- [Phase 30]: Cron stages placed after render_static (8-10); method name validation via str.isidentifier(); render_reports/render_controllers are Result.ok([]) placeholders for Phase 31/32
 
 ### Pending Todos
 
@@ -80,11 +81,11 @@ None yet.
 - v2.1 Auto-Fix & Enhancements (2 phases, 5 plans) — 2026-03-04
 - v3.0 Bug Fixes & Tech Debt (6 phases, 11 plans) — 2026-03-05
 
-**Total:** 25 phases, 56 plans, 325+ commits, 513 tests, 18,400+ LOC Python
+**Total:** 25 phases, 56 plans, 325+ commits, 524 tests, 18,500+ LOC Python
 
 ## Session Continuity
 
-Last session: 2026-03-05T18:36:42Z
-Stopped at: Completed 29-01-PLAN.md
+Last session: 2026-03-05T19:10:00Z
+Stopped at: Completed 30-01-PLAN.md
 Resume file: None
-Next step: `/gsd:plan-phase 30`
+Next step: `/gsd:plan-phase 31`

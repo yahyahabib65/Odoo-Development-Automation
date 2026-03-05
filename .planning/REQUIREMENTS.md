@@ -21,8 +21,8 @@ Requirements for v3.1 Design Flaws & Feature Gaps. Each maps to roadmap phases.
 - [ ] **TMPL-02**: Generator produces graph and pivot view XML with configurable measures, dimensions, chart types, and `ir.actions.act_window` with graph/pivot view_mode — FLAW-09
 - [ ] **TMPL-03**: Generator produces HTTP controllers (`controllers/main.py`) with `@http.route`, JSON/HTTP types, authentication modes, CSRF protection, and input validation — FLAW-10
 - [ ] **TMPL-04**: Generator produces import/export TransientModel wizards with `fields.Binary` upload, row validation, preview step, batch `_do_import()`, and xlsx export — FLAW-12
-- [ ] **TMPL-05**: Generator produces `ir.cron` XML records in `data/data.xml` with interval, model reference, and `@api.model` stub method on the target model — FLAW-20
-- [ ] **TMPL-06**: New render stages (`render_reports`, `render_controllers`, `render_cron`) wired into renderer pipeline returning `Result[list[Path]]`
+- [x] **TMPL-05**: Generator produces `ir.cron` XML records in `data/data.xml` with interval, model reference, and `@api.model` stub method on the target model — FLAW-20
+- [x] **TMPL-06**: New render stages (`render_reports`, `render_controllers`, `render_cron`) wired into renderer pipeline returning `Result[list[Path]]`
 
 ### Performance Patterns
 
@@ -89,8 +89,8 @@ Requirements for v3.1 Design Flaws & Feature Gaps. Each maps to roadmap phases.
 | TMPL-02 | Phase 31 | Pending |
 | TMPL-03 | Phase 32 | Pending |
 | TMPL-04 | Phase 32 | Pending |
-| TMPL-05 | Phase 30 | Pending |
-| TMPL-06 | Phase 30 | Pending |
+| TMPL-05 | Phase 30 | Complete |
+| TMPL-06 | Phase 30 | Complete |
 | PERF-01 | Phase 33 | Pending |
 | PERF-02 | Phase 34 | Pending |
 | PERF-03 | Phase 34 | Pending |
