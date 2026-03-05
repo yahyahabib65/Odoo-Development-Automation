@@ -16,7 +16,12 @@ from odoo_gen_utils.renderer import (
     create_versioned_renderer,
     render_manifest,
     render_models,
+    render_module,
+    render_security,
+    render_static,
+    render_tests,
     render_views,
+    render_wizards,
 )
 from odoo_gen_utils.validation.types import Result
 
@@ -261,20 +266,177 @@ class TestRenderViews:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# render_security tests
+# ---------------------------------------------------------------------------
+
+
+class TestRenderSecurity:
+    def test_returns_result_with_success(self, env, tmp_module):
+        spec = _make_spec(models=[_make_model()])
+        ctx = _make_module_context(spec)
+        result = render_security(env, spec, tmp_module, ctx)
+        assert isinstance(result, Result)
+        assert result.success is True
+
+    def test_creates_security_xml_and_csv(self, env, tmp_module):
+        spec = _make_spec(models=[_make_model()])
+        ctx = _make_module_context(spec)
+        result = render_security(env, spec, tmp_module, ctx)
+        paths = result.data
+        assert paths is not None
+        filenames = [p.name for p in paths]
+        assert "security.xml" in filenames
+        assert "ir.model.access.csv" in filenames
+
+    def test_record_rules_when_company_field(self, env, tmp_module):
+        model = _make_model(fields=[
+            {"name": "name", "type": "Char", "required": True},
+            {"name": "company_id", "type": "Many2one", "comodel_name": "res.company"},
+        ])
+        spec = _make_spec(models=[model])
+        ctx = _make_module_context(spec)
+        result = render_security(env, spec, tmp_module, ctx)
+        filenames = [p.name for p in result.data]
+        assert "record_rules.xml" in filenames
+
+    def test_no_record_rules_without_company_field(self, env, tmp_module):
+        spec = _make_spec(models=[_make_model()])
+        ctx = _make_module_context(spec)
+        result = render_security(env, spec, tmp_module, ctx)
+        filenames = [p.name for p in result.data]
+        assert "record_rules.xml" not in filenames
+
+
+# ---------------------------------------------------------------------------
+# render_wizards tests
+# ---------------------------------------------------------------------------
+
+
+class TestRenderWizards:
+    def test_returns_result_with_success_no_wizards(self, env, tmp_module):
+        spec = _make_spec(models=[_make_model()])
+        ctx = _make_module_context(spec)
+        result = render_wizards(env, spec, tmp_module, ctx)
+        assert isinstance(result, Result)
+        assert result.success is True
+        assert result.data == []
+
+    def test_creates_wizard_files(self, env, tmp_module):
+        wizard = {"name": "confirm.wizard", "description": "Confirm action",
+                  "target_model": "test.model", "fields": []}
+        spec = _make_spec(models=[_make_model()], wizards=[wizard])
+        ctx = _make_module_context(spec)
+        result = render_wizards(env, spec, tmp_module, ctx)
+        paths = result.data
+        assert paths is not None
+        filenames = [p.name for p in paths]
+        assert any(p.name == "__init__.py" and "wizards" in str(p) for p in paths)
+        assert "confirm_wizard.py" in filenames
+        assert "confirm_wizard_wizard_form.xml" in filenames
+
+
+# ---------------------------------------------------------------------------
+# render_tests tests
+# ---------------------------------------------------------------------------
+
+
+class TestRenderTests:
+    def test_returns_result_with_success(self, env, tmp_module):
+        spec = _make_spec(models=[_make_model()])
+        ctx = _make_module_context(spec)
+        result = render_tests(env, spec, tmp_module, ctx)
+        assert isinstance(result, Result)
+        assert result.success is True
+
+    def test_creates_tests_init_and_per_model(self, env, tmp_module):
+        model = _make_model("inventory.item")
+        spec = _make_spec(models=[model])
+        ctx = _make_module_context(spec)
+        result = render_tests(env, spec, tmp_module, ctx)
+        paths = result.data
+        assert paths is not None
+        filenames = [p.name for p in paths]
+        assert any(p.name == "__init__.py" and "tests" in str(p) for p in paths)
+        assert "test_inventory_item.py" in filenames
+
+    def test_multiple_models_multiple_test_files(self, env, tmp_module):
+        models = [_make_model("test.one"), _make_model("test.two")]
+        spec = _make_spec(models=models)
+        ctx = _make_module_context(spec)
+        result = render_tests(env, spec, tmp_module, ctx)
+        filenames = [p.name for p in result.data]
+        assert "test_test_one.py" in filenames
+        assert "test_test_two.py" in filenames
+
+
+# ---------------------------------------------------------------------------
+# render_static tests
+# ---------------------------------------------------------------------------
+
+
+class TestRenderStatic:
+    def test_returns_result_with_success(self, env, tmp_module):
+        spec = _make_spec(models=[_make_model()])
+        ctx = _make_module_context(spec)
+        result = render_static(env, spec, tmp_module, ctx)
+        assert isinstance(result, Result)
+        assert result.success is True
+
+    def test_creates_data_xml_and_static_files(self, env, tmp_module):
+        spec = _make_spec(models=[_make_model()])
+        ctx = _make_module_context(spec)
+        result = render_static(env, spec, tmp_module, ctx)
+        paths = result.data
+        assert paths is not None
+        filenames = [p.name for p in paths]
+        assert "data.xml" in filenames
+        assert "index.html" in filenames
+        assert "README.rst" in filenames
+        assert "demo_data.xml" in filenames
+
+    def test_sequences_xml_when_sequence_fields(self, env, tmp_module):
+        model = _make_model(fields=[
+            {"name": "reference", "type": "Char", "required": True},
+            {"name": "value", "type": "Integer"},
+        ])
+        spec = _make_spec(models=[model])
+        ctx = _make_module_context(spec)
+        result = render_static(env, spec, tmp_module, ctx)
+        filenames = [p.name for p in result.data]
+        assert "sequences.xml" in filenames
+
+    def test_all_files_exist_on_disk(self, env, tmp_module):
+        spec = _make_spec(models=[_make_model()])
+        ctx = _make_module_context(spec)
+        result = render_static(env, spec, tmp_module, ctx)
+        for p in result.data:
+            assert p.exists(), f"File {p} should exist on disk"
+
+
+# ---------------------------------------------------------------------------
+# Function size limits
+# ---------------------------------------------------------------------------
+
+
 class TestFunctionSizeLimits:
-    """Each extracted stage function must be under 80 lines."""
+    """All 7 stage functions and the orchestrator must be under 80 lines."""
 
-    def test_render_manifest_under_80_lines(self):
-        source = inspect.getsource(render_manifest)
+    @pytest.mark.parametrize("func", [
+        render_manifest,
+        render_models,
+        render_views,
+        render_security,
+        render_wizards,
+        render_tests,
+        render_static,
+    ])
+    def test_stage_function_under_80_lines(self, func):
+        source = inspect.getsource(func)
         line_count = len(source.splitlines())
-        assert line_count < 80, f"render_manifest is {line_count} lines, should be < 80"
+        assert line_count < 80, f"{func.__name__} is {line_count} lines, should be < 80"
 
-    def test_render_models_under_80_lines(self):
-        source = inspect.getsource(render_models)
+    def test_render_module_orchestrator_under_80_lines(self):
+        source = inspect.getsource(render_module)
         line_count = len(source.splitlines())
-        assert line_count < 80, f"render_models is {line_count} lines, should be < 80"
-
-    def test_render_views_under_80_lines(self):
-        source = inspect.getsource(render_views)
-        line_count = len(source.splitlines())
-        assert line_count < 80, f"render_views is {line_count} lines, should be < 80"
+        assert line_count < 80, f"render_module is {line_count} lines, should be < 80"
