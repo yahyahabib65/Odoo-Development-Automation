@@ -1757,3 +1757,103 @@ class TestBuildModelContextMonetary:
         field = ctx["fields"][0]
         assert field["type"] == "Monetary"
         assert field["compute"] == "_compute_total_amount"
+
+
+class TestRenderModuleMonetary:
+    """Integration tests for monetary field rendering in generated output."""
+
+    def test_monetary_field_rendered_as_fields_monetary(self, tmp_path):
+        spec = {
+            "module_name": "test_module",
+            "depends": ["base"],
+            "models": [
+                {
+                    "name": "test.invoice",
+                    "fields": [
+                        {"name": "total_amount", "type": "Float"},
+                        {"name": "name", "type": "Char"},
+                    ],
+                },
+            ],
+            "wizards": [],
+        }
+        files, _ = render_module(spec, get_template_dir(), tmp_path)
+        model_content = (tmp_path / "test_module" / "models" / "test_invoice.py").read_text()
+        assert "fields.Monetary" in model_content
+        assert 'currency_field="currency_id"' in model_content
+
+    def test_currency_id_injected_when_not_in_spec(self, tmp_path):
+        spec = {
+            "module_name": "test_module",
+            "depends": ["base"],
+            "models": [
+                {
+                    "name": "test.invoice",
+                    "fields": [{"name": "amount", "type": "Float"}],
+                },
+            ],
+            "wizards": [],
+        }
+        files, _ = render_module(spec, get_template_dir(), tmp_path)
+        model_content = (tmp_path / "test_module" / "models" / "test_invoice.py").read_text()
+        assert "currency_id = fields.Many2one(" in model_content
+        assert 'comodel_name="res.currency"' in model_content
+        assert "default=lambda self: self.env.company.currency_id" in model_content
+
+    def test_no_duplicate_currency_id_when_in_spec(self, tmp_path):
+        spec = {
+            "module_name": "test_module",
+            "depends": ["base"],
+            "models": [
+                {
+                    "name": "test.invoice",
+                    "fields": [
+                        {"name": "amount", "type": "Float"},
+                        {"name": "currency_id", "type": "Many2one", "comodel_name": "res.currency"},
+                    ],
+                },
+            ],
+            "wizards": [],
+        }
+        files, _ = render_module(spec, get_template_dir(), tmp_path)
+        model_content = (tmp_path / "test_module" / "models" / "test_invoice.py").read_text()
+        assert model_content.count("currency_id") == 2  # field def + currency_field= param
+
+    def test_computed_monetary_has_compute_and_currency_field(self, tmp_path):
+        spec = {
+            "module_name": "test_module",
+            "depends": ["base"],
+            "models": [
+                {
+                    "name": "test.invoice",
+                    "fields": [
+                        {"name": "total_amount", "type": "Float", "compute": "_compute_total_amount", "depends": ["qty"]},
+                    ],
+                },
+            ],
+            "wizards": [],
+        }
+        files, _ = render_module(spec, get_template_dir(), tmp_path)
+        model_content = (tmp_path / "test_module" / "models" / "test_invoice.py").read_text()
+        assert "fields.Monetary" in model_content
+        assert 'compute="_compute_total_amount"' in model_content
+        assert 'currency_field="currency_id"' in model_content
+
+    def test_monetary_rendering_18_0(self, tmp_path):
+        spec = {
+            "module_name": "test_module",
+            "depends": ["base"],
+            "odoo_version": "18.0",
+            "models": [
+                {
+                    "name": "test.invoice",
+                    "fields": [{"name": "amount", "type": "Float"}],
+                },
+            ],
+            "wizards": [],
+        }
+        files, _ = render_module(spec, get_template_dir(), tmp_path)
+        model_content = (tmp_path / "test_module" / "models" / "test_invoice.py").read_text()
+        assert "fields.Monetary" in model_content
+        assert 'currency_field="currency_id"' in model_content
+        assert "currency_id = fields.Many2one(" in model_content
