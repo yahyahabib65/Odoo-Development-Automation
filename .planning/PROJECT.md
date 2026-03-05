@@ -130,7 +130,24 @@ Layer 4: AI Coding Assistant (USER'S ENVIRONMENT)
 
 ### Active
 
-v3.1 — Design Flaws & Feature Gaps (not yet started)
+## Current Milestone: v3.1 Design Flaws & Feature Gaps
+
+**Goal:** Close foundational design gaps in spec design, template generation, and performance patterns to produce richer, production-grade Odoo modules.
+
+**Target features:**
+- Relationship pattern awareness in spec (through-models, self-referential, hierarchical)
+- Computed field dependency chain generation across models
+- Complex constraint support (cross-model, temporal, capacity)
+- Monetary field auto-detection and currency_id injection
+- QWeb report template generation (transcripts, challans, certificates)
+- Dashboard/analytics view generation (graph, pivot, cohort)
+- HTTP controller / REST endpoint generation
+- Import/export wizard generation (xlsx/csv bulk data)
+- Scheduled action (ir.cron) generation
+- Bulk operation patterns (model_create_multi, batch processing)
+- Database performance patterns (indexes, store=True, _order, _transient)
+- Reference data caching (ormcache, invalidation)
+- Archival/partitioning strategy (active field, cron cleanup)
 
 ### Out of Scope
 
