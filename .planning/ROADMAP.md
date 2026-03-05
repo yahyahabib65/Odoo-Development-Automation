@@ -59,7 +59,7 @@
 - [x] **Phase 30: Scheduled Actions & Render Pipeline** - ir.cron generation and new renderer stage wiring (completed 2026-03-05)
 - [x] **Phase 31: Reports & Analytics** - QWeb report templates and graph/pivot dashboard views (completed 2026-03-05)
 - [x] **Phase 32: Controllers & Import/Export** - HTTP controllers and bulk import/export wizards (completed 2026-03-05)
-- [ ] **Phase 33: Database Performance** - Index auto-detection, store=True selectivity, transient model config
+- [x] **Phase 33: Database Performance** - Index auto-detection, store=True selectivity, transient model config (completed 2026-03-05)
 - [ ] **Phase 34: Production Patterns** - Bulk operations, reference caching, and archival strategies
 
 ## Phase Details
@@ -208,7 +208,7 @@ Phases execute in numeric order: 26 -> 27 -> 28 -> 29 -> 30 -> 31 -> 32 -> 33 ->
 | 30. Scheduled Actions & Render Pipeline | 1/1 | Complete    | 2026-03-05 | - |
 | 31. Reports & Analytics | 1/1 | Complete    | 2026-03-05 | - |
 | 32. Controllers & Import/Export | 2/2 | Complete    | 2026-03-05 | - |
-| 33. Database Performance | v3.1 | 0/1 | Not started | - |
+| 33. Database Performance | 1/1 | Complete   | 2026-03-05 | - |
 | 34. Production Patterns | v3.1 | 0/TBD | Not started | - |
 
 ---

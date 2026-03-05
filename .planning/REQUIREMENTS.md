@@ -26,11 +26,11 @@ Requirements for v3.1 Design Flaws & Feature Gaps. Each maps to roadmap phases.
 
 ### Performance Patterns
 
-- [ ] **PERF-01**: Renderer auto-adds `index=True` to fields used in search view filters, record rule domains, or `_order`; generates composite `sql_constraints` for multi-field uniqueness — FLAW-14
+- [x] **PERF-01**: Renderer auto-adds `index=True` to fields used in search view filters, record rule domains, or `_order`; generates composite `sql_constraints` for multi-field uniqueness — FLAW-14
 - [ ] **PERF-02**: Models with `bulk: true` in spec generate `@api.model_create_multi` on `create()` with batched post-processing — FLAW-13
 - [ ] **PERF-03**: Near-static reference models (few records, rarely written) generate `@tools.ormcache` on lookup methods with cache invalidation in `write()`/`create()` — FLAW-15
 - [ ] **PERF-04**: Models with `archival: true` generate `active` field, archival wizard TransientModel, and `ir.cron` scheduled action for periodic archival — FLAW-16
-- [ ] **PERF-05**: Computed fields appearing in tree views, search filters, or `_order` automatically get `store=True`; TransientModels get `_transient_max_hours` and `_transient_max_count`
+- [x] **PERF-05**: Computed fields appearing in tree views, search filters, or `_order` automatically get `store=True`; TransientModels get `_transient_max_hours` and `_transient_max_count`
 
 ## Future Requirements (v3.2+)
 
@@ -91,11 +91,11 @@ Requirements for v3.1 Design Flaws & Feature Gaps. Each maps to roadmap phases.
 | TMPL-04 | Phase 32 | Complete |
 | TMPL-05 | Phase 30 | Complete |
 | TMPL-06 | Phase 30 | Complete |
-| PERF-01 | Phase 33 | Pending |
+| PERF-01 | Phase 33 | Complete |
 | PERF-02 | Phase 34 | Pending |
 | PERF-03 | Phase 34 | Pending |
 | PERF-04 | Phase 34 | Pending |
-| PERF-05 | Phase 33 | Pending |
+| PERF-05 | Phase 33 | Complete |
 
 **Coverage:**
 - v3.1 requirements: 16 total

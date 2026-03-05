@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: Design Flaws & Feature Gaps
 status: completed
-stopped_at: Completed 32-02-PLAN.md
+stopped_at: Completed 33-01-PLAN.md
 last_updated: "2026-03-05T20:20:41.711Z"
-last_activity: 2026-03-06 — Phase 32 Plan 02 executed
+last_activity: 2026-03-06 — Phase 33 Plan 01 executed
 progress:
   total_phases: 9
   completed_phases: 7
@@ -22,21 +22,21 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Compress months of repetitive Odoo module development into days by extending GSD's orchestration with Odoo-specialized agents, knowledge, and validation.
 **Architecture:** GSD extension (not standalone CLI)
-**Current focus:** v3.1 Phase 32 — Controllers & Import/Export
+**Current focus:** v3.1 Phase 33 — Database Performance
 
 ## Current Position
 
-Phase: 32 of 34 (Controllers & Import/Export)
-Plan: 02 of 02 (complete)
-Status: Phase 32 complete
-Last activity: 2026-03-06 — Phase 32 Plan 02 executed
+Phase: 33 of 34 (Database Performance)
+Plan: 01 of 01 (complete)
+Status: Phase 33 complete
+Last activity: 2026-03-06 — Phase 33 Plan 01 executed
 
 Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 58 (across all milestones)
+- Total plans completed: 59 (across all milestones)
 - Average duration: ~25 min
 - Total execution time: ~23 hours
 
@@ -63,6 +63,7 @@ Progress: [██████████] 100%
 - [Phase 31]: 4 shared templates for reports/dashboards; dict.get() in Jinja2 for optional keys with StrictUndefined; report data in data/ dir; dashboard views in views/ dir; form header renders when state_field OR model_reports
 - [Phase 32]: JSON routes get try/except with structured error response; controller class_name auto-derived from module_name when not specified; secure defaults via Jinja2 dict.get()
 - [Phase 32]: Import wizard generated in render_controllers() stage; magic byte PK\x03\x04 validation for xlsx; state machine upload/preview/done; external_dependencies rendered in manifest; import_export_wizards ACL via access_csv.j2
+- [Phase 33]: _process_performance() auto-detects index=True for search/order/domain fields; store=True for view-referenced computed fields; _sql_constraints from unique_together; TransientModel cleanup defaults (1.0h, 0 count); INDEXABLE_TYPES excludes One2many/Many2many/Html/Text/Binary
 
 ### Pending Todos
 
@@ -88,7 +89,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-05T20:13:11Z
-Stopped at: Completed 32-02-PLAN.md
+Last session: 2026-03-05T20:35:20Z
+Stopped at: Completed 33-01-PLAN.md
 Resume file: None
-Next step: `/gsd:plan-phase 32`
+Next step: `/gsd:plan-phase 34`
