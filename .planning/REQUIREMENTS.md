@@ -9,28 +9,28 @@ Requirements for v3.1 Design Flaws & Feature Gaps. Each maps to roadmap phases.
 
 ### Spec Design
 
-- [ ] **SPEC-01**: Renderer auto-detects Monetary field patterns (amount, fee, salary, price, cost, balance) and generates `fields.Monetary` with `currency_id` injection — FLAW-04
-- [ ] **SPEC-02**: Spec supports a `relationships` section with through-models for M2M with extra fields, self-referential M2M (with explicit relation/column params), and hierarchical parent_id patterns — FLAW-01
-- [ ] **SPEC-03**: Spec supports `computation_chains` section defining multi-model computed field chains with correct `@api.depends`, `store=True`, and computation order via topological sort — FLAW-02
-- [ ] **SPEC-04**: Spec supports `constraints` section with cross-model validation, temporal constraints, and capacity constraints generating `create()`/`write()` overrides with `ValidationError` — FLAW-03
-- [ ] **SPEC-05**: Spec validation detects circular dependency chains and rejects them with actionable error messages before generation
+- [x] **SPEC-01**: Renderer auto-detects Monetary field patterns (amount, fee, salary, price, cost, balance) and generates `fields.Monetary` with `currency_id` injection — FLAW-04
+- [x] **SPEC-02**: Spec supports a `relationships` section with through-models for M2M with extra fields, self-referential M2M (with explicit relation/column params), and hierarchical parent_id patterns — FLAW-01
+- [x] **SPEC-03**: Spec supports `computation_chains` section defining multi-model computed field chains with correct `@api.depends`, `store=True`, and computation order via topological sort — FLAW-02
+- [x] **SPEC-04**: Spec supports `constraints` section with cross-model validation, temporal constraints, and capacity constraints generating `create()`/`write()` overrides with `ValidationError` — FLAW-03
+- [x] **SPEC-05**: Spec validation detects circular dependency chains and rejects them with actionable error messages before generation
 
 ### Template Generation
 
-- [ ] **TMPL-01**: Generator produces QWeb report templates (`ir.actions.report` XML + QWeb template) with form view button, paper format, and `t-foreach`/`t-field` syntax — FLAW-08
-- [ ] **TMPL-02**: Generator produces graph and pivot view XML with configurable measures, dimensions, chart types, and `ir.actions.act_window` with graph/pivot view_mode — FLAW-09
-- [ ] **TMPL-03**: Generator produces HTTP controllers (`controllers/main.py`) with `@http.route`, JSON/HTTP types, authentication modes, CSRF protection, and input validation — FLAW-10
-- [ ] **TMPL-04**: Generator produces import/export TransientModel wizards with `fields.Binary` upload, row validation, preview step, batch `_do_import()`, and xlsx export — FLAW-12
-- [ ] **TMPL-05**: Generator produces `ir.cron` XML records in `data/data.xml` with interval, model reference, and `@api.model` stub method on the target model — FLAW-20
-- [ ] **TMPL-06**: New render stages (`render_reports`, `render_controllers`, `render_cron`) wired into renderer pipeline returning `Result[list[Path]]`
+- [x] **TMPL-01**: Generator produces QWeb report templates (`ir.actions.report` XML + QWeb template) with form view button, paper format, and `t-foreach`/`t-field` syntax — FLAW-08
+- [x] **TMPL-02**: Generator produces graph and pivot view XML with configurable measures, dimensions, chart types, and `ir.actions.act_window` with graph/pivot view_mode — FLAW-09
+- [x] **TMPL-03**: Generator produces HTTP controllers (`controllers/main.py`) with `@http.route`, JSON/HTTP types, authentication modes, CSRF protection, and input validation — FLAW-10
+- [x] **TMPL-04**: Generator produces import/export TransientModel wizards with `fields.Binary` upload, row validation, preview step, batch `_do_import()`, and xlsx export — FLAW-12
+- [x] **TMPL-05**: Generator produces `ir.cron` XML records in `data/data.xml` with interval, model reference, and `@api.model` stub method on the target model — FLAW-20
+- [x] **TMPL-06**: New render stages (`render_reports`, `render_controllers`, `render_cron`) wired into renderer pipeline returning `Result[list[Path]]`
 
 ### Performance Patterns
 
-- [ ] **PERF-01**: Renderer auto-adds `index=True` to fields used in search view filters, record rule domains, or `_order`; generates composite `sql_constraints` for multi-field uniqueness — FLAW-14
-- [ ] **PERF-02**: Models with `bulk: true` in spec generate `@api.model_create_multi` on `create()` with batched post-processing — FLAW-13
-- [ ] **PERF-03**: Near-static reference models (few records, rarely written) generate `@tools.ormcache` on lookup methods with cache invalidation in `write()`/`create()` — FLAW-15
-- [ ] **PERF-04**: Models with `archival: true` generate `active` field, archival wizard TransientModel, and `ir.cron` scheduled action for periodic archival — FLAW-16
-- [ ] **PERF-05**: Computed fields appearing in tree views, search filters, or `_order` automatically get `store=True`; TransientModels get `_transient_max_hours` and `_transient_max_count`
+- [x] **PERF-01**: Renderer auto-adds `index=True` to fields used in search view filters, record rule domains, or `_order`; generates composite `sql_constraints` for multi-field uniqueness — FLAW-14
+- [x] **PERF-02**: Models with `bulk: true` in spec generate `@api.model_create_multi` on `create()` with batched post-processing — FLAW-13
+- [x] **PERF-03**: Near-static reference models (few records, rarely written) generate `@tools.ormcache` on lookup methods with cache invalidation in `write()`/`create()` — FLAW-15
+- [x] **PERF-04**: Models with `archival: true` generate `active` field, archival wizard TransientModel, and `ir.cron` scheduled action for periodic archival — FLAW-16
+- [x] **PERF-05**: Computed fields appearing in tree views, search filters, or `_order` automatically get `store=True`; TransientModels get `_transient_max_hours` and `_transient_max_count`
 
 ## Future Requirements (v3.2+)
 
@@ -80,22 +80,22 @@ Requirements for v3.1 Design Flaws & Feature Gaps. Each maps to roadmap phases.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SPEC-01 | Phase 26 | Pending |
-| SPEC-02 | Phase 27 | Pending |
-| SPEC-03 | Phase 28 | Pending |
-| SPEC-04 | Phase 29 | Pending |
-| SPEC-05 | Phase 28 | Pending |
-| TMPL-01 | Phase 31 | Pending |
-| TMPL-02 | Phase 31 | Pending |
-| TMPL-03 | Phase 32 | Pending |
-| TMPL-04 | Phase 32 | Pending |
-| TMPL-05 | Phase 30 | Pending |
-| TMPL-06 | Phase 30 | Pending |
-| PERF-01 | Phase 33 | Pending |
-| PERF-02 | Phase 34 | Pending |
-| PERF-03 | Phase 34 | Pending |
-| PERF-04 | Phase 34 | Pending |
-| PERF-05 | Phase 33 | Pending |
+| SPEC-01 | Phase 26 | Complete |
+| SPEC-02 | Phase 27 | Complete |
+| SPEC-03 | Phase 28 | Complete |
+| SPEC-04 | Phase 29 | Complete |
+| SPEC-05 | Phase 28 | Complete |
+| TMPL-01 | Phase 31 | Complete |
+| TMPL-02 | Phase 31 | Complete |
+| TMPL-03 | Phase 32 | Complete |
+| TMPL-04 | Phase 32 | Complete |
+| TMPL-05 | Phase 30 | Complete |
+| TMPL-06 | Phase 30 | Complete |
+| PERF-01 | Phase 33 | Complete |
+| PERF-02 | Phase 34 | Complete |
+| PERF-03 | Phase 34 | Complete |
+| PERF-04 | Phase 34 | Complete |
+| PERF-05 | Phase 33 | Complete |
 
 **Coverage:**
 - v3.1 requirements: 16 total

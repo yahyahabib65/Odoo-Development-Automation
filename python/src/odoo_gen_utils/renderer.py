@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import re
+from graphlib import CycleError, TopologicalSorter
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -16,6 +18,727 @@ if TYPE_CHECKING:
 
 # Sequence field names that trigger ir.sequence generation.
 SEQUENCE_FIELD_NAMES: frozenset[str] = frozenset({"reference", "ref", "number", "code", "sequence"})
+
+# Phase 26: Monetary field name patterns that trigger Float -> Monetary rewrite.
+MONETARY_FIELD_PATTERNS: frozenset[str] = frozenset({
+    "amount", "fee", "salary", "price", "cost", "balance",
+    "total", "subtotal", "tax", "discount", "payment",
+    "revenue", "expense", "budget", "wage", "rate",
+    "charge", "premium", "debit", "credit",
+})
+
+
+def _is_monetary_field(field: dict[str, Any]) -> bool:
+    """Check whether a field should be rendered as fields.Monetary.
+
+    Returns True when:
+    - field type is already "Monetary", OR
+    - field type is "Float" AND the field name contains a monetary pattern keyword.
+
+    Returns False when:
+    - field has explicit ``"monetary": False`` opt-out
+    - field type is not Float/Monetary
+    - field name does not contain any monetary pattern
+    """
+    if field.get("monetary") is False:
+        return False
+    field_type = field.get("type", "")
+    if field_type == "Monetary":
+        return True
+    if field_type != "Float":
+        return False
+    name = field.get("name", "")
+    return any(pattern in name for pattern in MONETARY_FIELD_PATTERNS)
+
+
+def _process_relationships(spec: dict[str, Any]) -> dict[str, Any]:
+    """Pre-process relationships section, synthesizing through-models.
+
+    Returns a new spec dict with:
+    - Through-models appended to spec["models"]
+    - One2many fields injected on parent models for through-models
+    - Self-referential M2M fields enriched with relation/column params
+
+    Pure function -- does NOT mutate the input spec.
+    """
+    relationships = spec.get("relationships", [])
+    if not relationships:
+        return spec
+
+    # Deep-copy models to avoid mutating the original spec
+    new_models = [{**m, "fields": list(m.get("fields", []))} for m in spec.get("models", [])]
+
+    for rel in relationships:
+        if rel["type"] == "m2m_through":
+            through_model = _synthesize_through_model(rel, spec)
+            new_models.append(through_model)
+            _inject_one2many_links(new_models, rel)
+        elif rel["type"] == "self_m2m":
+            _enrich_self_referential_m2m(new_models, rel)
+
+    return {**spec, "models": new_models}
+
+
+def _synthesize_through_model(
+    rel: dict[str, Any], spec: dict[str, Any]
+) -> dict[str, Any]:
+    """Synthesize a through-model dict from a m2m_through relationship.
+
+    Returns a model dict suitable for appending to spec["models"].
+    Raises ValueError if auto-generated FK names collide with through_fields.
+    """
+    from_model = rel["from"]
+    to_model = rel["to"]
+    through_name = rel["through_model"]
+
+    # Derive FK field names from model names
+    from_fk = _to_python_var(from_model.rsplit(".", 1)[-1]) + "_id"
+    to_fk = _to_python_var(to_model.rsplit(".", 1)[-1]) + "_id"
+
+    # Check for collisions with through_fields
+    through_field_names = {f["name"] for f in rel.get("through_fields", [])}
+    for fk_name in (from_fk, to_fk):
+        if fk_name in through_field_names:
+            msg = (
+                f"FK name collision: auto-generated '{fk_name}' collides with "
+                f"a through_field name in '{through_name}'"
+            )
+            raise ValueError(msg)
+
+    fields: list[dict[str, Any]] = [
+        {
+            "name": from_fk,
+            "type": "Many2one",
+            "comodel_name": from_model,
+            "string": from_model.rsplit(".", 1)[-1].replace("_", " ").title(),
+            "required": True,
+            "ondelete": "cascade",
+        },
+        {
+            "name": to_fk,
+            "type": "Many2one",
+            "comodel_name": to_model,
+            "string": to_model.rsplit(".", 1)[-1].replace("_", " ").title(),
+            "required": True,
+            "ondelete": "cascade",
+        },
+    ]
+    fields.extend(rel.get("through_fields", []))
+
+    return {
+        "name": through_name,
+        "description": through_name.rsplit(".", 1)[-1].replace("_", " ").title(),
+        "fields": fields,
+        "_synthesized": True,
+    }
+
+
+def _inject_one2many_links(
+    models: list[dict[str, Any]], rel: dict[str, Any]
+) -> None:
+    """Inject One2many fields on parent models pointing to through-model.
+
+    Mutates the models list in-place (caller provides a copy).
+    Skips injection if a field with the target name already exists.
+    """
+    through_name = rel["through_model"]
+    through_last = through_name.rsplit(".", 1)[-1]
+    target_field_name = f"{_to_python_var(through_last)}_ids"
+
+    from_fk = _to_python_var(rel["from"].rsplit(".", 1)[-1]) + "_id"
+    to_fk = _to_python_var(rel["to"].rsplit(".", 1)[-1]) + "_id"
+
+    for model in models:
+        if model["name"] == rel["from"]:
+            if not any(f.get("name") == target_field_name for f in model.get("fields", [])):
+                model["fields"].append({
+                    "name": target_field_name,
+                    "type": "One2many",
+                    "comodel_name": through_name,
+                    "inverse_name": from_fk,
+                    "string": through_last.replace("_", " ").title() + "s",
+                })
+        elif model["name"] == rel["to"]:
+            if not any(f.get("name") == target_field_name for f in model.get("fields", [])):
+                model["fields"].append({
+                    "name": target_field_name,
+                    "type": "One2many",
+                    "comodel_name": through_name,
+                    "inverse_name": to_fk,
+                    "string": through_last.replace("_", " ").title() + "s",
+                })
+
+
+def _enrich_self_referential_m2m(
+    models: list[dict[str, Any]], rel: dict[str, Any]
+) -> None:
+    """Enrich model fields with self-referential M2M relation/column params.
+
+    Mutates the models list in-place (caller provides a copy).
+    Adds/replaces fields with explicit relation, column1, column2.
+    """
+    model_name = rel["model"]
+    target_model = next((m for m in models if m["name"] == model_name), None)
+    if target_model is None:
+        return
+
+    table_base = _to_python_var(model_name)
+    field_name = rel["field_name"]
+    relation_table = f"{table_base}_{field_name}_rel"
+
+    primary_field: dict[str, Any] = {
+        "name": field_name,
+        "type": "Many2many",
+        "comodel_name": model_name,
+        "relation": relation_table,
+        "column1": f"{table_base}_id",
+        "column2": f"{field_name.rstrip('_ids')}_id",
+        "string": rel.get("string", field_name.replace("_", " ").title()),
+    }
+
+    inverse_name = rel.get("inverse_field_name")
+    inverse_field: dict[str, Any] | None = None
+    if inverse_name:
+        inverse_field = {
+            "name": inverse_name,
+            "type": "Many2many",
+            "comodel_name": model_name,
+            "relation": relation_table,
+            "column1": f"{field_name.rstrip('_ids')}_id",  # REVERSED
+            "column2": f"{table_base}_id",                   # REVERSED
+            "string": rel.get("inverse_string", inverse_name.replace("_", " ").title()),
+        }
+
+    # Replace or append fields on the target model
+    names_to_remove = {field_name}
+    if inverse_name:
+        names_to_remove.add(inverse_name)
+    fields = [f for f in target_model.get("fields", []) if f.get("name") not in names_to_remove]
+    fields.append(primary_field)
+    if inverse_field:
+        fields.append(inverse_field)
+    target_model["fields"] = fields
+
+
+def _resolve_comodel(
+    spec: dict[str, Any], model_name: str, field_name: str
+) -> str | None:
+    """Resolve the comodel_name of a relational field on a model."""
+    for model in spec.get("models", []):
+        if model["name"] == model_name:
+            for field in model.get("fields", []):
+                if field.get("name") == field_name:
+                    return field.get("comodel_name")
+    return None
+
+
+def _validate_no_cycles(spec: dict[str, Any]) -> None:
+    """Validate that computation_chains contain no circular dependencies.
+
+    Builds a directed graph where nodes are "model.field" identifiers
+    and edges represent "depends on" relationships. Uses graphlib to
+    detect cycles.
+
+    Raises ValueError with actionable message naming cycle participants.
+    """
+    chains = spec.get("computation_chains", [])
+    if not chains:
+        return
+
+    # Build dependency graph: node = "model.field", edges = depends_on
+    graph: dict[str, set[str]] = {}
+    for chain in chains:
+        node = chain["field"]  # e.g., "university.student.gpa"
+        model_name = node.rsplit(".", 1)[0]
+        deps: set[str] = set()
+        for dep in chain.get("depends_on", []):
+            if "." in dep:
+                # Cross-model: "enrollment_ids.weighted_grade"
+                rel_field, target_field = dep.split(".", 1)
+                target_model = _resolve_comodel(spec, model_name, rel_field)
+                if target_model:
+                    deps.add(f"{target_model}.{target_field}")
+            else:
+                # Local field -- only add if it's also a chain node
+                local_node = f"{model_name}.{dep}"
+                if any(c["field"] == local_node for c in chains):
+                    deps.add(local_node)
+        graph[node] = deps
+
+    try:
+        ts = TopologicalSorter(graph)
+        list(ts.static_order())
+    except CycleError as exc:
+        cycle_nodes = exc.args[1]
+        cycle_str = " -> ".join(str(n) for n in cycle_nodes)
+        msg = (
+            f"Circular dependency detected in computation_chains: "
+            f"{cycle_str}. Break the cycle by removing one dependency."
+        )
+        raise ValueError(msg) from None
+
+
+def _process_constraints(spec: dict[str, Any]) -> dict[str, Any]:
+    """Enrich model specs with constraint method metadata from constraints section.
+
+    For each constraint:
+    1. Classify by type (temporal, cross_model, capacity)
+    2. Locate target model in spec
+    3. Inject constraint metadata into model dict
+
+    Returns a new spec dict with enriched models. Pure function.
+    """
+    constraints = spec.get("constraints", [])
+    if not constraints:
+        return spec
+
+    # Build model name set for validation
+    model_names = {m["name"] for m in spec.get("models", [])}
+
+    # Group constraints by model
+    model_constraints: dict[str, list[dict[str, Any]]] = {}
+    for constraint in constraints:
+        model_name = constraint["model"]
+        if model_name not in model_names:
+            continue  # silently skip constraints for non-existent models
+        model_constraints.setdefault(model_name, []).append(constraint)
+
+    if not model_constraints:
+        return spec
+
+    # Enrich each constraint with preprocessed metadata
+    def _enrich_constraint(c: dict[str, Any]) -> dict[str, Any]:
+        enriched = {**c}
+        ctype = c["type"]
+        if ctype == "temporal":
+            # Build check_expr with False guards
+            fields = c["fields"]
+            guards = " and ".join(f"rec.{f}" for f in fields)
+            condition = c["condition"]
+            # Prefix field references with rec.
+            check_condition = condition
+            for field in fields:
+                # Replace bare field names with rec.field (word boundary aware)
+                check_condition = re.sub(
+                    rf"\b{re.escape(field)}\b",
+                    f"rec.{field}",
+                    check_condition,
+                )
+            enriched["check_expr"] = f"{guards} and {check_condition}"
+        elif ctype == "cross_model":
+            # Generate check_body for cross-model validation
+            count_domain_field = c["count_domain_field"]
+            capacity_model = c["capacity_model"]
+            capacity_field = c["capacity_field"]
+            related_model = c["related_model"]
+            message = c["message"]
+            enriched["check_body"] = (
+                f"course = rec.{count_domain_field}\n"
+                f"count = self.env[\"{related_model}\"].search_count([\n"
+                f"    (\"{count_domain_field}\", \"=\", course.id),\n"
+                f"])\n"
+                f"if course.{capacity_field} and count > course.{capacity_field}:\n"
+                f"    raise ValidationError(\n"
+                f"        _(\"{message}\",\n"
+                f"          course.{capacity_field})\n"
+                f"    )"
+            )
+            enriched["write_trigger_fields"] = c.get("trigger_fields", [])
+        elif ctype == "capacity":
+            # Generate check_body for capacity validation
+            count_model = c.get("count_model", "")
+            count_domain_field = c.get("count_domain_field", "")
+            max_value = c.get("max_value")
+            max_field = c.get("max_field")
+            message = c["message"]
+            if max_field:
+                max_ref = f"rec.{max_field}"
+            else:
+                max_ref = str(max_value)
+            enriched["check_body"] = (
+                f"count = self.env[\"{count_model}\"].search_count([\n"
+                f"    (\"{count_domain_field}\", \"=\", rec.id),\n"
+                f"])\n"
+                f"if count > {max_ref}:\n"
+                f"    raise ValidationError(\n"
+                f"        _(\"{message}\",\n"
+                f"          {max_ref})\n"
+                f"    )"
+            )
+            enriched["write_trigger_fields"] = c.get("trigger_fields", [])
+        return enriched
+
+    # Deep-copy models and enrich with constraint metadata
+    new_models = []
+    for model in spec.get("models", []):
+        mc = model_constraints.get(model["name"])
+        if not mc:
+            new_models.append(model)
+            continue
+
+        enriched_constraints = [_enrich_constraint(c) for c in mc]
+        create_constraints = [
+            c for c in enriched_constraints
+            if c["type"] in ("cross_model", "capacity")
+        ]
+        write_constraints = [
+            c for c in enriched_constraints
+            if c["type"] in ("cross_model", "capacity")
+        ]
+
+        new_models.append({
+            **model,
+            "complex_constraints": enriched_constraints,
+            "create_constraints": create_constraints,
+            "write_constraints": write_constraints,
+            "has_create_override": bool(create_constraints),
+            "has_write_override": bool(write_constraints),
+        })
+
+    return {**spec, "models": new_models}
+
+
+# Phase 33: Indexable field types for automatic index=True enrichment.
+INDEXABLE_TYPES: frozenset[str] = frozenset({
+    "Char", "Integer", "Float", "Date", "Datetime",
+    "Boolean", "Selection", "Many2one", "Monetary",
+})
+
+# Phase 33: Virtual/non-indexable field types (never get index=True).
+NON_INDEXABLE_TYPES: frozenset[str] = frozenset({
+    "One2many", "Many2many", "Html", "Text", "Binary",
+})
+
+
+def _process_performance(spec: dict[str, Any]) -> dict[str, Any]:
+    """Enrich fields with index/store and models with _order/_sql_constraints.
+
+    Analyzes:
+    1. Search view fields (Char/Many2one/Selection) -> index=True
+    2. Record rule domains (company_id) -> index=True
+    3. Model _order -> index=True on order fields
+    4. Computed fields in tree views/search/order -> store=True
+    5. unique_together spec -> _sql_constraints
+    6. TransientModel flag -> _transient_max_hours/_transient_max_count
+
+    Pure function -- does NOT mutate the input spec.
+    """
+    models = spec.get("models", [])
+    if not models:
+        return spec
+
+    new_models = []
+    for model in models:
+        new_model = _enrich_model_performance(model)
+        new_models.append(new_model)
+
+    return {**spec, "models": new_models}
+
+
+def _process_production_patterns(spec: dict[str, Any]) -> dict[str, Any]:
+    """Enrich models with bulk create, ORM cache, and archival production patterns.
+
+    Analyzes:
+    1. bulk:true -> is_bulk=True, has_create_override=True
+    2. cacheable:true -> is_cacheable=True, needs_tools=True,
+       has_create_override=True, has_write_override=True,
+       cache_lookup_field (from cache_key or first unique Char or "name")
+    3. archival:true -> is_archival=True, active field injection,
+       archival wizard in spec["wizards"], archival cron in spec["cron_jobs"]
+
+    Preserves existing has_create_override/has_write_override from Phase 29
+    constraints (OR them, don't replace).
+
+    Pure function -- does NOT mutate the input spec.
+    """
+    models = spec.get("models", [])
+    if not models:
+        return spec
+
+    new_models = []
+    new_wizards = list(spec.get("wizards", []))
+    new_cron_jobs = list(spec.get("cron_jobs", []))
+
+    for model in models:
+        new_model = {**model, "fields": list(model.get("fields", []))}
+
+        is_bulk = bool(model.get("bulk"))
+        is_cacheable = bool(model.get("cacheable"))
+        is_archival = bool(model.get("archival"))
+
+        if not is_bulk and not is_cacheable and not is_archival:
+            new_models.append(new_model)
+            continue
+
+        if is_bulk:
+            new_model["is_bulk"] = True
+            new_model["has_create_override"] = True
+
+        if is_cacheable:
+            new_model["is_cacheable"] = True
+            new_model["needs_tools"] = True
+            new_model["has_create_override"] = True
+            new_model["has_write_override"] = True
+
+            # Determine cache lookup field
+            cache_key = model.get("cache_key")
+            if cache_key:
+                new_model["cache_lookup_field"] = cache_key
+            else:
+                # Find first unique Char field
+                fields = model.get("fields", [])
+                unique_char = next(
+                    (f["name"] for f in fields
+                     if f.get("type") == "Char" and f.get("unique")),
+                    None,
+                )
+                new_model["cache_lookup_field"] = unique_char or "name"
+
+        if is_archival:
+            new_model["is_archival"] = True
+            new_model["archival_batch_size"] = model.get("archival_batch_size", 100)
+            new_model["archival_days"] = model.get("archival_days", 365)
+
+            # Inject active field if not already present
+            existing_field_names = {f["name"] for f in new_model["fields"]}
+            if "active" not in existing_field_names:
+                new_model["fields"] = [
+                    *new_model["fields"],
+                    {
+                        "name": "active",
+                        "type": "Boolean",
+                        "default": True,
+                        "index": True,
+                        "string": "Active",
+                    },
+                ]
+
+            # Inject archival wizard into spec wizards
+            wizard_name = f"{model['name']}.archive.wizard"
+            new_wizards.append({
+                "name": wizard_name,
+                "target_model": model["name"],
+                "template": "archival_wizard.py.j2",
+                "form_template": "archival_wizard_form.xml.j2",
+                "fields": [
+                    {
+                        "name": "days_threshold",
+                        "type": "Integer",
+                        "string": "Archive records older than (days)",
+                        "default": 365,
+                        "required": True,
+                    },
+                ],
+                "transient_max_hours": 1.0,
+            })
+
+            # Inject archival cron into spec cron_jobs
+            new_cron_jobs.append({
+                "name": f"Archive Old {model.get('description', model['name'])} Records",
+                "model_name": model["name"],
+                "method": "_cron_archive_old_records",
+                "interval_number": 1,
+                "interval_type": "days",
+                "doall": False,
+            })
+
+        # Preserve existing override flags from Phase 29 (OR, don't replace)
+        if model.get("has_create_override"):
+            new_model["has_create_override"] = True
+        if model.get("has_write_override"):
+            new_model["has_write_override"] = True
+
+        new_models.append(new_model)
+
+    return {**spec, "models": new_models, "wizards": new_wizards, "cron_jobs": new_cron_jobs}
+
+
+def _enrich_model_performance(model: dict[str, Any]) -> dict[str, Any]:
+    """Enrich a single model dict with performance attributes.
+
+    Pure function -- returns a new model dict without mutating the input.
+    """
+    fields = model.get("fields", [])
+    field_names = {f["name"] for f in fields}
+
+    # --- Determine which fields need index=True ---
+
+    # Search view fields: Char, Many2one (appear in <search>), Selection (group-by)
+    search_fields = {
+        f["name"] for f in fields
+        if f.get("type") in ("Char", "Many2one", "Selection")
+        and not f.get("internal")
+    }
+
+    # Order fields: parse model.order
+    order_str = model.get("order", "")
+    order_parts = [part.strip().split()[0] for part in order_str.split(",") if part.strip()]
+    order_fields = {name for name in order_parts if name in field_names}
+
+    # Domain fields: company_id is used in record rules
+    domain_fields: set[str] = set()
+    if any(f["name"] == "company_id" for f in fields):
+        domain_fields.add("company_id")
+
+    index_fields = search_fields | order_fields | domain_fields
+
+    # --- Determine which computed fields need store=True ---
+
+    # View fields (excluding internal)
+    view_fields = [f for f in fields if not f.get("internal")]
+
+    # Tree view fields: first 6 non-One2many/Html/Text fields
+    tree_fields: set[str] = set()
+    count = 0
+    for f in view_fields:
+        if f.get("type") not in ("One2many", "Html", "Text"):
+            tree_fields.add(f["name"])
+            count += 1
+            if count >= 6:
+                break
+
+    visible_fields = tree_fields | search_fields | order_fields
+
+    # --- Build new fields list (immutable) ---
+    new_fields = []
+    for field in fields:
+        enriched = {**field}
+        ftype = field.get("type", "")
+
+        # Index enrichment
+        if field["name"] in index_fields and ftype in INDEXABLE_TYPES:
+            enriched["index"] = True
+
+        # Store enrichment for computed fields
+        if field.get("compute") and field["name"] in visible_fields:
+            if not field.get("store"):
+                enriched["store"] = True
+
+        new_fields.append(enriched)
+
+    new_model: dict[str, Any] = {**model, "fields": new_fields}
+
+    # --- model_order: validated _order string ---
+    if order_str:
+        valid_parts = []
+        for part in order_str.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            field_name = part.split()[0]
+            if field_name in field_names:
+                valid_parts.append(part)
+        if valid_parts:
+            new_model["model_order"] = ", ".join(valid_parts)
+
+    # --- unique_together -> sql_constraints ---
+    unique_together = model.get("unique_together", [])
+    if unique_together:
+        sql_constraints = list(model.get("sql_constraints", []))
+        for unique in unique_together:
+            ufields = unique.get("fields", [])
+            # Validate all fields exist
+            if not all(fname in field_names for fname in ufields):
+                continue
+            constraint_name = "unique_" + "_".join(ufields)
+            definition = "UNIQUE(%s)" % ", ".join(ufields)
+            message = unique.get("message", "%s must be unique." % ", ".join(ufields))
+            sql_constraints.append({
+                "name": constraint_name,
+                "definition": definition,
+                "message": message,
+            })
+        new_model["sql_constraints"] = sql_constraints
+
+    # --- TransientModel cleanup ---
+    if model.get("transient"):
+        new_model["transient_max_hours"] = model.get("transient_max_hours", 1.0)
+        new_model["transient_max_count"] = model.get("transient_max_count", 0)
+
+    return new_model
+
+
+def _process_computation_chains(spec: dict[str, Any]) -> dict[str, Any]:
+    """Enrich computed field specs from computation_chains section.
+
+    For each chain entry:
+    1. Locate the target field in the matching model
+    2. Set field.depends = chain.depends_on (the @api.depends paths)
+    3. Set field.store = True
+    4. Set field.compute if not already set (convention: _compute_{field_name})
+
+    Returns a new spec dict with enriched models. Pure function.
+    """
+    chains = spec.get("computation_chains", [])
+    if not chains:
+        return spec
+
+    # Build a lookup: model_name -> {field_name -> chain_entry}
+    chain_lookup: dict[str, dict[str, dict]] = {}
+    for chain in chains:
+        parts = chain["field"].rsplit(".", 1)
+        model_name, field_name = parts[0], parts[1]
+        chain_lookup.setdefault(model_name, {})[field_name] = chain
+
+    # Deep-copy models and enrich fields
+    new_models = []
+    for model in spec.get("models", []):
+        model_chains = chain_lookup.get(model["name"], {})
+        if not model_chains:
+            new_models.append(model)
+            continue
+
+        new_fields = []
+        for field in model.get("fields", []):
+            fname = field.get("name", "")
+            if fname in model_chains:
+                chain = model_chains[fname]
+                field = {
+                    **field,
+                    "depends": chain["depends_on"],
+                    "store": True,
+                    "compute": field.get("compute", f"_compute_{fname}"),
+                }
+            new_fields.append(field)
+        new_models.append({**model, "fields": new_fields})
+
+    return {**spec, "models": new_models}
+
+
+def _topologically_sort_fields(
+    computed_fields: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Sort computed fields so dependencies come before dependents.
+
+    Uses graphlib.TopologicalSorter. If fields have no inter-dependencies
+    (common case), preserves original order.
+    """
+    field_names = {f["name"] for f in computed_fields}
+    field_map = {f["name"]: f for f in computed_fields}
+
+    graph: dict[str, set[str]] = {}
+    for field in computed_fields:
+        deps = set()
+        for dep in field.get("depends", []):
+            # Only consider local dependencies (no dots) that are
+            # themselves computed fields
+            if "." not in dep and dep in field_names:
+                deps.add(dep)
+        graph[field["name"]] = deps
+
+    try:
+        ts = TopologicalSorter(graph)
+        sorted_names = list(ts.static_order())
+    except CycleError:
+        # Intra-model cycles caught by _validate_no_cycles already
+        return computed_fields
+
+    # Rebuild list in sorted order
+    result = []
+    for name in sorted_names:
+        if name in field_map:
+            result.append(field_map[name])
+    return result
 
 
 def _model_ref(name: str) -> str:
@@ -185,12 +908,23 @@ def _build_model_context(spec: dict[str, Any], model: dict[str, Any]) -> dict[st
 
     fields = model.get("fields", [])
     required_fields = [f for f in fields if f.get("required")]
+    # Phase 29: complex constraints from preprocessor
+    complex_constraints = model.get("complex_constraints", [])
+    create_constraints = model.get("create_constraints", [])
+    write_constraints = model.get("write_constraints", [])
+    has_create_override = model.get("has_create_override", False)
+    has_write_override = model.get("has_write_override", False)
+    needs_translate = bool(complex_constraints)
+
     has_constraints = any(
         f.get("constraints") for f in fields
-    ) or bool(model.get("sql_constraints"))
+    ) or bool(model.get("sql_constraints")) or bool(complex_constraints)
 
     # Phase 5 extensions ---------------------------------------------------
     computed_fields = [f for f in fields if f.get("compute")]
+    # Phase 28: topologically sort computed fields by dependency order
+    if len(computed_fields) > 1:
+        computed_fields = _topologically_sort_fields(computed_fields)
     onchange_fields = [f for f in fields if f.get("onchange")]
     constrained_fields = [f for f in fields if f.get("constrains")]
     sequence_fields = [
@@ -207,6 +941,16 @@ def _build_model_context(spec: dict[str, Any], model: dict[str, Any]) -> dict[st
         None,
     )
     wizards = spec.get("wizards", [])
+
+    # Phase 26: monetary field detection (immutable rewrite)
+    has_monetary = any(_is_monetary_field(f) for f in fields)
+    if has_monetary:
+        fields = [
+            {**f, "type": "Monetary"} if _is_monetary_field(f) and f.get("type") == "Float" else f
+            for f in fields
+        ]
+    has_currency_id = any(f.get("name") == "currency_id" for f in fields)
+    needs_currency_id = has_monetary and not has_currency_id
 
     # Phase 6: multi-company field detection
     has_company_field = any(
@@ -244,8 +988,82 @@ def _build_model_context(spec: dict[str, Any], model: dict[str, Any]) -> dict[st
             if mixin not in inherit_list:
                 inherit_list.append(mixin)
 
+    # Phase 27: hierarchical model detection
+    is_hierarchical = model.get("hierarchical", False)
+    if is_hierarchical:
+        field_names_set = {f.get("name") for f in fields}
+        hierarchical_injections: list[dict[str, Any]] = []
+        if "parent_id" not in field_names_set:
+            hierarchical_injections.append({
+                "name": "parent_id",
+                "type": "Many2one",
+                "comodel_name": model["name"],
+                "string": "Parent",
+                "index": True,
+                "ondelete": "cascade",
+            })
+        if "child_ids" not in field_names_set:
+            hierarchical_injections.append({
+                "name": "child_ids",
+                "type": "One2many",
+                "comodel_name": model["name"],
+                "inverse_name": "parent_id",
+                "string": "Children",
+            })
+        if "parent_path" not in field_names_set:
+            hierarchical_injections.append({
+                "name": "parent_path",
+                "type": "Char",
+                "index": True,
+                "internal": True,
+            })
+        if hierarchical_injections:
+            fields = [*fields, *hierarchical_injections]
+
+    # Phase 27: view_fields excludes internal fields (e.g. parent_path)
+    view_fields = [f for f in fields if not f.get("internal")]
+
+    # Phase 30: cron methods targeting this model
+    cron_methods = [
+        c for c in spec.get("cron_jobs", [])
+        if c.get("model_name") == model["name"]
+    ]
+
+    # Phase 31: reports and dashboards targeting this model
+    model_reports = [
+        r for r in spec.get("reports", [])
+        if r.get("model_name") == model["name"]
+    ]
+    has_dashboard = any(
+        d.get("model_name") == model["name"]
+        for d in spec.get("dashboards", [])
+    )
+
+    # Phase 34: production pattern keys
+    is_bulk = model.get("is_bulk", False)
+    is_cacheable = model.get("is_cacheable", False)
+    cache_lookup_field = model.get("cache_lookup_field", "name")
+    needs_tools = model.get("needs_tools", False)
+    is_archival = model.get("is_archival", False)
+    archival_batch_size = model.get("archival_batch_size", 100)
+    archival_days = model.get("archival_days", 365)
+
+    # Phase 34-02: filter archival cron from generic cron_methods
+    # (archival has a dedicated template block, not a stub)
+    if is_archival:
+        cron_methods = [c for c in cron_methods if c.get("method") != "_cron_archive_old_records"]
+
     # Phase 12: conditional api import (TMPL-02)
-    needs_api = bool(computed_fields or onchange_fields or constrained_fields or sequence_fields)
+    # Phase 29: also need api when temporal constraints exist (@api.constrains)
+    # or create/write overrides exist (@api.model_create_multi)
+    # Phase 30: also need api when cron methods exist (@api.model)
+    # Phase 34: also need api when bulk or cacheable (for @api.model_create_multi)
+    has_temporal = any(c.get("type") == "temporal" for c in complex_constraints)
+    needs_api = bool(
+        computed_fields or onchange_fields or constrained_fields
+        or sequence_fields or has_temporal or has_create_override
+        or cron_methods or is_bulk or is_cacheable or is_archival
+    )
 
     return {
         "module_name": spec["module_name"],
@@ -284,6 +1102,36 @@ def _build_model_context(spec: dict[str, Any], model: dict[str, Any]) -> dict[st
         # Phase 12 keys
         "inherit_list": inherit_list,
         "needs_api": needs_api,
+        # Phase 26 keys
+        "needs_currency_id": needs_currency_id,
+        # Phase 27 keys
+        "is_hierarchical": is_hierarchical,
+        "view_fields": view_fields,
+        # Phase 29 keys
+        "complex_constraints": complex_constraints,
+        "create_constraints": create_constraints,
+        "write_constraints": write_constraints,
+        "has_create_override": has_create_override,
+        "has_write_override": has_write_override,
+        "needs_translate": needs_translate,
+        # Phase 30 keys
+        "cron_methods": cron_methods,
+        # Phase 31 keys
+        "model_reports": model_reports,
+        "has_dashboard": has_dashboard,
+        # Phase 33 keys
+        "model_order": model.get("model_order", ""),
+        "is_transient": model.get("transient", False),
+        "transient_max_hours": model.get("transient_max_hours"),
+        "transient_max_count": model.get("transient_max_count"),
+        # Phase 34 keys
+        "is_bulk": is_bulk,
+        "is_cacheable": is_cacheable,
+        "cache_lookup_field": cache_lookup_field,
+        "needs_tools": needs_tools,
+        "is_archival": is_archival,
+        "archival_batch_size": archival_batch_size,
+        "archival_days": archival_days,
     }
 
 
@@ -326,6 +1174,15 @@ def _compute_manifest_data(
         model_var = _to_python_var(model["name"])
         manifest_files.append(f"views/{model_var}_views.xml")
         manifest_files.append(f"views/{model_var}_action.xml")
+
+    # Phase 31: dashboard view files (after model views, before menu)
+    dashboard_models_seen: set[str] = set()
+    for dashboard in spec.get("dashboards", []):
+        model_xml = _to_xml_id(dashboard["model_name"])
+        if model_xml not in dashboard_models_seen:
+            dashboard_models_seen.add(model_xml)
+            manifest_files.append(f"views/{model_xml}_graph.xml")
+            manifest_files.append(f"views/{model_xml}_pivot.xml")
 
     manifest_files.append("views/menu.xml")
     manifest_files.extend(wizard_view_files)
@@ -542,10 +1399,14 @@ def render_wizards(
             wvar = _to_python_var(wizard["name"])
             wxid = _to_xml_id(wizard["name"])
             wctx = {**module_context, "wizard": wizard, "wizard_var": wvar,
-                    "wizard_xml_id": wxid, "wizard_class": _to_class(wizard["name"]), "needs_api": True}
-            created.append(render_template(env, "wizard.py.j2", module_dir / "wizards" / f"{wvar}.py", wctx))
+                    "wizard_xml_id": wxid, "wizard_class": _to_class(wizard["name"]), "needs_api": True,
+                    "transient_max_hours": wizard.get("transient_max_hours"),
+                    "transient_max_count": wizard.get("transient_max_count")}
+            py_template = wizard.get("template", "wizard.py.j2")
+            form_template = wizard.get("form_template", "wizard_form.xml.j2")
+            created.append(render_template(env, py_template, module_dir / "wizards" / f"{wvar}.py", wctx))
             created.append(render_template(
-                env, "wizard_form.xml.j2", module_dir / "views" / f"{wxid}_wizard_form.xml", wctx))
+                env, form_template, module_dir / "views" / f"{wxid}_wizard_form.xml", wctx))
         return Result.ok(created)
     except Exception as exc:
         return Result.fail(f"render_wizards failed: {exc}")
@@ -650,6 +1511,190 @@ def render_static(
         return Result.fail(f"render_static failed: {exc}")
 
 
+def render_cron(
+    env: Environment,
+    spec: dict[str, Any],
+    module_dir: Path,
+    module_context: dict[str, Any],
+) -> "Result[list[Path]]":
+    """Render ir.cron scheduled action XML from spec cron_jobs.
+
+    Validates method names are valid Python identifiers.
+    Returns Result.ok([]) when no cron_jobs are present.
+    """
+    cron_jobs = spec.get("cron_jobs")
+    if not cron_jobs:
+        return Result.ok([])
+    # Validate method names
+    for cron in cron_jobs:
+        method = cron.get("method", "")
+        if not method.isidentifier():
+            return Result.fail(
+                f"Invalid cron method name '{method}': must be a valid Python identifier"
+            )
+    cron_ctx = {**module_context, "cron_jobs": cron_jobs}
+    try:
+        path = render_template(env, "cron_data.xml.j2", module_dir / "data" / "cron_data.xml", cron_ctx)
+        return Result.ok([path])
+    except Exception as exc:
+        return Result.fail(f"render_cron failed: {exc}")
+
+
+def render_reports(
+    env: Environment,
+    spec: dict[str, Any],
+    module_dir: Path,
+    module_context: dict[str, Any],
+) -> "Result[list[Path]]":
+    """Render QWeb report templates and graph/pivot dashboard views.
+
+    Handles two spec sections:
+    - spec["reports"]: ir.actions.report + QWeb template + optional paper format
+    - spec["dashboards"]: graph view + pivot view per model
+
+    Returns Result.ok([]) when neither section is present.
+    """
+    reports = spec.get("reports", [])
+    dashboards = spec.get("dashboards", [])
+    if not reports and not dashboards:
+        return Result.ok([])
+    try:
+        created: list[Path] = []
+        for report in reports:
+            report_ctx = {**module_context, "report": report}
+            created.append(render_template(
+                env, "report_action.xml.j2",
+                module_dir / "data" / f"report_{report['xml_id']}.xml",
+                report_ctx,
+            ))
+            created.append(render_template(
+                env, "report_template.xml.j2",
+                module_dir / "data" / f"report_{report['xml_id']}_template.xml",
+                report_ctx,
+            ))
+        for dashboard in dashboards:
+            model_xml = _to_xml_id(dashboard["model_name"])
+            dash_ctx = {**module_context, "dashboard": dashboard, "model_xml_id": model_xml}
+            created.append(render_template(
+                env, "graph_view.xml.j2",
+                module_dir / "views" / f"{model_xml}_graph.xml",
+                dash_ctx,
+            ))
+            created.append(render_template(
+                env, "pivot_view.xml.j2",
+                module_dir / "views" / f"{model_xml}_pivot.xml",
+                dash_ctx,
+            ))
+        return Result.ok(created)
+    except Exception as exc:
+        return Result.fail(f"render_reports failed: {exc}")
+
+
+def render_controllers(
+    env: Environment,
+    spec: dict[str, Any],
+    module_dir: Path,
+    module_context: dict[str, Any],
+) -> "Result[list[Path]]":
+    """Render HTTP controller files and import/export wizard files.
+
+    Generates controllers/main.py with @http.route decorators and
+    controllers/__init__.py for each controller definition.
+    Also generates import wizard .py and form XML for models with import_export:true.
+    """
+    try:
+        created: list[Path] = []
+        module_name = module_context["module_name"]
+
+        # --- HTTP controllers ---
+        controllers = spec.get("controllers")
+        if controllers:
+            for controller in controllers:
+                class_name = controller.get("class_name") or (
+                    _to_class(module_name) + "Controller"
+                )
+                routes = controller.get("routes", [])
+                ctrl_ctx = {
+                    **module_context,
+                    "controller_class": class_name,
+                    "routes": routes,
+                    "module_name": module_name,
+                }
+                created.append(render_template(
+                    env, "init_controllers.py.j2",
+                    module_dir / "controllers" / "__init__.py",
+                    ctrl_ctx,
+                ))
+                created.append(render_template(
+                    env, "controller.py.j2",
+                    module_dir / "controllers" / "main.py",
+                    ctrl_ctx,
+                ))
+
+        # --- Import/export wizards ---
+        import_export_models = [
+            m for m in spec.get("models", []) if m.get("import_export")
+        ]
+        if import_export_models:
+            import_wizard_modules: list[str] = []
+            for model in import_export_models:
+                model_name = model["name"]
+                model_var = _to_python_var(model_name)
+                model_xml_id = _to_xml_id(model_name)
+                model_class = _to_class(model_name) + "ImportWizard"
+                model_description = model.get(
+                    "description", model_name.replace(".", " ").title()
+                )
+                # Non-relational, non-internal fields for export headers
+                export_fields = [
+                    f for f in model.get("fields", [])
+                    if f.get("type") not in (
+                        "Many2one", "One2many", "Many2many", "Binary",
+                    )
+                ]
+                wiz_ctx = {
+                    **module_context,
+                    "model_name": model_name,
+                    "model_var": model_var,
+                    "model_xml_id": model_xml_id,
+                    "wizard_class": model_class,
+                    "model_description": model_description,
+                    "export_fields": export_fields,
+                    "transient_max_hours": model.get("transient_max_hours", 1.0),
+                    "transient_max_count": model.get("transient_max_count", 0),
+                }
+                wizard_filename = f"{model_var}_import_wizard"
+                import_wizard_modules.append(wizard_filename)
+                created.append(render_template(
+                    env, "import_wizard.py.j2",
+                    module_dir / "wizards" / f"{wizard_filename}.py",
+                    wiz_ctx,
+                ))
+                created.append(render_template(
+                    env, "import_wizard_form.xml.j2",
+                    module_dir / "views" / f"{model_xml_id}_import_wizard_form.xml",
+                    wiz_ctx,
+                ))
+            # Render or update wizards/__init__.py with import wizard imports
+            # Combine existing spec_wizards with import wizard modules
+            existing_wizard_imports = [
+                _to_python_var(w["name"])
+                for w in module_context.get("spec_wizards", [])
+            ]
+            all_wizard_imports = existing_wizard_imports + import_wizard_modules
+            init_content = "\n".join(
+                f"from . import {name}" for name in all_wizard_imports
+            ) + "\n"
+            init_path = module_dir / "wizards" / "__init__.py"
+            init_path.parent.mkdir(parents=True, exist_ok=True)
+            init_path.write_text(init_content)
+            created.append(init_path)
+
+        return Result.ok(created)
+    except Exception as exc:
+        return Result.fail(f"render_controllers failed: {exc}")
+
+
 def _build_module_context(spec: dict[str, Any], module_name: str) -> dict[str, Any]:
     """Build the shared module-level template context from the spec."""
     models = spec.get("models", [])
@@ -667,9 +1712,26 @@ def _build_module_context(spec: dict[str, Any], module_name: str) -> dict[str, A
     if has_seq:
         data_files.append("data/sequences.xml")
     data_files.append("data/data.xml")
+    # Phase 30: cron data file
+    if spec.get("cron_jobs"):
+        data_files.append("data/cron_data.xml")
+    # Phase 31: report data files
+    for report in spec.get("reports", []):
+        data_files.append(f"data/report_{report['xml_id']}.xml")
+        data_files.append(f"data/report_{report['xml_id']}_template.xml")
     wiz_files = [f"views/{_to_xml_id(w['name'])}_wizard_form.xml" for w in spec_wizards]
+    # Phase 32: import/export wizard detection
+    import_export_models = [m for m in models if m.get("import_export")]
+    has_import_export = bool(import_export_models)
+    # Add import wizard form view files to manifest
+    for m in import_export_models:
+        wiz_files.append(f"views/{_to_xml_id(m['name'])}_import_wizard_form.xml")
+    # Build import_export_wizards list for ACL generation
+    import_export_wizards = [
+        {"name": f"{m['name']}.import.wizard"} for m in import_export_models
+    ]
     manifest_files = _compute_manifest_data(spec, data_files, wiz_files, has_company_modules=has_company)
-    return {
+    ctx: dict[str, Any] = {
         "module_name": module_name,
         "module_title": spec.get("module_title", module_name.replace("_", " ").title()),
         "module_technical_name": module_name,
@@ -684,9 +1746,15 @@ def _build_module_context(spec: dict[str, Any], module_name: str) -> dict[str, A
         "models": models,
         "view_files": _compute_view_files(spec),
         "manifest_files": manifest_files,
-        "has_wizards": bool(spec_wizards),
+        "has_wizards": bool(spec_wizards) or has_import_export,
         "spec_wizards": spec_wizards,
+        "has_controllers": bool(spec.get("controllers")),
+        "has_import_export": has_import_export,
+        "import_export_wizards": import_export_wizards,
     }
+    if has_import_export:
+        ctx["external_dependencies"] = {"python": ["openpyxl"]}
+    return ctx
 
 
 def _track_artifacts(state: Any, spec: dict[str, Any], module_dir: Path) -> Any:
@@ -721,7 +1789,7 @@ def render_module(
     output_dir: Path,
     verifier: "EnvironmentVerifier | None" = None,
 ) -> "tuple[list[Path], list[VerificationWarning]]":
-    """Orchestrate rendering of a complete Odoo module via 7 stage functions.
+    """Orchestrate rendering of a complete Odoo module via 10 stage functions.
 
     Args:
         spec: Module specification dictionary with module_name, models, etc.
@@ -732,7 +1800,19 @@ def render_module(
     Returns:
         Tuple of (created_files, verification_warnings).
     """
+    # Phase 28: validate no circular dependencies FIRST
+    _validate_no_cycles(spec)
+
     env = create_versioned_renderer(spec.get("odoo_version", "17.0"))
+    spec = _process_relationships(spec)
+    # Phase 28: process computation chains
+    spec = _process_computation_chains(spec)
+    # Phase 29: process complex constraints
+    spec = _process_constraints(spec)
+    # Phase 33: performance optimization (index, store, sql_constraints, transient config)
+    spec = _process_performance(spec)
+    # Phase 34: production patterns (bulk create, ORM cache)
+    spec = _process_production_patterns(spec)
     module_name = spec["module_name"]
     module_dir = output_dir / module_name
     ctx = _build_module_context(spec, module_name)
@@ -753,6 +1833,9 @@ def render_module(
         lambda: render_wizards(env, spec, module_dir, ctx),
         lambda: render_tests(env, spec, module_dir, ctx),
         lambda: render_static(env, spec, module_dir, ctx),
+        lambda: render_cron(env, spec, module_dir, ctx),
+        lambda: render_reports(env, spec, module_dir, ctx),
+        lambda: render_controllers(env, spec, module_dir, ctx),
     ]
     for stage_fn in stages:
         result = stage_fn()

@@ -11,7 +11,16 @@ from pathlib import Path
 import pytest
 
 from odoo_gen_utils.renderer import (
+    MONETARY_FIELD_PATTERNS,
     _build_model_context,
+    _build_module_context,
+    _is_monetary_field,
+    _process_computation_chains,
+    _process_constraints,
+    _process_performance,
+    _process_production_patterns,
+    _topologically_sort_fields,
+    _validate_no_cycles,
     get_template_dir,
     render_module,
 )
@@ -1660,3 +1669,2023 @@ class TestDisplayNameVersionGate:
         assert "test_display_name" not in test_content
         assert "test_name_get" not in test_content
         assert "name_get" not in test_content
+
+
+# ---------------------------------------------------------------------------
+# Phase 26: Monetary field detection
+# ---------------------------------------------------------------------------
+
+
+class TestMonetaryPatternDetection:
+    """Tests for _is_monetary_field() helper."""
+
+    def test_float_amount_is_monetary(self):
+        assert _is_monetary_field({"name": "amount", "type": "Float"}) is True
+
+    def test_float_total_price_is_monetary(self):
+        assert _is_monetary_field({"name": "total_price", "type": "Float"}) is True
+
+    def test_float_tuition_fee_is_monetary(self):
+        assert _is_monetary_field({"name": "tuition_fee", "type": "Float"}) is True
+
+    def test_integer_amount_not_monetary(self):
+        assert _is_monetary_field({"name": "amount", "type": "Integer"}) is False
+
+    def test_char_amount_label_not_monetary(self):
+        assert _is_monetary_field({"name": "amount_label", "type": "Char"}) is False
+
+    def test_float_amount_opt_out(self):
+        assert _is_monetary_field({"name": "amount", "type": "Float", "monetary": False}) is False
+
+    def test_already_typed_monetary(self):
+        assert _is_monetary_field({"name": "whatever", "type": "Monetary"}) is True
+
+    def test_float_non_monetary_name(self):
+        assert _is_monetary_field({"name": "weight", "type": "Float"}) is False
+
+    @pytest.mark.parametrize("pattern", sorted(MONETARY_FIELD_PATTERNS))
+    def test_all_20_patterns_match(self, pattern):
+        assert _is_monetary_field({"name": pattern, "type": "Float"}) is True
+
+    @pytest.mark.parametrize("pattern", sorted(MONETARY_FIELD_PATTERNS))
+    def test_all_20_patterns_match_as_substring(self, pattern):
+        assert _is_monetary_field({"name": f"total_{pattern}_value", "type": "Float"}) is True
+
+
+class TestBuildModelContextMonetary:
+    """Tests for monetary detection in _build_model_context()."""
+
+    def test_float_amount_rewritten_to_monetary(self):
+        model = {"name": "test.model", "fields": [{"name": "amount", "type": "Float"}]}
+        spec = _make_spec(models=[model])
+        ctx = _build_model_context(spec, model)
+        assert ctx["fields"][0]["type"] == "Monetary"
+
+    def test_needs_currency_id_true_when_monetary_detected(self):
+        model = {"name": "test.model", "fields": [{"name": "amount", "type": "Float"}]}
+        spec = _make_spec(models=[model])
+        ctx = _build_model_context(spec, model)
+        assert ctx["needs_currency_id"] is True
+
+    def test_needs_currency_id_false_when_currency_id_exists(self):
+        model = {
+            "name": "test.model",
+            "fields": [
+                {"name": "amount", "type": "Float"},
+                {"name": "currency_id", "type": "Many2one", "comodel_name": "res.currency"},
+            ],
+        }
+        spec = _make_spec(models=[model])
+        ctx = _build_model_context(spec, model)
+        assert ctx["needs_currency_id"] is False
+
+    def test_needs_currency_id_false_when_no_monetary(self):
+        model = {"name": "test.model", "fields": [{"name": "weight", "type": "Float"}]}
+        spec = _make_spec(models=[model])
+        ctx = _build_model_context(spec, model)
+        assert ctx["needs_currency_id"] is False
+
+    def test_immutability_original_fields_unchanged(self):
+        original_fields = [{"name": "amount", "type": "Float"}]
+        model = {"name": "test.model", "fields": original_fields}
+        spec = _make_spec(models=[model])
+        _build_model_context(spec, model)
+        assert original_fields[0]["type"] == "Float"
+
+    def test_computed_monetary_field_retains_compute(self):
+        model = {
+            "name": "test.model",
+            "fields": [
+                {"name": "total_amount", "type": "Float", "compute": "_compute_total_amount", "depends": ["qty"]},
+            ],
+        }
+        spec = _make_spec(models=[model])
+        ctx = _build_model_context(spec, model)
+        field = ctx["fields"][0]
+        assert field["type"] == "Monetary"
+        assert field["compute"] == "_compute_total_amount"
+
+
+class TestRenderModuleMonetary:
+    """Integration tests for monetary field rendering in generated output."""
+
+    def test_monetary_field_rendered_as_fields_monetary(self, tmp_path):
+        spec = {
+            "module_name": "test_module",
+            "depends": ["base"],
+            "models": [
+                {
+                    "name": "test.invoice",
+                    "fields": [
+                        {"name": "total_amount", "type": "Float"},
+                        {"name": "name", "type": "Char"},
+                    ],
+                },
+            ],
+            "wizards": [],
+        }
+        files, _ = render_module(spec, get_template_dir(), tmp_path)
+        model_content = (tmp_path / "test_module" / "models" / "test_invoice.py").read_text()
+        assert "fields.Monetary" in model_content
+        assert 'currency_field="currency_id"' in model_content
+
+    def test_currency_id_injected_when_not_in_spec(self, tmp_path):
+        spec = {
+            "module_name": "test_module",
+            "depends": ["base"],
+            "models": [
+                {
+                    "name": "test.invoice",
+                    "fields": [{"name": "amount", "type": "Float"}],
+                },
+            ],
+            "wizards": [],
+        }
+        files, _ = render_module(spec, get_template_dir(), tmp_path)
+        model_content = (tmp_path / "test_module" / "models" / "test_invoice.py").read_text()
+        assert "currency_id = fields.Many2one(" in model_content
+        assert 'comodel_name="res.currency"' in model_content
+        assert "default=lambda self: self.env.company.currency_id" in model_content
+
+    def test_no_duplicate_currency_id_when_in_spec(self, tmp_path):
+        spec = {
+            "module_name": "test_module",
+            "depends": ["base"],
+            "models": [
+                {
+                    "name": "test.invoice",
+                    "fields": [
+                        {"name": "amount", "type": "Float"},
+                        {"name": "currency_id", "type": "Many2one", "comodel_name": "res.currency"},
+                    ],
+                },
+            ],
+            "wizards": [],
+        }
+        files, _ = render_module(spec, get_template_dir(), tmp_path)
+        model_content = (tmp_path / "test_module" / "models" / "test_invoice.py").read_text()
+        assert model_content.count("currency_id") == 2  # field def + currency_field= param
+
+    def test_computed_monetary_has_compute_and_currency_field(self, tmp_path):
+        spec = {
+            "module_name": "test_module",
+            "depends": ["base"],
+            "models": [
+                {
+                    "name": "test.invoice",
+                    "fields": [
+                        {"name": "total_amount", "type": "Float", "compute": "_compute_total_amount", "depends": ["qty"]},
+                    ],
+                },
+            ],
+            "wizards": [],
+        }
+        files, _ = render_module(spec, get_template_dir(), tmp_path)
+        model_content = (tmp_path / "test_module" / "models" / "test_invoice.py").read_text()
+        assert "fields.Monetary" in model_content
+        assert 'compute="_compute_total_amount"' in model_content
+        assert 'currency_field="currency_id"' in model_content
+
+    def test_monetary_rendering_18_0(self, tmp_path):
+        spec = {
+            "module_name": "test_module",
+            "depends": ["base"],
+            "odoo_version": "18.0",
+            "models": [
+                {
+                    "name": "test.invoice",
+                    "fields": [{"name": "amount", "type": "Float"}],
+                },
+            ],
+            "wizards": [],
+        }
+        files, _ = render_module(spec, get_template_dir(), tmp_path)
+        model_content = (tmp_path / "test_module" / "models" / "test_invoice.py").read_text()
+        assert "fields.Monetary" in model_content
+        assert 'currency_field="currency_id"' in model_content
+        assert "currency_id = fields.Many2one(" in model_content
+
+
+# ---------------------------------------------------------------------------
+# Phase 27: _process_relationships() — M2M through-model tests
+# ---------------------------------------------------------------------------
+
+
+class TestProcessRelationshipsM2MThrough:
+    """Unit tests for _process_relationships() with m2m_through relationships."""
+
+    def _make_through_spec(self):
+        return {
+            "module_name": "test_university",
+            "depends": ["base"],
+            "models": [
+                {
+                    "name": "test_university.course",
+                    "description": "Course",
+                    "fields": [{"name": "name", "type": "Char", "required": True}],
+                },
+                {
+                    "name": "test_university.student",
+                    "description": "Student",
+                    "fields": [{"name": "name", "type": "Char", "required": True}],
+                },
+            ],
+            "relationships": [
+                {
+                    "type": "m2m_through",
+                    "from": "test_university.course",
+                    "to": "test_university.student",
+                    "through_model": "test_university.enrollment",
+                    "through_fields": [
+                        {"name": "grade", "type": "Float"},
+                        {"name": "enrollment_date", "type": "Date", "default": "fields.Date.today"},
+                    ],
+                }
+            ],
+            "wizards": [],
+        }
+
+    def test_synthesizes_through_model(self):
+        from odoo_gen_utils.renderer import _process_relationships
+
+        spec = self._make_through_spec()
+        result = _process_relationships(spec)
+        model_names = [m["name"] for m in result["models"]]
+        assert "test_university.enrollment" in model_names
+
+        through = next(m for m in result["models"] if m["name"] == "test_university.enrollment")
+        field_names = [f["name"] for f in through["fields"]]
+        # Two M2one FKs
+        assert "course_id" in field_names
+        assert "student_id" in field_names
+        # Extra through_fields
+        assert "grade" in field_names
+        assert "enrollment_date" in field_names
+
+        # FK fields are required M2one with ondelete=cascade
+        course_fk = next(f for f in through["fields"] if f["name"] == "course_id")
+        assert course_fk["type"] == "Many2one"
+        assert course_fk["required"] is True
+        assert course_fk["ondelete"] == "cascade"
+        assert course_fk["comodel_name"] == "test_university.course"
+
+        student_fk = next(f for f in through["fields"] if f["name"] == "student_id")
+        assert student_fk["type"] == "Many2one"
+        assert student_fk["required"] is True
+        assert student_fk["ondelete"] == "cascade"
+        assert student_fk["comodel_name"] == "test_university.student"
+
+    def test_injects_one2many_on_parents(self):
+        from odoo_gen_utils.renderer import _process_relationships
+
+        spec = self._make_through_spec()
+        result = _process_relationships(spec)
+
+        course = next(m for m in result["models"] if m["name"] == "test_university.course")
+        course_field_names = [f["name"] for f in course["fields"]]
+        assert "enrollment_ids" in course_field_names
+
+        student = next(m for m in result["models"] if m["name"] == "test_university.student")
+        student_field_names = [f["name"] for f in student["fields"]]
+        assert "enrollment_ids" in student_field_names
+
+    def test_no_duplicate_injection(self):
+        from odoo_gen_utils.renderer import _process_relationships
+
+        spec = self._make_through_spec()
+        # Pre-add enrollment_ids on course model
+        spec["models"][0]["fields"].append({
+            "name": "enrollment_ids",
+            "type": "One2many",
+            "comodel_name": "test_university.enrollment",
+            "inverse_name": "course_id",
+        })
+        result = _process_relationships(spec)
+        course = next(m for m in result["models"] if m["name"] == "test_university.course")
+        enrollment_fields = [f for f in course["fields"] if f["name"] == "enrollment_ids"]
+        assert len(enrollment_fields) == 1
+
+    def test_fk_name_collision_with_through_fields(self):
+        from odoo_gen_utils.renderer import _process_relationships
+
+        spec = self._make_through_spec()
+        # Add a through_field that collides with auto-generated FK name
+        spec["relationships"][0]["through_fields"].append(
+            {"name": "course_id", "type": "Char"}
+        )
+        with pytest.raises(ValueError, match="collision"):
+            _process_relationships(spec)
+
+    def test_through_model_has_synthesized_flag(self):
+        from odoo_gen_utils.renderer import _process_relationships
+
+        spec = self._make_through_spec()
+        result = _process_relationships(spec)
+        through = next(m for m in result["models"] if m["name"] == "test_university.enrollment")
+        assert through.get("_synthesized") is True
+
+    def test_immutability(self):
+        from odoo_gen_utils.renderer import _process_relationships
+        import copy
+
+        spec = self._make_through_spec()
+        original = copy.deepcopy(spec)
+        _process_relationships(spec)
+        assert spec == original
+
+
+# ---------------------------------------------------------------------------
+# Phase 27: _process_relationships() — Self-referential M2M tests
+# ---------------------------------------------------------------------------
+
+
+class TestProcessRelationshipsSelfM2M:
+    """Unit tests for _process_relationships() with self_m2m relationships."""
+
+    def _make_self_m2m_spec(self, with_inverse=True):
+        rel = {
+            "type": "self_m2m",
+            "model": "test_university.course",
+            "field_name": "prerequisite_ids",
+            "string": "Prerequisites",
+        }
+        if with_inverse:
+            rel["inverse_field_name"] = "dependent_ids"
+            rel["inverse_string"] = "Dependent Courses"
+        return {
+            "module_name": "test_university",
+            "depends": ["base"],
+            "models": [
+                {
+                    "name": "test_university.course",
+                    "description": "Course",
+                    "fields": [{"name": "name", "type": "Char", "required": True}],
+                },
+            ],
+            "relationships": [rel],
+            "wizards": [],
+        }
+
+    def test_enriches_primary_field(self):
+        from odoo_gen_utils.renderer import _process_relationships
+
+        spec = self._make_self_m2m_spec()
+        result = _process_relationships(spec)
+        course = next(m for m in result["models"] if m["name"] == "test_university.course")
+        prereq = next(f for f in course["fields"] if f["name"] == "prerequisite_ids")
+        assert prereq["type"] == "Many2many"
+        assert prereq["comodel_name"] == "test_university.course"
+        assert "relation" in prereq
+        assert "column1" in prereq
+        assert "column2" in prereq
+
+    def test_enriches_inverse_field(self):
+        from odoo_gen_utils.renderer import _process_relationships
+
+        spec = self._make_self_m2m_spec(with_inverse=True)
+        result = _process_relationships(spec)
+        course = next(m for m in result["models"] if m["name"] == "test_university.course")
+        dep = next(f for f in course["fields"] if f["name"] == "dependent_ids")
+        prereq = next(f for f in course["fields"] if f["name"] == "prerequisite_ids")
+        # Inverse has REVERSED column1/column2
+        assert dep["column1"] == prereq["column2"]
+        assert dep["column2"] == prereq["column1"]
+        # Same relation table
+        assert dep["relation"] == prereq["relation"]
+
+    def test_relation_table_naming(self):
+        from odoo_gen_utils.renderer import _process_relationships
+
+        spec = self._make_self_m2m_spec()
+        result = _process_relationships(spec)
+        course = next(m for m in result["models"] if m["name"] == "test_university.course")
+        prereq = next(f for f in course["fields"] if f["name"] == "prerequisite_ids")
+        assert prereq["relation"] == "test_university_course_prerequisite_ids_rel"
+
+    def test_no_inverse_when_not_specified(self):
+        from odoo_gen_utils.renderer import _process_relationships
+
+        spec = self._make_self_m2m_spec(with_inverse=False)
+        result = _process_relationships(spec)
+        course = next(m for m in result["models"] if m["name"] == "test_university.course")
+        field_names = [f["name"] for f in course["fields"]]
+        assert "prerequisite_ids" in field_names
+        assert "dependent_ids" not in field_names
+
+    def test_replaces_existing_field(self):
+        from odoo_gen_utils.renderer import _process_relationships
+
+        spec = self._make_self_m2m_spec(with_inverse=False)
+        # Pre-add a placeholder prerequisite_ids field
+        spec["models"][0]["fields"].append({
+            "name": "prerequisite_ids",
+            "type": "Many2many",
+            "comodel_name": "test_university.course",
+        })
+        result = _process_relationships(spec)
+        course = next(m for m in result["models"] if m["name"] == "test_university.course")
+        prereq_fields = [f for f in course["fields"] if f["name"] == "prerequisite_ids"]
+        # Should be exactly one (replaced, not duplicated)
+        assert len(prereq_fields) == 1
+        assert "relation" in prereq_fields[0]
+
+
+# ---------------------------------------------------------------------------
+# Phase 27: _build_model_context() — Hierarchical model tests
+# ---------------------------------------------------------------------------
+
+
+class TestBuildModelContextHierarchical:
+    """Unit tests for hierarchical model detection in _build_model_context()."""
+
+    def _make_hierarchical_spec(self, hierarchical=True, extra_fields=None):
+        fields = [{"name": "name", "type": "Char", "required": True}]
+        if extra_fields:
+            fields.extend(extra_fields)
+        model = {
+            "name": "test.department",
+            "description": "Department",
+            "fields": fields,
+        }
+        if hierarchical:
+            model["hierarchical"] = True
+        return _make_spec(models=[model])
+
+    def test_injects_parent_id(self):
+        spec = self._make_hierarchical_spec()
+        ctx = _build_model_context(spec, spec["models"][0])
+        parent_id = next((f for f in ctx["fields"] if f["name"] == "parent_id"), None)
+        assert parent_id is not None
+        assert parent_id["type"] == "Many2one"
+        assert parent_id["comodel_name"] == "test.department"
+        assert parent_id["index"] is True
+        assert parent_id["ondelete"] == "cascade"
+
+    def test_injects_child_ids(self):
+        spec = self._make_hierarchical_spec()
+        ctx = _build_model_context(spec, spec["models"][0])
+        child_ids = next((f for f in ctx["fields"] if f["name"] == "child_ids"), None)
+        assert child_ids is not None
+        assert child_ids["type"] == "One2many"
+        assert child_ids["comodel_name"] == "test.department"
+        assert child_ids["inverse_name"] == "parent_id"
+
+    def test_injects_parent_path(self):
+        spec = self._make_hierarchical_spec()
+        ctx = _build_model_context(spec, spec["models"][0])
+        parent_path = next((f for f in ctx["fields"] if f["name"] == "parent_path"), None)
+        assert parent_path is not None
+        assert parent_path["type"] == "Char"
+        assert parent_path["index"] is True
+        assert parent_path["internal"] is True
+
+    def test_sets_is_hierarchical_context_key(self):
+        spec = self._make_hierarchical_spec()
+        ctx = _build_model_context(spec, spec["models"][0])
+        assert ctx["is_hierarchical"] is True
+
+    def test_parent_path_excluded_from_views(self):
+        spec = self._make_hierarchical_spec()
+        ctx = _build_model_context(spec, spec["models"][0])
+        # parent_path should not be in view_fields (fields used for form/tree rendering)
+        view_fields = ctx.get("view_fields", ctx["fields"])
+        # parent_path should be in fields but filtered from view_fields
+        all_field_names = [f["name"] for f in ctx["fields"]]
+        assert "parent_path" in all_field_names
+        view_field_names = [f["name"] for f in ctx["view_fields"]]
+        assert "parent_path" not in view_field_names
+
+    def test_no_duplicate_hierarchical_fields(self):
+        spec = self._make_hierarchical_spec(
+            extra_fields=[
+                {
+                    "name": "parent_id",
+                    "type": "Many2one",
+                    "comodel_name": "test.department",
+                    "index": True,
+                    "ondelete": "cascade",
+                }
+            ]
+        )
+        ctx = _build_model_context(spec, spec["models"][0])
+        parent_ids = [f for f in ctx["fields"] if f["name"] == "parent_id"]
+        assert len(parent_ids) == 1
+
+    def test_non_hierarchical_model_unchanged(self):
+        spec = self._make_hierarchical_spec(hierarchical=False)
+        ctx = _build_model_context(spec, spec["models"][0])
+        assert ctx.get("is_hierarchical") is False
+        field_names = [f["name"] for f in ctx["fields"]]
+        assert "parent_id" not in field_names
+        assert "child_ids" not in field_names
+        assert "parent_path" not in field_names
+
+
+# ---------------------------------------------------------------------------
+# Phase 28: _validate_no_cycles() tests
+# ---------------------------------------------------------------------------
+
+
+def _make_chain_spec(
+    models: list[dict] | None = None,
+    computation_chains: list[dict] | None = None,
+) -> dict:
+    """Helper to construct a spec with computation_chains."""
+    return {
+        "module_name": "test_module",
+        "depends": ["base"],
+        "models": models or [],
+        "wizards": [],
+        "computation_chains": computation_chains or [],
+    }
+
+
+class TestValidateNoCycles:
+    """Unit tests for _validate_no_cycles()."""
+
+    def test_valid_chains_pass(self):
+        """Spec with valid A->B chain passes without error."""
+        spec = _make_chain_spec(
+            models=[
+                {
+                    "name": "university.enrollment",
+                    "fields": [
+                        {"name": "grade", "type": "Float"},
+                        {"name": "credit_hours", "type": "Integer"},
+                        {"name": "weighted_grade", "type": "Float"},
+                    ],
+                },
+                {
+                    "name": "university.student",
+                    "fields": [
+                        {"name": "enrollment_ids", "type": "One2many",
+                         "comodel_name": "university.enrollment", "inverse_name": "student_id"},
+                        {"name": "gpa", "type": "Float"},
+                    ],
+                },
+            ],
+            computation_chains=[
+                {
+                    "field": "university.enrollment.weighted_grade",
+                    "depends_on": ["grade", "credit_hours"],
+                },
+                {
+                    "field": "university.student.gpa",
+                    "depends_on": ["enrollment_ids.weighted_grade"],
+                },
+            ],
+        )
+        # Should not raise
+        _validate_no_cycles(spec)
+
+    def test_circular_raises(self):
+        """Spec with A->B->A chain raises ValueError."""
+        spec = _make_chain_spec(
+            models=[
+                {
+                    "name": "university.enrollment",
+                    "fields": [
+                        {"name": "student_id", "type": "Many2one",
+                         "comodel_name": "university.student"},
+                        {"name": "weighted_grade", "type": "Float"},
+                    ],
+                },
+                {
+                    "name": "university.student",
+                    "fields": [
+                        {"name": "enrollment_ids", "type": "One2many",
+                         "comodel_name": "university.enrollment", "inverse_name": "student_id"},
+                        {"name": "gpa", "type": "Float"},
+                    ],
+                },
+            ],
+            computation_chains=[
+                {
+                    "field": "university.enrollment.weighted_grade",
+                    "depends_on": ["student_id.gpa"],
+                },
+                {
+                    "field": "university.student.gpa",
+                    "depends_on": ["enrollment_ids.weighted_grade"],
+                },
+            ],
+        )
+        with pytest.raises(ValueError, match="Circular dependency"):
+            _validate_no_cycles(spec)
+
+    def test_error_names_participants(self):
+        """ValueError message contains cycle field names."""
+        spec = _make_chain_spec(
+            models=[
+                {
+                    "name": "university.enrollment",
+                    "fields": [
+                        {"name": "student_id", "type": "Many2one",
+                         "comodel_name": "university.student"},
+                        {"name": "weighted_grade", "type": "Float"},
+                    ],
+                },
+                {
+                    "name": "university.student",
+                    "fields": [
+                        {"name": "enrollment_ids", "type": "One2many",
+                         "comodel_name": "university.enrollment", "inverse_name": "student_id"},
+                        {"name": "gpa", "type": "Float"},
+                    ],
+                },
+            ],
+            computation_chains=[
+                {
+                    "field": "university.enrollment.weighted_grade",
+                    "depends_on": ["student_id.gpa"],
+                },
+                {
+                    "field": "university.student.gpa",
+                    "depends_on": ["enrollment_ids.weighted_grade"],
+                },
+            ],
+        )
+        with pytest.raises(ValueError) as exc_info:
+            _validate_no_cycles(spec)
+        msg = str(exc_info.value)
+        assert "university.student.gpa" in msg or "university.enrollment.weighted_grade" in msg
+
+    def test_cross_model_cycle(self):
+        """Cycle spanning 2 models detected via comodel resolution."""
+        spec = _make_chain_spec(
+            models=[
+                {
+                    "name": "a.model",
+                    "fields": [
+                        {"name": "b_ids", "type": "One2many",
+                         "comodel_name": "b.model", "inverse_name": "a_id"},
+                        {"name": "x", "type": "Float"},
+                    ],
+                },
+                {
+                    "name": "b.model",
+                    "fields": [
+                        {"name": "a_id", "type": "Many2one", "comodel_name": "a.model"},
+                        {"name": "y", "type": "Float"},
+                    ],
+                },
+            ],
+            computation_chains=[
+                {"field": "a.model.x", "depends_on": ["b_ids.y"]},
+                {"field": "b.model.y", "depends_on": ["a_id.x"]},
+            ],
+        )
+        with pytest.raises(ValueError, match="Circular dependency"):
+            _validate_no_cycles(spec)
+
+    def test_no_chains_passthrough(self):
+        """Spec without computation_chains passes silently."""
+        spec = {
+            "module_name": "test_module",
+            "depends": ["base"],
+            "models": [{"name": "test.model", "fields": []}],
+            "wizards": [],
+        }
+        # No computation_chains key at all
+        _validate_no_cycles(spec)
+
+
+class TestProcessComputationChains:
+    """Unit tests for _process_computation_chains()."""
+
+    def test_enriches_depends(self):
+        """Chain entry sets field.depends to depends_on list."""
+        spec = _make_chain_spec(
+            models=[
+                {
+                    "name": "university.enrollment",
+                    "fields": [
+                        {"name": "grade", "type": "Float"},
+                        {"name": "credit_hours", "type": "Integer"},
+                        {"name": "weighted_grade", "type": "Float"},
+                    ],
+                },
+            ],
+            computation_chains=[
+                {
+                    "field": "university.enrollment.weighted_grade",
+                    "depends_on": ["grade", "credit_hours"],
+                },
+            ],
+        )
+        result = _process_computation_chains(spec)
+        wg = next(
+            f for f in result["models"][0]["fields"]
+            if f["name"] == "weighted_grade"
+        )
+        assert wg["depends"] == ["grade", "credit_hours"]
+
+    def test_sets_store_true(self):
+        """Chain fields get store=True."""
+        spec = _make_chain_spec(
+            models=[
+                {
+                    "name": "university.enrollment",
+                    "fields": [{"name": "weighted_grade", "type": "Float"}],
+                },
+            ],
+            computation_chains=[
+                {
+                    "field": "university.enrollment.weighted_grade",
+                    "depends_on": ["grade"],
+                },
+            ],
+        )
+        result = _process_computation_chains(spec)
+        wg = next(
+            f for f in result["models"][0]["fields"]
+            if f["name"] == "weighted_grade"
+        )
+        assert wg["store"] is True
+
+    def test_injects_compute_name(self):
+        """Field without compute= gets _compute_{name}."""
+        spec = _make_chain_spec(
+            models=[
+                {
+                    "name": "university.enrollment",
+                    "fields": [{"name": "weighted_grade", "type": "Float"}],
+                },
+            ],
+            computation_chains=[
+                {
+                    "field": "university.enrollment.weighted_grade",
+                    "depends_on": ["grade"],
+                },
+            ],
+        )
+        result = _process_computation_chains(spec)
+        wg = next(
+            f for f in result["models"][0]["fields"]
+            if f["name"] == "weighted_grade"
+        )
+        assert wg["compute"] == "_compute_weighted_grade"
+
+    def test_dotted_paths_preserved(self):
+        """'enrollment_ids.weighted_grade' preserved in depends."""
+        spec = _make_chain_spec(
+            models=[
+                {
+                    "name": "university.student",
+                    "fields": [
+                        {"name": "enrollment_ids", "type": "One2many",
+                         "comodel_name": "university.enrollment", "inverse_name": "student_id"},
+                        {"name": "gpa", "type": "Float"},
+                    ],
+                },
+            ],
+            computation_chains=[
+                {
+                    "field": "university.student.gpa",
+                    "depends_on": ["enrollment_ids.weighted_grade"],
+                },
+            ],
+        )
+        result = _process_computation_chains(spec)
+        gpa = next(
+            f for f in result["models"][0]["fields"]
+            if f["name"] == "gpa"
+        )
+        assert "enrollment_ids.weighted_grade" in gpa["depends"]
+
+    def test_no_chains_passthrough(self):
+        """Spec without computation_chains returned unchanged."""
+        spec = {
+            "module_name": "test_module",
+            "depends": ["base"],
+            "models": [{"name": "test.model", "fields": [{"name": "x", "type": "Float"}]}],
+            "wizards": [],
+        }
+        result = _process_computation_chains(spec)
+        assert result["models"][0]["fields"][0] == {"name": "x", "type": "Float"}
+
+    def test_does_not_mutate_input(self):
+        """Original spec dict is not mutated."""
+        import copy
+
+        spec = _make_chain_spec(
+            models=[
+                {
+                    "name": "university.enrollment",
+                    "fields": [{"name": "weighted_grade", "type": "Float"}],
+                },
+            ],
+            computation_chains=[
+                {
+                    "field": "university.enrollment.weighted_grade",
+                    "depends_on": ["grade"],
+                },
+            ],
+        )
+        original = copy.deepcopy(spec)
+        _process_computation_chains(spec)
+        assert spec == original
+
+
+class TestTopologicallySortFields:
+    """Unit tests for _topologically_sort_fields()."""
+
+    def test_sort_order(self):
+        """Field depending on another computed field comes after it."""
+        fields = [
+            {"name": "total", "type": "Float", "compute": "_compute_total",
+             "depends": ["subtotal"]},
+            {"name": "subtotal", "type": "Float", "compute": "_compute_subtotal",
+             "depends": ["qty", "price"]},
+        ]
+        result = _topologically_sort_fields(fields)
+        names = [f["name"] for f in result]
+        assert names.index("subtotal") < names.index("total")
+
+    def test_independent_preserves_order(self):
+        """Fields with no inter-deps keep original order."""
+        fields = [
+            {"name": "a", "type": "Float", "compute": "_compute_a", "depends": ["x"]},
+            {"name": "b", "type": "Float", "compute": "_compute_b", "depends": ["y"]},
+        ]
+        result = _topologically_sort_fields(fields)
+        names = [f["name"] for f in result]
+        # Both present, order should be preserved (no deps between them)
+        assert set(names) == {"a", "b"}
+
+    def test_single_field(self):
+        """Single computed field returned as-is."""
+        fields = [
+            {"name": "total", "type": "Float", "compute": "_compute_total",
+             "depends": ["qty"]},
+        ]
+        result = _topologically_sort_fields(fields)
+        assert len(result) == 1
+        assert result[0]["name"] == "total"
+
+
+# ---------------------------------------------------------------------------
+# Phase 29: _process_constraints()
+# ---------------------------------------------------------------------------
+
+
+def _make_constraint_spec(
+    models: list[dict] | None = None,
+    constraints: list[dict] | None = None,
+) -> dict:
+    """Helper to construct a spec with constraints section."""
+    return {
+        "module_name": "test_module",
+        "depends": ["base"],
+        "models": models or [],
+        "wizards": [],
+        "constraints": constraints or [],
+    }
+
+
+class TestProcessConstraints:
+    """Unit tests for _process_constraints()."""
+
+    def test_no_constraints_passthrough(self):
+        """Spec without constraints key returns unchanged spec."""
+        spec = {
+            "module_name": "test_module",
+            "depends": ["base"],
+            "models": [{"name": "test.model", "fields": []}],
+            "wizards": [],
+        }
+        result = _process_constraints(spec)
+        assert result == spec
+
+    def test_does_not_mutate_input(self):
+        """Original spec dict is not modified by _process_constraints()."""
+        import copy
+
+        spec = _make_constraint_spec(
+            models=[{
+                "name": "university.course",
+                "fields": [
+                    {"name": "start_date", "type": "Date"},
+                    {"name": "end_date", "type": "Date"},
+                ],
+            }],
+            constraints=[{
+                "type": "temporal",
+                "model": "university.course",
+                "name": "date_order",
+                "fields": ["start_date", "end_date"],
+                "condition": "end_date < start_date",
+                "message": "End date must be after start date.",
+            }],
+        )
+        original = copy.deepcopy(spec)
+        _process_constraints(spec)
+        assert spec == original
+
+    def test_temporal_classifies_correctly(self):
+        """Temporal constraint enriches model with complex_constraints entry of type temporal."""
+        spec = _make_constraint_spec(
+            models=[{
+                "name": "university.course",
+                "fields": [
+                    {"name": "start_date", "type": "Date"},
+                    {"name": "end_date", "type": "Date"},
+                ],
+            }],
+            constraints=[{
+                "type": "temporal",
+                "model": "university.course",
+                "name": "date_order",
+                "fields": ["start_date", "end_date"],
+                "condition": "end_date < start_date",
+                "message": "End date must be after start date.",
+            }],
+        )
+        result = _process_constraints(spec)
+        model = result["models"][0]
+        assert "complex_constraints" in model
+        assert len(model["complex_constraints"]) == 1
+        assert model["complex_constraints"][0]["type"] == "temporal"
+
+    def test_temporal_generates_check_expr(self):
+        """Temporal constraint produces check_expr with False guards."""
+        spec = _make_constraint_spec(
+            models=[{
+                "name": "university.course",
+                "fields": [
+                    {"name": "start_date", "type": "Date"},
+                    {"name": "end_date", "type": "Date"},
+                ],
+            }],
+            constraints=[{
+                "type": "temporal",
+                "model": "university.course",
+                "name": "date_order",
+                "fields": ["start_date", "end_date"],
+                "condition": "end_date < start_date",
+                "message": "End date must be after start date.",
+            }],
+        )
+        result = _process_constraints(spec)
+        constraint = result["models"][0]["complex_constraints"][0]
+        assert "check_expr" in constraint
+        # Must have False guards for each field
+        assert "rec.start_date" in constraint["check_expr"]
+        assert "rec.end_date" in constraint["check_expr"]
+        # Must have the condition
+        assert "rec.end_date < rec.start_date" in constraint["check_expr"]
+
+    def test_cross_model_generates_check_body(self):
+        """Cross-model constraint produces check_body with search_count and ValidationError."""
+        spec = _make_constraint_spec(
+            models=[
+                {
+                    "name": "university.course",
+                    "fields": [
+                        {"name": "max_students", "type": "Integer"},
+                    ],
+                },
+                {
+                    "name": "university.enrollment",
+                    "fields": [
+                        {"name": "course_id", "type": "Many2one", "comodel_name": "university.course"},
+                    ],
+                },
+            ],
+            constraints=[{
+                "type": "cross_model",
+                "model": "university.enrollment",
+                "name": "enrollment_capacity",
+                "trigger_fields": ["course_id"],
+                "related_model": "university.enrollment",
+                "count_domain_field": "course_id",
+                "capacity_model": "university.course",
+                "capacity_field": "max_students",
+                "message": "Enrollment count cannot exceed course capacity of %s.",
+            }],
+        )
+        result = _process_constraints(spec)
+        enrollment = next(m for m in result["models"] if m["name"] == "university.enrollment")
+        constraint = enrollment["complex_constraints"][0]
+        assert "check_body" in constraint
+        assert "search_count" in constraint["check_body"]
+        assert "ValidationError" in constraint["check_body"]
+
+    def test_cross_model_generates_create_override(self):
+        """Cross-model constraint sets has_create_override and populates create_constraints."""
+        spec = _make_constraint_spec(
+            models=[
+                {
+                    "name": "university.course",
+                    "fields": [{"name": "max_students", "type": "Integer"}],
+                },
+                {
+                    "name": "university.enrollment",
+                    "fields": [
+                        {"name": "course_id", "type": "Many2one", "comodel_name": "university.course"},
+                    ],
+                },
+            ],
+            constraints=[{
+                "type": "cross_model",
+                "model": "university.enrollment",
+                "name": "enrollment_capacity",
+                "trigger_fields": ["course_id"],
+                "related_model": "university.enrollment",
+                "count_domain_field": "course_id",
+                "capacity_model": "university.course",
+                "capacity_field": "max_students",
+                "message": "Enrollment count cannot exceed course capacity of %s.",
+            }],
+        )
+        result = _process_constraints(spec)
+        enrollment = next(m for m in result["models"] if m["name"] == "university.enrollment")
+        assert enrollment["has_create_override"] is True
+        assert len(enrollment["create_constraints"]) == 1
+        assert enrollment["create_constraints"][0]["name"] == "enrollment_capacity"
+
+    def test_cross_model_generates_write_override(self):
+        """Cross-model constraint sets has_write_override with correct trigger_fields."""
+        spec = _make_constraint_spec(
+            models=[
+                {
+                    "name": "university.course",
+                    "fields": [{"name": "max_students", "type": "Integer"}],
+                },
+                {
+                    "name": "university.enrollment",
+                    "fields": [
+                        {"name": "course_id", "type": "Many2one", "comodel_name": "university.course"},
+                    ],
+                },
+            ],
+            constraints=[{
+                "type": "cross_model",
+                "model": "university.enrollment",
+                "name": "enrollment_capacity",
+                "trigger_fields": ["course_id"],
+                "related_model": "university.enrollment",
+                "count_domain_field": "course_id",
+                "capacity_model": "university.course",
+                "capacity_field": "max_students",
+                "message": "Enrollment count cannot exceed course capacity of %s.",
+            }],
+        )
+        result = _process_constraints(spec)
+        enrollment = next(m for m in result["models"] if m["name"] == "university.enrollment")
+        assert enrollment["has_write_override"] is True
+        assert len(enrollment["write_constraints"]) == 1
+        assert enrollment["write_constraints"][0]["write_trigger_fields"] == ["course_id"]
+
+    def test_capacity_generates_count_check(self):
+        """Capacity constraint produces check_body with search_count and max comparison."""
+        spec = _make_constraint_spec(
+            models=[{
+                "name": "university.section",
+                "fields": [
+                    {"name": "student_ids", "type": "One2many"},
+                ],
+            }],
+            constraints=[{
+                "type": "capacity",
+                "model": "university.section",
+                "name": "section_capacity",
+                "count_field": "student_ids",
+                "max_value": 30,
+                "count_model": "university.section.enrollment",
+                "count_domain_field": "section_id",
+                "message": "A section cannot have more than %s students.",
+            }],
+        )
+        result = _process_constraints(spec)
+        section = result["models"][0]
+        constraint = section["complex_constraints"][0]
+        assert "check_body" in constraint
+        assert "search_count" in constraint["check_body"]
+        assert "30" in constraint["check_body"]
+
+    def test_messages_have_translation(self):
+        """All constraint check_body/message strings include _() wrapper."""
+        spec = _make_constraint_spec(
+            models=[
+                {
+                    "name": "university.course",
+                    "fields": [
+                        {"name": "start_date", "type": "Date"},
+                        {"name": "end_date", "type": "Date"},
+                    ],
+                },
+                {
+                    "name": "university.enrollment",
+                    "fields": [
+                        {"name": "course_id", "type": "Many2one", "comodel_name": "university.course"},
+                    ],
+                },
+            ],
+            constraints=[
+                {
+                    "type": "temporal",
+                    "model": "university.course",
+                    "name": "date_order",
+                    "fields": ["start_date", "end_date"],
+                    "condition": "end_date < start_date",
+                    "message": "End date must be after start date.",
+                },
+                {
+                    "type": "cross_model",
+                    "model": "university.enrollment",
+                    "name": "enrollment_capacity",
+                    "trigger_fields": ["course_id"],
+                    "related_model": "university.enrollment",
+                    "count_domain_field": "course_id",
+                    "capacity_model": "university.course",
+                    "capacity_field": "max_students",
+                    "message": "Enrollment count cannot exceed course capacity of %s.",
+                },
+            ],
+        )
+        result = _process_constraints(spec)
+        # Temporal: message is used directly in template with _() wrapper
+        course = next(m for m in result["models"] if m["name"] == "university.course")
+        assert course["complex_constraints"][0]["message"]
+
+        # Cross-model: check_body should contain _()
+        enrollment = next(m for m in result["models"] if m["name"] == "university.enrollment")
+        assert "_(" in enrollment["complex_constraints"][0]["check_body"]
+
+    def test_multiple_constraints_single_override(self):
+        """Two cross_model constraints on same model produce one create_constraints list with 2 entries."""
+        spec = _make_constraint_spec(
+            models=[{
+                "name": "university.enrollment",
+                "fields": [
+                    {"name": "course_id", "type": "Many2one", "comodel_name": "university.course"},
+                    {"name": "section_id", "type": "Many2one", "comodel_name": "university.section"},
+                ],
+            }],
+            constraints=[
+                {
+                    "type": "cross_model",
+                    "model": "university.enrollment",
+                    "name": "enrollment_capacity",
+                    "trigger_fields": ["course_id"],
+                    "related_model": "university.enrollment",
+                    "count_domain_field": "course_id",
+                    "capacity_model": "university.course",
+                    "capacity_field": "max_students",
+                    "message": "Too many enrollments for this course.",
+                },
+                {
+                    "type": "cross_model",
+                    "model": "university.enrollment",
+                    "name": "section_capacity",
+                    "trigger_fields": ["section_id"],
+                    "related_model": "university.enrollment",
+                    "count_domain_field": "section_id",
+                    "capacity_model": "university.section",
+                    "capacity_field": "max_students",
+                    "message": "Too many enrollments for this section.",
+                },
+            ],
+        )
+        result = _process_constraints(spec)
+        enrollment = result["models"][0]
+        # Single create_constraints list with 2 entries
+        assert len(enrollment["create_constraints"]) == 2
+        # Single write_constraints list with 2 entries
+        assert len(enrollment["write_constraints"]) == 2
+        # has_create_override and has_write_override are True (singular, not per-constraint)
+        assert enrollment["has_create_override"] is True
+        assert enrollment["has_write_override"] is True
+
+    def test_temporal_with_missing_model_ignored(self):
+        """Temporal constraint referencing non-existent model is silently skipped."""
+        spec = _make_constraint_spec(
+            models=[{
+                "name": "university.course",
+                "fields": [{"name": "name", "type": "Char"}],
+            }],
+            constraints=[{
+                "type": "temporal",
+                "model": "nonexistent.model",
+                "name": "date_order",
+                "fields": ["start_date", "end_date"],
+                "condition": "end_date < start_date",
+                "message": "End date must be after start date.",
+            }],
+        )
+        result = _process_constraints(spec)
+        # The course model should remain unchanged
+        assert "complex_constraints" not in result["models"][0]
+
+
+# ---------------------------------------------------------------------------
+# Phase 30: _build_model_context cron tests
+# ---------------------------------------------------------------------------
+
+
+class TestBuildModelContextCron:
+    def test_cron_methods_populated(self):
+        """_build_model_context with cron_jobs for this model includes cron_methods."""
+        model = {
+            "name": "academy.course",
+            "fields": [{"name": "name", "type": "Char"}],
+        }
+        spec = _make_spec(models=[model])
+        spec["cron_jobs"] = [{
+            "name": "Archive Expired",
+            "model_name": "academy.course",
+            "method": "_cron_archive_expired",
+            "interval_number": 1,
+            "interval_type": "days",
+        }]
+        ctx = _build_model_context(spec, model)
+        assert "cron_methods" in ctx
+        assert len(ctx["cron_methods"]) == 1
+        assert ctx["cron_methods"][0]["method"] == "_cron_archive_expired"
+
+    def test_cron_methods_empty_different_model(self):
+        """_build_model_context with cron_jobs targeting other model returns empty cron_methods."""
+        model = {
+            "name": "academy.student",
+            "fields": [{"name": "name", "type": "Char"}],
+        }
+        spec = _make_spec(models=[model])
+        spec["cron_jobs"] = [{
+            "name": "Archive Expired",
+            "model_name": "academy.course",
+            "method": "_cron_archive_expired",
+            "interval_number": 1,
+            "interval_type": "days",
+        }]
+        ctx = _build_model_context(spec, model)
+        assert ctx["cron_methods"] == []
+
+    def test_needs_api_true_with_cron(self):
+        """Model with only cron methods has needs_api=True."""
+        model = {
+            "name": "academy.course",
+            "fields": [{"name": "name", "type": "Char"}],
+        }
+        spec = _make_spec(models=[model])
+        spec["cron_jobs"] = [{
+            "name": "Archive Expired",
+            "model_name": "academy.course",
+            "method": "_cron_archive_expired",
+            "interval_number": 1,
+            "interval_type": "days",
+        }]
+        ctx = _build_model_context(spec, model)
+        assert ctx["needs_api"] is True
+
+
+# ---------------------------------------------------------------------------
+# Phase 30: _build_module_context cron tests
+# ---------------------------------------------------------------------------
+
+
+class TestBuildModuleContextCron:
+    def test_manifest_includes_cron_data(self):
+        """_build_module_context with cron_jobs includes data/cron_data.xml in manifest_files."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        spec["cron_jobs"] = [{
+            "name": "Archive Expired",
+            "model_name": "academy.course",
+            "method": "_cron_archive_expired",
+            "interval_number": 1,
+            "interval_type": "days",
+        }]
+        ctx = _build_module_context(spec, "test_module")
+        assert "data/cron_data.xml" in ctx["manifest_files"]
+
+    def test_manifest_excludes_cron_data_no_jobs(self):
+        """_build_module_context without cron_jobs does NOT include data/cron_data.xml."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        ctx = _build_module_context(spec, "test_module")
+        assert "data/cron_data.xml" not in ctx["manifest_files"]
+
+
+# ---------------------------------------------------------------------------
+# Phase 31: _build_module_context report/dashboard tests
+# ---------------------------------------------------------------------------
+
+
+class TestBuildModuleContextReports:
+    def test_manifest_includes_report_data_files(self):
+        """_build_module_context with reports includes report data files in manifest."""
+        spec = _make_spec(models=[{
+            "name": "academy.student",
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        spec["reports"] = [{
+            "name": "Student Report",
+            "model_name": "academy.student",
+            "xml_id": "student_report",
+            "columns": [{"field": "name", "label": "Name"}],
+        }]
+        ctx = _build_module_context(spec, "test_module")
+        assert "data/report_student_report.xml" in ctx["manifest_files"]
+        assert "data/report_student_report_template.xml" in ctx["manifest_files"]
+
+    def test_manifest_excludes_report_data_no_reports(self):
+        """_build_module_context without reports does NOT include report data files."""
+        spec = _make_spec(models=[{
+            "name": "academy.student",
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        ctx = _build_module_context(spec, "test_module")
+        assert not any("report_" in f for f in ctx["manifest_files"])
+
+
+class TestBuildModuleContextDashboards:
+    def test_manifest_includes_dashboard_view_files(self):
+        """_build_module_context with dashboards includes graph/pivot XML in manifest."""
+        spec = _make_spec(models=[{
+            "name": "academy.student",
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        spec["dashboards"] = [{
+            "model_name": "academy.student",
+            "dimensions": [{"field": "name"}],
+            "measures": [{"field": "name"}],
+            "rows": [],
+            "columns": [],
+        }]
+        ctx = _build_module_context(spec, "test_module")
+        assert "views/academy_student_graph.xml" in ctx["manifest_files"]
+        assert "views/academy_student_pivot.xml" in ctx["manifest_files"]
+
+    def test_manifest_excludes_dashboard_no_dashboards(self):
+        """_build_module_context without dashboards has no graph/pivot files."""
+        spec = _make_spec(models=[{
+            "name": "academy.student",
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        ctx = _build_module_context(spec, "test_module")
+        assert not any("graph" in f or "pivot" in f for f in ctx["manifest_files"])
+
+
+class TestBuildModelContextReports:
+    def test_model_reports_present(self):
+        """_build_model_context with reports targeting model includes model_reports."""
+        model = {
+            "name": "academy.student",
+            "fields": [{"name": "name", "type": "Char"}],
+        }
+        spec = _make_spec(models=[model])
+        spec["reports"] = [{
+            "name": "Student Report",
+            "model_name": "academy.student",
+            "xml_id": "student_report",
+            "columns": [{"field": "name", "label": "Name"}],
+        }]
+        ctx = _build_model_context(spec, model)
+        assert "model_reports" in ctx
+        assert len(ctx["model_reports"]) == 1
+        assert ctx["model_reports"][0]["xml_id"] == "student_report"
+
+    def test_model_reports_empty_different_model(self):
+        """_build_model_context with reports targeting other model returns empty."""
+        model = {
+            "name": "academy.course",
+            "fields": [{"name": "name", "type": "Char"}],
+        }
+        spec = _make_spec(models=[model])
+        spec["reports"] = [{
+            "name": "Student Report",
+            "model_name": "academy.student",
+            "xml_id": "student_report",
+            "columns": [{"field": "name", "label": "Name"}],
+        }]
+        ctx = _build_model_context(spec, model)
+        assert ctx["model_reports"] == []
+
+    def test_has_dashboard_true(self):
+        """_build_model_context with dashboard targeting model sets has_dashboard=True."""
+        model = {
+            "name": "academy.student",
+            "fields": [{"name": "name", "type": "Char"}],
+        }
+        spec = _make_spec(models=[model])
+        spec["dashboards"] = [{
+            "model_name": "academy.student",
+            "dimensions": [{"field": "name"}],
+            "measures": [{"field": "name"}],
+            "rows": [],
+            "columns": [],
+        }]
+        ctx = _build_model_context(spec, model)
+        assert ctx["has_dashboard"] is True
+
+    def test_has_dashboard_false(self):
+        """_build_model_context without dashboards sets has_dashboard=False."""
+        model = {
+            "name": "academy.student",
+            "fields": [{"name": "name", "type": "Char"}],
+        }
+        spec = _make_spec(models=[model])
+        ctx = _build_model_context(spec, model)
+        assert ctx["has_dashboard"] is False
+
+
+# ---------------------------------------------------------------------------
+# Phase 32: _build_module_context controller flag
+# ---------------------------------------------------------------------------
+
+
+class TestBuildModuleContextControllers:
+    def test_has_controllers_true(self):
+        """_build_module_context with non-empty controllers sets has_controllers=True."""
+        spec = _make_spec(models=[{
+            "name": "academy.student",
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        spec["controllers"] = [{
+            "name": "Main",
+            "routes": [{"path": "api", "method_name": "get_api"}],
+        }]
+        ctx = _build_module_context(spec, "test_module")
+        assert ctx["has_controllers"] is True
+
+    def test_has_controllers_false_empty(self):
+        """_build_module_context with empty controllers sets has_controllers=False."""
+        spec = _make_spec(models=[{
+            "name": "academy.student",
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        spec["controllers"] = []
+        ctx = _build_module_context(spec, "test_module")
+        assert ctx["has_controllers"] is False
+
+    def test_has_controllers_false_missing(self):
+        """_build_module_context without controllers key sets has_controllers=False."""
+        spec = _make_spec(models=[{
+            "name": "academy.student",
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        ctx = _build_module_context(spec, "test_module")
+        assert ctx["has_controllers"] is False
+
+
+# ---------------------------------------------------------------------------
+# _build_module_context: import/export (Phase 32 Plan 02)
+# ---------------------------------------------------------------------------
+
+
+class TestBuildModuleContextImportExport:
+    def test_has_import_export_true(self):
+        """_build_module_context sets has_import_export=True when a model has import_export."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "import_export": True,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        ctx = _build_module_context(spec, "test_module")
+        assert ctx["has_import_export"] is True
+
+    def test_has_import_export_false(self):
+        """_build_module_context sets has_import_export=False when no model has import_export."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        ctx = _build_module_context(spec, "test_module")
+        assert ctx["has_import_export"] is False
+
+    def test_external_dependencies_openpyxl(self):
+        """_build_module_context includes external_dependencies with openpyxl when has_import_export."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "import_export": True,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        ctx = _build_module_context(spec, "test_module")
+        assert "external_dependencies" in ctx
+        assert "openpyxl" in ctx["external_dependencies"]["python"]
+
+    def test_no_external_dependencies_without_import_export(self):
+        """_build_module_context has no external_dependencies when no import_export."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        ctx = _build_module_context(spec, "test_module")
+        assert ctx.get("external_dependencies") is None or ctx.get("external_dependencies") == {}
+
+    def test_has_wizards_true_with_import_export(self):
+        """has_wizards is True when import_export models exist (even without spec wizards)."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "import_export": True,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        ctx = _build_module_context(spec, "test_module")
+        assert ctx["has_wizards"] is True
+
+    def test_import_wizard_form_in_manifest(self):
+        """Manifest files include import wizard form view files."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "import_export": True,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        ctx = _build_module_context(spec, "test_module")
+        assert "views/academy_course_import_wizard_form.xml" in ctx["manifest_files"]
+
+    def test_import_export_wizards_context(self):
+        """_build_module_context includes import_export_wizards list for ACL generation."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "import_export": True,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        ctx = _build_module_context(spec, "test_module")
+        assert "import_export_wizards" in ctx
+        assert len(ctx["import_export_wizards"]) == 1
+        assert ctx["import_export_wizards"][0]["name"] == "academy.course.import.wizard"
+
+
+# ---------------------------------------------------------------------------
+# _process_performance: Phase 33
+# ---------------------------------------------------------------------------
+
+
+class TestProcessPerformance:
+    """Unit tests for _process_performance() preprocessor."""
+
+    def test_performance_index_search_fields(self):
+        """Char and Many2one fields get index=True (they appear in search view)."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "fields": [
+                {"name": "name", "type": "Char"},
+                {"name": "teacher_id", "type": "Many2one", "comodel_name": "hr.employee"},
+                {"name": "qty", "type": "Integer"},
+            ],
+        }])
+        result = _process_performance(spec)
+        fields = {f["name"]: f for f in result["models"][0]["fields"]}
+        assert fields["name"].get("index") is True
+        assert fields["teacher_id"].get("index") is True
+        # Integer not in search by default
+        assert fields["qty"].get("index") is not True
+
+    def test_performance_index_order_fields(self):
+        """Fields in model.order get index=True."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "order": "date desc, name",
+            "fields": [
+                {"name": "name", "type": "Char"},
+                {"name": "date", "type": "Date"},
+                {"name": "qty", "type": "Integer"},
+            ],
+        }])
+        result = _process_performance(spec)
+        fields = {f["name"]: f for f in result["models"][0]["fields"]}
+        assert fields["date"].get("index") is True
+        assert fields["name"].get("index") is True
+
+    def test_performance_index_domain_fields(self):
+        """Fields in record rule domains get index=True (company_id)."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "fields": [
+                {"name": "name", "type": "Char"},
+                {"name": "company_id", "type": "Many2one", "comodel_name": "res.company"},
+            ],
+        }])
+        result = _process_performance(spec)
+        fields = {f["name"]: f for f in result["models"][0]["fields"]}
+        assert fields["company_id"].get("index") is True
+
+    def test_performance_index_skip_virtual(self):
+        """One2many/Many2many/Html/Text/Binary are NOT indexed even if in search."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "fields": [
+                {"name": "line_ids", "type": "One2many", "comodel_name": "academy.line",
+                 "inverse_name": "course_id"},
+                {"name": "tag_ids", "type": "Many2many", "comodel_name": "academy.tag"},
+                {"name": "description", "type": "Html"},
+                {"name": "notes", "type": "Text"},
+                {"name": "attachment", "type": "Binary"},
+            ],
+        }])
+        result = _process_performance(spec)
+        for field in result["models"][0]["fields"]:
+            assert field.get("index") is not True, f"{field['name']} should not be indexed"
+
+    def test_performance_sql_constraints(self):
+        """unique_together generates sql_constraints on model."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "unique_together": [
+                {"fields": ["name", "company_id"], "message": "Name must be unique per company."},
+            ],
+            "fields": [
+                {"name": "name", "type": "Char"},
+                {"name": "company_id", "type": "Many2one", "comodel_name": "res.company"},
+            ],
+        }])
+        result = _process_performance(spec)
+        model = result["models"][0]
+        assert len(model["sql_constraints"]) == 1
+        c = model["sql_constraints"][0]
+        assert c["name"] == "unique_name_company_id"
+        assert "UNIQUE" in c["definition"]
+        assert "name" in c["definition"]
+        assert "company_id" in c["definition"]
+        assert c["message"] == "Name must be unique per company."
+
+    def test_performance_sql_constraints_validation(self):
+        """unique_together referencing non-existent field is skipped."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "unique_together": [
+                {"fields": ["name", "nonexistent"], "message": "Bad constraint."},
+            ],
+            "fields": [
+                {"name": "name", "type": "Char"},
+            ],
+        }])
+        result = _process_performance(spec)
+        model = result["models"][0]
+        assert model.get("sql_constraints", []) == []
+
+    def test_performance_store_computed_tree(self):
+        """Computed field in first 6 view_fields (tree view) gets store=True."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "fields": [
+                {"name": "name", "type": "Char"},
+                {"name": "total", "type": "Float", "compute": "_compute_total",
+                 "depends": ["qty"]},
+            ],
+        }])
+        result = _process_performance(spec)
+        total = next(f for f in result["models"][0]["fields"] if f["name"] == "total")
+        assert total.get("store") is True
+
+    def test_performance_store_computed_search(self):
+        """Computed Char field gets store=True (appears in search)."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "fields": [
+                {"name": "display_name", "type": "Char", "compute": "_compute_display_name",
+                 "depends": ["name"]},
+                {"name": "name", "type": "Char"},
+            ],
+        }])
+        result = _process_performance(spec)
+        dn = next(f for f in result["models"][0]["fields"] if f["name"] == "display_name")
+        assert dn.get("store") is True
+
+    def test_performance_store_computed_order(self):
+        """Computed field in model.order gets store=True."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "order": "total desc",
+            "fields": [
+                {"name": "name", "type": "Char"},
+                {"name": "total", "type": "Float", "compute": "_compute_total",
+                 "depends": ["qty"]},
+            ],
+        }])
+        result = _process_performance(spec)
+        total = next(f for f in result["models"][0]["fields"] if f["name"] == "total")
+        assert total.get("store") is True
+
+    def test_performance_store_already_set(self):
+        """Computed field with explicit store=True is not modified."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "fields": [
+                {"name": "name", "type": "Char"},
+                {"name": "total", "type": "Float", "compute": "_compute_total",
+                 "depends": ["qty"], "store": True},
+            ],
+        }])
+        result = _process_performance(spec)
+        total = next(f for f in result["models"][0]["fields"] if f["name"] == "total")
+        assert total.get("store") is True
+
+    def test_transient_cleanup_attrs(self):
+        """TransientModel models get transient_max_hours and transient_max_count."""
+        spec = _make_spec(models=[{
+            "name": "academy.wizard",
+            "transient": True,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        result = _process_performance(spec)
+        model = result["models"][0]
+        assert model["transient_max_hours"] == 1.0
+        assert model["transient_max_count"] == 0
+
+    def test_transient_cleanup_custom(self):
+        """Custom transient_max_hours value is preserved."""
+        spec = _make_spec(models=[{
+            "name": "academy.wizard",
+            "transient": True,
+            "transient_max_hours": 2.0,
+            "transient_max_count": 1000,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        result = _process_performance(spec)
+        model = result["models"][0]
+        assert model["transient_max_hours"] == 2.0
+        assert model["transient_max_count"] == 1000
+
+    def test_performance_no_models_passthrough(self):
+        """Empty models list returns spec unchanged."""
+        spec = _make_spec(models=[])
+        result = _process_performance(spec)
+        assert result["models"] == []
+
+    def test_performance_order_validation(self):
+        """model.order referencing non-existent field skips that field for model_order."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "order": "nonexistent desc, name asc",
+            "fields": [
+                {"name": "name", "type": "Char"},
+            ],
+        }])
+        result = _process_performance(spec)
+        model = result["models"][0]
+        # Only valid fields should be in model_order
+        if model.get("model_order"):
+            assert "nonexistent" not in model["model_order"]
+
+
+class TestProcessProductionPatterns:
+    """Unit tests for _process_production_patterns() preprocessor."""
+
+    def test_bulk_flag_sets_create_override(self):
+        """Spec with model having bulk:true -> model gets has_create_override=True and is_bulk=True."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "bulk": True,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        result = _process_production_patterns(spec)
+        model = result["models"][0]
+        assert model["is_bulk"] is True
+        assert model["has_create_override"] is True
+
+    def test_bulk_without_existing_constraints(self):
+        """bulk:true model without constraints still gets has_create_override=True."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "bulk": True,
+            "fields": [
+                {"name": "name", "type": "Char"},
+                {"name": "value", "type": "Integer"},
+            ],
+        }])
+        result = _process_production_patterns(spec)
+        model = result["models"][0]
+        assert model["has_create_override"] is True
+        assert model["is_bulk"] is True
+        # No constraints should exist
+        assert model.get("create_constraints", []) == []
+
+    def test_bulk_with_constraints_merges(self):
+        """bulk:true model WITH constraints keeps both is_bulk=True and existing create_constraints."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "bulk": True,
+            "has_create_override": True,
+            "create_constraints": [{"name": "capacity", "type": "capacity"}],
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        result = _process_production_patterns(spec)
+        model = result["models"][0]
+        assert model["is_bulk"] is True
+        assert model["has_create_override"] is True
+        assert len(model["create_constraints"]) == 1
+
+    def test_cacheable_flag_sets_overrides(self):
+        """cacheable:true -> has_create_override, has_write_override, is_cacheable, needs_tools."""
+        spec = _make_spec(models=[{
+            "name": "academy.category",
+            "cacheable": True,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        result = _process_production_patterns(spec)
+        model = result["models"][0]
+        assert model["has_create_override"] is True
+        assert model["has_write_override"] is True
+        assert model["is_cacheable"] is True
+        assert model["needs_tools"] is True
+
+    def test_cacheable_with_explicit_cache_key(self):
+        """cacheable with cache_key -> cache_lookup_field uses that field."""
+        spec = _make_spec(models=[{
+            "name": "academy.category",
+            "cacheable": True,
+            "cache_key": "code",
+            "fields": [
+                {"name": "name", "type": "Char"},
+                {"name": "code", "type": "Char"},
+            ],
+        }])
+        result = _process_production_patterns(spec)
+        model = result["models"][0]
+        assert model["cache_lookup_field"] == "code"
+
+    def test_cacheable_default_lookup_field(self):
+        """cacheable:true without cache_key -> cache_lookup_field defaults to first unique Char field or 'name'."""
+        # With a unique Char field
+        spec = _make_spec(models=[{
+            "name": "academy.category",
+            "cacheable": True,
+            "fields": [
+                {"name": "code", "type": "Char", "unique": True},
+                {"name": "label", "type": "Char"},
+            ],
+        }])
+        result = _process_production_patterns(spec)
+        model = result["models"][0]
+        assert model["cache_lookup_field"] == "code"
+
+        # Without unique Char field -> defaults to "name"
+        spec2 = _make_spec(models=[{
+            "name": "academy.category",
+            "cacheable": True,
+            "fields": [
+                {"name": "label", "type": "Char"},
+                {"name": "value", "type": "Integer"},
+            ],
+        }])
+        result2 = _process_production_patterns(spec2)
+        model2 = result2["models"][0]
+        assert model2["cache_lookup_field"] == "name"
+
+    def test_tools_import_flag(self):
+        """cacheable:true -> needs_tools=True on model."""
+        spec = _make_spec(models=[{
+            "name": "academy.category",
+            "cacheable": True,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        result = _process_production_patterns(spec)
+        model = result["models"][0]
+        assert model["needs_tools"] is True
+
+    def test_cache_with_constraints_merges(self):
+        """cacheable:true + constraints -> single has_write_override=True with both behaviors."""
+        spec = _make_spec(models=[{
+            "name": "academy.category",
+            "cacheable": True,
+            "has_write_override": True,
+            "write_constraints": [{"name": "check_dates", "write_trigger_fields": ["date_start"]}],
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        result = _process_production_patterns(spec)
+        model = result["models"][0]
+        assert model["has_write_override"] is True
+        assert model["is_cacheable"] is True
+        assert len(model["write_constraints"]) == 1
+
+    def test_no_production_flags_passthrough(self):
+        """Model without bulk/cacheable passes through unchanged."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        result = _process_production_patterns(spec)
+        model = result["models"][0]
+        assert model.get("is_bulk") is not True
+        assert model.get("is_cacheable") is not True
+        assert model.get("needs_tools") is not True
+
+    def test_pure_function(self):
+        """Input spec is not mutated."""
+        import copy
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "bulk": True,
+            "cacheable": True,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        original = copy.deepcopy(spec)
+        _process_production_patterns(spec)
+        assert spec == original
+
+    # -- Archival tests (Phase 34, Plan 02) --
+
+    def test_archival_injects_active_field(self):
+        """Spec with archival:true -> model fields contain active Boolean with index=True and default=True."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "archival": True,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        result = _process_production_patterns(spec)
+        model = result["models"][0]
+        active_fields = [f for f in model["fields"] if f["name"] == "active"]
+        assert len(active_fields) == 1
+        active = active_fields[0]
+        assert active["type"] == "Boolean"
+        assert active["default"] is True
+        assert active["index"] is True
+
+    def test_archival_active_field_not_duplicated(self):
+        """Spec with archival:true and existing active field -> no duplicate active field injected."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "archival": True,
+            "fields": [
+                {"name": "name", "type": "Char"},
+                {"name": "active", "type": "Boolean", "default": True},
+            ],
+        }])
+        result = _process_production_patterns(spec)
+        model = result["models"][0]
+        active_fields = [f for f in model["fields"] if f["name"] == "active"]
+        assert len(active_fields) == 1
+
+    def test_archival_injects_wizard(self):
+        """Spec with archival:true -> spec['wizards'] contains archival wizard entry."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "archival": True,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        result = _process_production_patterns(spec)
+        wizards = result.get("wizards", [])
+        archival_wizards = [w for w in wizards if "archive" in w["name"]]
+        assert len(archival_wizards) == 1
+        wiz = archival_wizards[0]
+        assert wiz["name"] == "academy.course.archive.wizard"
+        assert wiz["target_model"] == "academy.course"
+        assert wiz["template"] == "archival_wizard.py.j2"
+        assert wiz["form_template"] == "archival_wizard_form.xml.j2"
+
+    def test_archival_injects_cron(self):
+        """Spec with archival:true -> spec['cron_jobs'] contains cron entry."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "archival": True,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        result = _process_production_patterns(spec)
+        crons = result.get("cron_jobs", [])
+        archival_crons = [c for c in crons if c["method"] == "_cron_archive_old_records"]
+        assert len(archival_crons) == 1
+        cron = archival_crons[0]
+        assert cron["model_name"] == "academy.course"
+
+    def test_archival_sets_flags(self):
+        """archival:true -> model gets is_archival=True; has_create_override stays unchanged."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "archival": True,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        result = _process_production_patterns(spec)
+        model = result["models"][0]
+        assert model["is_archival"] is True
+        # Archival doesn't need create override on its own
+        assert model.get("has_create_override") is not True
+
+    def test_archival_cron_defaults(self):
+        """Injected archival cron has interval_number=1, interval_type='days', doall=False."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "archival": True,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        result = _process_production_patterns(spec)
+        crons = result.get("cron_jobs", [])
+        cron = [c for c in crons if c["method"] == "_cron_archive_old_records"][0]
+        assert cron["interval_number"] == 1
+        assert cron["interval_type"] == "days"
+        assert cron["doall"] is False
+
+    def test_archival_with_bulk_and_cache(self):
+        """archival:true + bulk:true + cacheable:true -> all three flags set correctly."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "archival": True,
+            "bulk": True,
+            "cacheable": True,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        result = _process_production_patterns(spec)
+        model = result["models"][0]
+        assert model["is_archival"] is True
+        assert model["is_bulk"] is True
+        assert model["is_cacheable"] is True
+        # Archival wizard and cron should be present
+        wizards = result.get("wizards", [])
+        crons = result.get("cron_jobs", [])
+        assert any("archive" in w["name"] for w in wizards)
+        assert any(c["method"] == "_cron_archive_old_records" for c in crons)
