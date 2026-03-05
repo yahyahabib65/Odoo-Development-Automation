@@ -1,0 +1,42 @@
+{# report_template.xml.j2 -- QWeb report body template #}
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <template id="report_{{ report.xml_id }}">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="doc">
+                <t t-call="web.external_layout">
+                    <div class="page">
+                        <h2><span t-field="doc.display_name"/></h2>
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+{% for col in report.columns %}
+                                    <th>{{ col.label }}</th>
+{% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+{% if report.get('detail_field') %}
+                                <tr t-foreach="doc.{{ report.detail_field }}" t-as="line">
+{% for col in report.columns %}
+                                    <td><span t-field="line.{{ col.field }}"/></td>
+{% endfor %}
+                                </tr>
+{% else %}
+{% for col in report.columns %}
+                                <tr>
+                                    <td>{{ col.label }}</td>
+                                    <td><span t-field="doc.{{ col.field }}"/></td>
+                                </tr>
+{% endfor %}
+{% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+
+</odoo>

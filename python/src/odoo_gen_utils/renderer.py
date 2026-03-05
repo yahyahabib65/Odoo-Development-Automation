@@ -769,6 +769,16 @@ def _build_model_context(spec: dict[str, Any], model: dict[str, Any]) -> dict[st
         if c.get("model_name") == model["name"]
     ]
 
+    # Phase 31: reports and dashboards targeting this model
+    model_reports = [
+        r for r in spec.get("reports", [])
+        if r.get("model_name") == model["name"]
+    ]
+    has_dashboard = any(
+        d.get("model_name") == model["name"]
+        for d in spec.get("dashboards", [])
+    )
+
     # Phase 12: conditional api import (TMPL-02)
     # Phase 29: also need api when temporal constraints exist (@api.constrains)
     # or create/write overrides exist (@api.model_create_multi)
@@ -831,6 +841,9 @@ def _build_model_context(spec: dict[str, Any], model: dict[str, Any]) -> dict[st
         "needs_translate": needs_translate,
         # Phase 30 keys
         "cron_methods": cron_methods,
+        # Phase 31 keys
+        "model_reports": model_reports,
+        "has_dashboard": has_dashboard,
     }
 
 
@@ -873,6 +886,15 @@ def _compute_manifest_data(
         model_var = _to_python_var(model["name"])
         manifest_files.append(f"views/{model_var}_views.xml")
         manifest_files.append(f"views/{model_var}_action.xml")
+
+    # Phase 31: dashboard view files (after model views, before menu)
+    dashboard_models_seen: set[str] = set()
+    for dashboard in spec.get("dashboards", []):
+        model_xml = _to_xml_id(dashboard["model_name"])
+        if model_xml not in dashboard_models_seen:
+            dashboard_models_seen.add(model_xml)
+            manifest_files.append(f"views/{model_xml}_graph.xml")
+            manifest_files.append(f"views/{model_xml}_pivot.xml")
 
     manifest_files.append("views/menu.xml")
     manifest_files.extend(wizard_view_files)
@@ -1232,8 +1254,48 @@ def render_reports(
     module_dir: Path,
     module_context: dict[str, Any],
 ) -> "Result[list[Path]]":
-    """Placeholder -- implemented in Phase 31."""
-    return Result.ok([])
+    """Render QWeb report templates and graph/pivot dashboard views.
+
+    Handles two spec sections:
+    - spec["reports"]: ir.actions.report + QWeb template + optional paper format
+    - spec["dashboards"]: graph view + pivot view per model
+
+    Returns Result.ok([]) when neither section is present.
+    """
+    reports = spec.get("reports", [])
+    dashboards = spec.get("dashboards", [])
+    if not reports and not dashboards:
+        return Result.ok([])
+    try:
+        created: list[Path] = []
+        for report in reports:
+            report_ctx = {**module_context, "report": report}
+            created.append(render_template(
+                env, "report_action.xml.j2",
+                module_dir / "data" / f"report_{report['xml_id']}.xml",
+                report_ctx,
+            ))
+            created.append(render_template(
+                env, "report_template.xml.j2",
+                module_dir / "data" / f"report_{report['xml_id']}_template.xml",
+                report_ctx,
+            ))
+        for dashboard in dashboards:
+            model_xml = _to_xml_id(dashboard["model_name"])
+            dash_ctx = {**module_context, "dashboard": dashboard, "model_xml_id": model_xml}
+            created.append(render_template(
+                env, "graph_view.xml.j2",
+                module_dir / "views" / f"{model_xml}_graph.xml",
+                dash_ctx,
+            ))
+            created.append(render_template(
+                env, "pivot_view.xml.j2",
+                module_dir / "views" / f"{model_xml}_pivot.xml",
+                dash_ctx,
+            ))
+        return Result.ok(created)
+    except Exception as exc:
+        return Result.fail(f"render_reports failed: {exc}")
 
 
 def render_controllers(
@@ -1266,6 +1328,10 @@ def _build_module_context(spec: dict[str, Any], module_name: str) -> dict[str, A
     # Phase 30: cron data file
     if spec.get("cron_jobs"):
         data_files.append("data/cron_data.xml")
+    # Phase 31: report data files
+    for report in spec.get("reports", []):
+        data_files.append(f"data/report_{report['xml_id']}.xml")
+        data_files.append(f"data/report_{report['xml_id']}_template.xml")
     wiz_files = [f"views/{_to_xml_id(w['name'])}_wizard_form.xml" for w in spec_wizards]
     manifest_files = _compute_manifest_data(spec, data_files, wiz_files, has_company_modules=has_company)
     return {
