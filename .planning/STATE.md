@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: Design Flaws & Feature Gaps
 status: completed
-stopped_at: Completed 28-01-PLAN.md
-last_updated: "2026-03-05T18:11:51.117Z"
-last_activity: 2026-03-05 — Phase 28 Plan 01 executed
+stopped_at: Completed 29-01-PLAN.md
+last_updated: "2026-03-05T18:36:42Z"
+last_activity: 2026-03-05 — Phase 29 Plan 01 executed
 progress:
   total_phases: 9
-  completed_phases: 3
-  total_plans: 3
-  completed_plans: 3
-  percent: 33
+  completed_phases: 4
+  total_plans: 4
+  completed_plans: 4
+  percent: 44
 ---
 
 # Project State
@@ -22,16 +22,16 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Compress months of repetitive Odoo module development into days by extending GSD's orchestration with Odoo-specialized agents, knowledge, and validation.
 **Architecture:** GSD extension (not standalone CLI)
-**Current focus:** v3.1 Phase 28 — Computed Chains & Cycle Detection
+**Current focus:** v3.1 Phase 29 — Complex Constraints
 
 ## Current Position
 
-Phase: 28 of 34 (Computed Chains & Cycle Detection)
+Phase: 29 of 34 (Complex Constraints)
 Plan: 01 of 01 (complete)
 Status: Plan 01 complete
-Last activity: 2026-03-05 — Phase 28 Plan 01 executed
+Last activity: 2026-03-05 — Phase 29 Plan 01 executed
 
-Progress: [███░░░░░░░] 33%
+Progress: [████░░░░░░] 44%
 
 ## Performance Metrics
 
@@ -58,6 +58,7 @@ Progress: [███░░░░░░░] 33%
 - [Phase 27]: Through-model FK names from model last part; self-M2M relation table named {model_table}_{field_name}_rel; hierarchical detection in _build_model_context(); view_fields excludes internal fields
 - [Phase 27]: Through-model FK names from model last part; self-M2M relation table {model_table}_{field_name}_rel; hierarchical in _build_model_context(); view_fields excludes internal fields
 - [Phase 28]: graphlib.TopologicalSorter for cycle detection + field ordering; cycle validation runs first in render_module(); chain preprocessor is pure function (immutability); computation_chains enriches fields with depends/store/compute
+- [Phase 29]: Temporal constraints use @api.constrains (same-record); cross_model/capacity use create()/write() overrides (Odoo ignores dotted names in @api.constrains); single override per model with multiple _check_* calls; all messages in _() for i18n
 
 ### Pending Todos
 
@@ -83,7 +84,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-05T18:05:11.325Z
-Stopped at: Completed 28-01-PLAN.md
+Last session: 2026-03-05T18:36:42Z
+Stopped at: Completed 29-01-PLAN.md
 Resume file: None
-Next step: `/gsd:plan-phase 29`
+Next step: `/gsd:plan-phase 30`

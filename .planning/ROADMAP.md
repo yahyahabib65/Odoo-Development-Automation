@@ -44,38 +44,7 @@
 - [x] Phase 13: Golden Path Regression Testing (1/1 plan) — completed 2026-03-03
 - [x] Phase 14: Cleanup/Debug the Tech Debt (1/1 plan) — completed 2026-03-04
 
-**Total:** 3 phases, 4 plans, 12 requirements | 29 commits | +3,550 LOC Python | 309 tests
-
-</details>
-
-<details>
-<summary>v2.0 Environment-Aware Generation (Phases 15-17) — SHIPPED 2026-03-04</summary>
-
-- [x] Phase 15: Odoo Dev Instance (2/2 plans) — completed 2026-03-04
-- [x] Phase 16: Odoo MCP Server (2/2 plans) — completed 2026-03-04
-- [x] Phase 17: Inline Environment Verification (2/2 plans) — completed 2026-03-04
-
-</details>
-
-<details>
-<summary>v2.1 Auto-Fix & Enhancements (Phases 18-19) — SHIPPED 2026-03-04</summary>
-
-- [x] Phase 18: Auto-Fix Hardening (2/2 plans) — completed 2026-03-04
-- [x] Phase 19: Enhancements (3/3 plans) — completed 2026-03-04
-
-</details>
-
-<details>
-<summary>v3.0 Bug Fixes & Tech Debt (Phases 20-25) — SHIPPED 2026-03-05</summary>
-
-- [x] Phase 20: Auto-Fix AST Migration (2/2 plans) — completed 2026-03-05
-- [x] Phase 21: Template Correctness (2/2 plans) — completed 2026-03-05
-- [x] Phase 22: Validation & Search Fixes (2/2 plans) — completed 2026-03-05
-- [x] Phase 23: Unified Result Type (2/2 plans) — completed 2026-03-05
-- [x] Phase 24: Code Quality & Decomposition (2/2 plans) — completed 2026-03-05
-- [x] Phase 25: Test Migration Cleanup (1/1 plan) — completed 2026-03-05
-
-**Total:** 6 phases, 11 plans, 14 requirements | 56 commits | +7,753 LOC Python | 494 tests
+**Total:** 3 phases, 4 plans, 12 requirements | 29 commits | 1/1 | Complete   | 2026-03-05 | +7,753 LOC Python | 494 tests
 
 </details>
 
@@ -86,7 +55,7 @@
 - [x] **Phase 26: Monetary Field Detection** - Auto-detect monetary patterns and inject currency_id (completed 2026-03-05)
 - [x] **Phase 27: Relationship Patterns** - Through-models, self-referential M2M, hierarchical parent_id (completed 2026-03-05)
 - [x] **Phase 28: Computed Chains & Cycle Detection** - Multi-model dependency chains with topological sort and circular dependency rejection (completed 2026-03-05)
-- [ ] **Phase 29: Complex Constraints** - Cross-model validation, temporal, and capacity constraints
+- [x] **Phase 29: Complex Constraints** - Cross-model validation, temporal, and capacity constraints (completed 2026-03-05)
 - [ ] **Phase 30: Scheduled Actions & Render Pipeline** - ir.cron generation and new renderer stage wiring
 - [ ] **Phase 31: Reports & Analytics** - QWeb report templates and graph/pivot dashboard views
 - [ ] **Phase 32: Controllers & Import/Export** - HTTP controllers and bulk import/export wizards
