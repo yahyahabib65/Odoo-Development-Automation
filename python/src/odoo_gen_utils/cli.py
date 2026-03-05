@@ -9,38 +9,6 @@ from pathlib import Path
 import click
 
 from odoo_gen_utils import __version__
-from odoo_gen_utils.auto_fix import format_escalation, run_docker_fix_loop, run_pylint_fix_loop
-from odoo_gen_utils.i18n_extractor import extract_translatable_strings, generate_pot
-from odoo_gen_utils.kb_validator import validate_kb_directory, validate_kb_file
-from odoo_gen_utils.search import build_oca_index, get_github_token, get_index_status
-from odoo_gen_utils.search.wizard import check_github_auth, format_auth_guidance
-from odoo_gen_utils.search.analyzer import analyze_module, format_analysis_text
-from odoo_gen_utils.search.fork import clone_oca_module, setup_companion_dir
-from odoo_gen_utils.search.index import DEFAULT_DB_PATH
-from odoo_gen_utils.search.query import (
-    format_results_json,
-    format_results_text,
-    search_modules,
-)
-from odoo_gen_utils.edition import check_enterprise_dependencies
-from odoo_gen_utils.renderer import (
-    create_renderer,
-    create_versioned_renderer,
-    get_template_dir,
-    render_module,
-    render_template,
-)
-from odoo_gen_utils.verifier import build_verifier_from_env
-from odoo_gen_utils.validation import (  # noqa: F401
-    ValidationReport,
-    check_docker_available,
-    diagnose_errors,
-    docker_install_module,
-    docker_run_tests,
-    format_report_json,
-    format_report_markdown,
-    run_pylint_odoo,
-)
 
 
 @click.group()
@@ -56,6 +24,13 @@ def main() -> None:
 @click.option("--var-file", type=click.Path(exists=True), help="JSON file with template variables")
 def render(template: str, output: str, var: tuple[str, ...], var_file: str | None) -> None:
     """Render a single Jinja2 template to a file."""
+    from odoo_gen_utils.renderer import (
+        create_renderer,
+        create_versioned_renderer,
+        get_template_dir,
+        render_template,
+    )
+
     context: dict = {}
 
     if var_file:
@@ -101,6 +76,8 @@ def list_templates(odoo_version: str | None) -> None:
     Lists templates from shared/ plus version-specific directories. Use --version
     to filter to a specific Odoo version.
     """
+    from odoo_gen_utils.renderer import get_template_dir
+
     template_dir = get_template_dir()
 
     if not template_dir.is_dir():
@@ -180,6 +157,9 @@ def _extract_template_description(template_path: Path) -> str:
 @click.option("--output-dir", required=True, type=click.Path(), help="Directory to create module in")
 def render_module_cmd(spec_file: str, output_dir: str) -> None:
     """Render a complete Odoo module from a JSON specification file."""
+    from odoo_gen_utils.renderer import get_template_dir, render_module
+    from odoo_gen_utils.verifier import build_verifier_from_env
+
     try:
         spec = json.loads(Path(spec_file).read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
@@ -261,6 +241,8 @@ def validate_kb(scope: str) -> None:
     Checks format only: headings, code blocks, line count. Does not validate
     the semantic correctness of rule content.
     """
+    from odoo_gen_utils.kb_validator import validate_kb_directory
+
     kb_path = _resolve_kb_path()
 
     has_errors = False
@@ -318,6 +300,8 @@ def extract_i18n(module_path: str) -> None:
     Scans Python files for _() calls and XML files for string= attributes.
     Writes MODULE_NAME.pot to MODULE_PATH/i18n/.
     """
+    from odoo_gen_utils.i18n_extractor import extract_translatable_strings, generate_pot
+
     mod_path = Path(module_path).resolve()
     module_name = mod_path.name
 
@@ -347,6 +331,8 @@ def check_edition(spec_file: str, json_output: bool) -> None:
 
     Exit code is always 0 -- warnings are informational (Decision B).
     """
+    from odoo_gen_utils.edition import check_enterprise_dependencies
+
     try:
         spec = json.loads(Path(spec_file).read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
@@ -398,6 +384,18 @@ def validate(
     With --auto-fix, attempts to mechanically fix known pylint violations
     (up to 5 cycles) before reporting remaining issues.
     """
+    from odoo_gen_utils.auto_fix import format_escalation, run_docker_fix_loop, run_pylint_fix_loop
+    from odoo_gen_utils.validation import (
+        ValidationReport,
+        check_docker_available,
+        diagnose_errors,
+        docker_install_module,
+        docker_run_tests,
+        format_report_json,
+        format_report_markdown,
+        run_pylint_odoo,
+    )
+
     mod_path = Path(module_path).resolve()
 
     # Validate manifest exists
@@ -527,6 +525,8 @@ def _handle_auth_failure(no_wizard: bool) -> None:
             err=True,
         )
     else:
+        from odoo_gen_utils.search.wizard import check_github_auth, format_auth_guidance
+
         status = check_github_auth()
         click.echo(format_auth_guidance(status), err=True)
     sys.exit(1)
@@ -544,6 +544,9 @@ def build_index(token: str | None, db_path: str | None, update: bool, no_wizard:
     metadata from __manifest__.py files, and stores embeddings in a local
     ChromaDB database for semantic search.
     """
+    from odoo_gen_utils.search import build_oca_index, get_github_token
+    from odoo_gen_utils.search.index import DEFAULT_DB_PATH
+
     if token is None:
         token = get_github_token()
 
@@ -575,6 +578,8 @@ def index_status(db_path: str | None, json_output: bool) -> None:
     Reports whether the index exists, how many modules are indexed,
     when it was last built, and the storage location.
     """
+    from odoo_gen_utils.search import get_index_status
+
     status = get_index_status(db_path)
 
     if json_output:
@@ -620,6 +625,14 @@ def search_modules_cmd(
     With --github, falls back to live GitHub search when no OCA results found.
     Auto-builds the index on first use if it does not exist.
     """
+    from odoo_gen_utils.search import build_oca_index, get_github_token, get_index_status
+    from odoo_gen_utils.search.index import DEFAULT_DB_PATH
+    from odoo_gen_utils.search.query import (
+        format_results_json,
+        format_results_text,
+        search_modules,
+    )
+
     resolved_path = db_path or str(DEFAULT_DB_PATH)
 
     # Auto-build index on first use (Decision B)
@@ -709,6 +722,10 @@ def extend_module_cmd(
     {module}_ext/spec.json and overwrites the original spec.json path
     (REFN-03: refined spec is the new source of truth).
     """
+    from odoo_gen_utils.search import get_github_token
+    from odoo_gen_utils.search.analyzer import analyze_module, format_analysis_text
+    from odoo_gen_utils.search.fork import clone_oca_module, setup_companion_dir
+
     out_path = Path(output_dir).resolve()
 
     # Auth check for extend-module (requires GitHub for cloning)
