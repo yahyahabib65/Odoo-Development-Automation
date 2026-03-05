@@ -186,7 +186,7 @@ Plans:
   4. Archival crons use batch processing with commit-per-batch to avoid long transactions
 **Plans**: 2 plans
 Plans:
-- [ ] 34-01-PLAN.md — Preprocessor + model template extensions for bulk create and ORM cache patterns
+- [x] 34-01-PLAN.md — Preprocessor + model template extensions for bulk create and ORM cache patterns
 - [ ] 34-02-PLAN.md — Archival wizard/cron generation with batch processing and active field injection
 
 ## Progress
@@ -210,7 +210,7 @@ Phases execute in numeric order: 26 -> 27 -> 28 -> 29 -> 30 -> 31 -> 32 -> 33 ->
 | 31. Reports & Analytics | 1/1 | Complete    | 2026-03-05 | - |
 | 32. Controllers & Import/Export | 2/2 | Complete    | 2026-03-05 | - |
 | 33. Database Performance | 1/1 | Complete    | 2026-03-05 | - |
-| 34. Production Patterns | v3.1 | 0/2 | Not started | - |
+| 34. Production Patterns | v3.1 | 1/2 | In progress | - |
 
 ---
 *Roadmap created: 2026-03-01*

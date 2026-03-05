@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: Design Flaws & Feature Gaps
-status: completed
-stopped_at: Completed 33-01-PLAN.md
-last_updated: "2026-03-05T20:53:19.280Z"
-last_activity: 2026-03-06 — Phase 33 Plan 01 executed
+status: in-progress
+stopped_at: Completed 34-01-PLAN.md
+last_updated: "2026-03-05T21:25:53Z"
+last_activity: 2026-03-06 — Phase 34 Plan 01 executed
 progress:
   total_phases: 9
   completed_phases: 8
@@ -22,23 +22,23 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Compress months of repetitive Odoo module development into days by extending GSD's orchestration with Odoo-specialized agents, knowledge, and validation.
 **Architecture:** GSD extension (not standalone CLI)
-**Current focus:** v3.1 Phase 33 — Database Performance
+**Current focus:** v3.1 Phase 34 — Production Patterns
 
 ## Current Position
 
-Phase: 33 of 34 (Database Performance)
-Plan: 01 of 01 (complete)
-Status: Phase 33 complete
-Last activity: 2026-03-06 — Phase 33 Plan 01 executed
+Phase: 34 of 34 (Production Patterns)
+Plan: 01 of 02 (complete)
+Status: Phase 34 in progress
+Last activity: 2026-03-06 — Phase 34 Plan 01 executed
 
-Progress: [██████████] 100%
+Progress: [█████████░] 95%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 59 (across all milestones)
-- Average duration: ~25 min
-- Total execution time: ~23 hours
+- Total plans completed: 60 (across all milestones)
+- Average duration: ~24 min
+- Total execution time: ~23.2 hours
 
 **Recent Trend (v3.0):**
 - 11 plans across 6 phases in 1 day
@@ -64,6 +64,7 @@ Progress: [██████████] 100%
 - [Phase 32]: JSON routes get try/except with structured error response; controller class_name auto-derived from module_name when not specified; secure defaults via Jinja2 dict.get()
 - [Phase 32]: Import wizard generated in render_controllers() stage; magic byte PK\x03\x04 validation for xlsx; state machine upload/preview/done; external_dependencies rendered in manifest; import_export_wizards ACL via access_csv.j2
 - [Phase 33]: _process_performance() auto-detects index=True for search/order/domain fields; store=True for view-referenced computed fields; _sql_constraints from unique_together; TransientModel cleanup defaults (1.0h, 0 count); INDEXABLE_TYPES excludes One2many/Many2many/Html/Text/Binary
+- [Phase 34]: _process_production_patterns() for bulk/cache; cache_lookup_field defaults to first unique Char or "name"; clear_caches() before super() in create/write; bulk _post_create_processing iterates per-record; merged create/write overrides with constraints into single methods
 
 ### Pending Todos
 
@@ -85,11 +86,11 @@ None yet.
 - v2.1 Auto-Fix & Enhancements (2 phases, 5 plans) — 2026-03-04
 - v3.0 Bug Fixes & Tech Debt (6 phases, 11 plans) — 2026-03-05
 
-**Total:** 25 phases, 56 plans, 325+ commits, 524 tests, 18,500+ LOC Python
+**Total:** 25 phases, 56 plans, 325+ commits, 538 tests, 18,500+ LOC Python
 
 ## Session Continuity
 
-Last session: 2026-03-05T20:35:20Z
-Stopped at: Completed 33-01-PLAN.md
+Last session: 2026-03-05T21:25:53Z
+Stopped at: Completed 34-01-PLAN.md
 Resume file: None
-Next step: `/gsd:plan-phase 34`
+Next step: `/gsd:execute-phase 34-02`
