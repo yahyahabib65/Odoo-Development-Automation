@@ -2967,3 +2967,126 @@ class TestBuildModuleContextCron:
         }])
         ctx = _build_module_context(spec, "test_module")
         assert "data/cron_data.xml" not in ctx["manifest_files"]
+
+
+# ---------------------------------------------------------------------------
+# Phase 31: _build_module_context report/dashboard tests
+# ---------------------------------------------------------------------------
+
+
+class TestBuildModuleContextReports:
+    def test_manifest_includes_report_data_files(self):
+        """_build_module_context with reports includes report data files in manifest."""
+        spec = _make_spec(models=[{
+            "name": "academy.student",
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        spec["reports"] = [{
+            "name": "Student Report",
+            "model_name": "academy.student",
+            "xml_id": "student_report",
+            "columns": [{"field": "name", "label": "Name"}],
+        }]
+        ctx = _build_module_context(spec, "test_module")
+        assert "data/report_student_report.xml" in ctx["manifest_files"]
+        assert "data/report_student_report_template.xml" in ctx["manifest_files"]
+
+    def test_manifest_excludes_report_data_no_reports(self):
+        """_build_module_context without reports does NOT include report data files."""
+        spec = _make_spec(models=[{
+            "name": "academy.student",
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        ctx = _build_module_context(spec, "test_module")
+        assert not any("report_" in f for f in ctx["manifest_files"])
+
+
+class TestBuildModuleContextDashboards:
+    def test_manifest_includes_dashboard_view_files(self):
+        """_build_module_context with dashboards includes graph/pivot XML in manifest."""
+        spec = _make_spec(models=[{
+            "name": "academy.student",
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        spec["dashboards"] = [{
+            "model_name": "academy.student",
+            "dimensions": [{"field": "name"}],
+            "measures": [{"field": "name"}],
+            "rows": [],
+            "columns": [],
+        }]
+        ctx = _build_module_context(spec, "test_module")
+        assert "views/academy_student_graph.xml" in ctx["manifest_files"]
+        assert "views/academy_student_pivot.xml" in ctx["manifest_files"]
+
+    def test_manifest_excludes_dashboard_no_dashboards(self):
+        """_build_module_context without dashboards has no graph/pivot files."""
+        spec = _make_spec(models=[{
+            "name": "academy.student",
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        ctx = _build_module_context(spec, "test_module")
+        assert not any("graph" in f or "pivot" in f for f in ctx["manifest_files"])
+
+
+class TestBuildModelContextReports:
+    def test_model_reports_present(self):
+        """_build_model_context with reports targeting model includes model_reports."""
+        model = {
+            "name": "academy.student",
+            "fields": [{"name": "name", "type": "Char"}],
+        }
+        spec = _make_spec(models=[model])
+        spec["reports"] = [{
+            "name": "Student Report",
+            "model_name": "academy.student",
+            "xml_id": "student_report",
+            "columns": [{"field": "name", "label": "Name"}],
+        }]
+        ctx = _build_model_context(spec, model)
+        assert "model_reports" in ctx
+        assert len(ctx["model_reports"]) == 1
+        assert ctx["model_reports"][0]["xml_id"] == "student_report"
+
+    def test_model_reports_empty_different_model(self):
+        """_build_model_context with reports targeting other model returns empty."""
+        model = {
+            "name": "academy.course",
+            "fields": [{"name": "name", "type": "Char"}],
+        }
+        spec = _make_spec(models=[model])
+        spec["reports"] = [{
+            "name": "Student Report",
+            "model_name": "academy.student",
+            "xml_id": "student_report",
+            "columns": [{"field": "name", "label": "Name"}],
+        }]
+        ctx = _build_model_context(spec, model)
+        assert ctx["model_reports"] == []
+
+    def test_has_dashboard_true(self):
+        """_build_model_context with dashboard targeting model sets has_dashboard=True."""
+        model = {
+            "name": "academy.student",
+            "fields": [{"name": "name", "type": "Char"}],
+        }
+        spec = _make_spec(models=[model])
+        spec["dashboards"] = [{
+            "model_name": "academy.student",
+            "dimensions": [{"field": "name"}],
+            "measures": [{"field": "name"}],
+            "rows": [],
+            "columns": [],
+        }]
+        ctx = _build_model_context(spec, model)
+        assert ctx["has_dashboard"] is True
+
+    def test_has_dashboard_false(self):
+        """_build_model_context without dashboards sets has_dashboard=False."""
+        model = {
+            "name": "academy.student",
+            "fields": [{"name": "name", "type": "Char"}],
+        }
+        spec = _make_spec(models=[model])
+        ctx = _build_model_context(spec, model)
+        assert ctx["has_dashboard"] is False

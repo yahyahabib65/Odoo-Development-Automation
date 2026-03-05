@@ -1201,3 +1201,253 @@ class TestRenderModuleCronIntegration:
         model_py = (tmp_path / "test_module" / "models" / "academy_course.py").read_text()
         assert "_cron_archive_expired" in model_py
         assert "@api.model" in model_py
+
+
+# ---------------------------------------------------------------------------
+# Phase 31: Report generation tests
+# ---------------------------------------------------------------------------
+
+
+def _make_report_spec(reports=None, dashboards=None, models=None):
+    """Helper to construct a spec with reports and/or dashboards."""
+    return {
+        "module_name": "test_module",
+        "module_title": "Test Module",
+        "summary": "A test module",
+        "author": "Test Author",
+        "website": "https://test.example.com",
+        "license": "LGPL-3",
+        "category": "Uncategorized",
+        "odoo_version": "17.0",
+        "depends": ["base"],
+        "application": True,
+        "models": models or [
+            {
+                "name": "academy.student",
+                "description": "Student",
+                "fields": [
+                    {"name": "name", "type": "Char", "required": True},
+                    {"name": "enrollment_date", "type": "Date"},
+                    {"name": "total_credits", "type": "Integer"},
+                ],
+            },
+        ],
+        "wizards": [],
+        "reports": reports or [],
+        "dashboards": dashboards or [],
+    }
+
+
+def _sample_report():
+    """Return a sample report spec entry."""
+    return {
+        "name": "Student Report Card",
+        "model_name": "academy.student",
+        "xml_id": "student_report_card",
+        "columns": [
+            {"field": "name", "label": "Student"},
+            {"field": "enrollment_date", "label": "Enrollment Date"},
+            {"field": "total_credits", "label": "Credits"},
+        ],
+        "button_label": "Print Report Card",
+    }
+
+
+def _sample_report_with_paper():
+    """Return a sample report spec entry with paper_format."""
+    report = _sample_report()
+    report["paper_format"] = {
+        "format": "A4",
+        "orientation": "Landscape",
+        "margin_top": 25,
+    }
+    return report
+
+
+def _sample_dashboard():
+    """Return a sample dashboard spec entry."""
+    return {
+        "model_name": "academy.student",
+        "title": "Student Analysis",
+        "chart_type": "bar",
+        "stacked": False,
+        "dimensions": [
+            {"field": "enrollment_date", "interval": "month"},
+        ],
+        "measures": [
+            {"field": "total_credits"},
+        ],
+        "rows": [
+            {"field": "enrollment_date", "interval": "quarter"},
+        ],
+        "columns": [],
+    }
+
+
+class TestRenderReports:
+    def test_report_generates_action_xml(self, env, tmp_module):
+        """Spec with reports entry -> render_reports() creates report action XML."""
+        report = _sample_report()
+        spec = _make_report_spec(reports=[report])
+        ctx = _make_module_context(spec)
+        result = render_reports(env, spec, tmp_module, ctx)
+        assert result.success is True
+        action_file = tmp_module / "data" / "report_student_report_card.xml"
+        assert action_file.exists()
+        content = action_file.read_text()
+        assert "ir.actions.report" in content
+
+    def test_report_action_fields(self, env, tmp_module):
+        """Generated report action has binding_model_id, report_name, report_type, binding_type."""
+        report = _sample_report()
+        spec = _make_report_spec(reports=[report])
+        ctx = _make_module_context(spec)
+        render_reports(env, spec, tmp_module, ctx)
+        content = (tmp_module / "data" / "report_student_report_card.xml").read_text()
+        assert "binding_model_id" in content
+        assert "test_module.report_student_report_card" in content
+        assert "qweb-pdf" in content
+        assert "binding_type" in content
+
+    def test_report_qweb_template(self, env, tmp_module):
+        """Generated QWeb template has t-call, t-foreach, t-field, class='page'."""
+        report = _sample_report()
+        spec = _make_report_spec(reports=[report])
+        ctx = _make_module_context(spec)
+        render_reports(env, spec, tmp_module, ctx)
+        tmpl_file = tmp_module / "data" / "report_student_report_card_template.xml"
+        assert tmpl_file.exists()
+        content = tmpl_file.read_text()
+        assert 't-call="web.html_container"' in content
+        assert 't-foreach="docs"' in content
+        assert 't-call="web.external_layout"' in content
+        assert 't-field="doc.display_name"' in content or 't-field="doc.name"' in content
+        assert 'class="page"' in content
+
+    def test_report_paper_format(self, env, tmp_module):
+        """Spec with paper_format generates paperformat record; without it, no paperformat."""
+        # With paper_format
+        report_with = _sample_report_with_paper()
+        spec_with = _make_report_spec(reports=[report_with])
+        ctx_with = _make_module_context(spec_with)
+        render_reports(env, spec_with, tmp_module, ctx_with)
+        content = (tmp_module / "data" / "report_student_report_card.xml").read_text()
+        assert "report.paperformat" in content
+        assert "Landscape" in content
+
+        # Without paper_format - use a fresh tmp dir
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            td_module = Path(td) / "test_module"
+            td_module.mkdir()
+            report_without = _sample_report()
+            spec_without = _make_report_spec(reports=[report_without])
+            ctx_without = _make_module_context(spec_without)
+            render_reports(env, spec_without, td_module, ctx_without)
+            content2 = (td_module / "data" / "report_student_report_card.xml").read_text()
+            assert "report.paperformat" not in content2
+
+    def test_form_print_button(self, tmp_path):
+        """Model with reports -> form view XML contains print button."""
+        report = _sample_report()
+        spec = _make_report_spec(reports=[report])
+        files, _ = render_module(spec, None, tmp_path)
+        form_xml = (tmp_path / "test_module" / "views" / "academy_student_views.xml").read_text()
+        assert "report_test_module_student_report_card" in form_xml
+        assert 'type="action"' in form_xml
+
+    def test_no_reports_noop(self, env, tmp_module):
+        """Spec without reports or dashboards -> render_reports returns Result.ok([])."""
+        spec = _make_report_spec(reports=[], dashboards=[])
+        ctx = _make_module_context(spec)
+        result = render_reports(env, spec, tmp_module, ctx)
+        assert result.success is True
+        assert result.data == []
+
+
+class TestRenderDashboards:
+    def test_graph_view(self, env, tmp_module):
+        """Spec with dashboards -> generates graph view with chart_type and fields."""
+        dashboard = _sample_dashboard()
+        spec = _make_report_spec(dashboards=[dashboard])
+        ctx = _make_module_context(spec)
+        result = render_reports(env, spec, tmp_module, ctx)
+        assert result.success is True
+        graph_file = tmp_module / "views" / "academy_student_graph.xml"
+        assert graph_file.exists()
+        content = graph_file.read_text()
+        assert "ir.ui.view" in content
+        assert "<graph" in content
+        assert 'type="bar"' in content
+
+    def test_graph_measures(self, env, tmp_module):
+        """Graph measure fields have type='measure'; dimension fields get interval."""
+        dashboard = _sample_dashboard()
+        spec = _make_report_spec(dashboards=[dashboard])
+        ctx = _make_module_context(spec)
+        render_reports(env, spec, tmp_module, ctx)
+        content = (tmp_module / "views" / "academy_student_graph.xml").read_text()
+        assert 'type="measure"' in content
+        assert 'interval="month"' in content
+
+    def test_pivot_view(self, env, tmp_module):
+        """Generates pivot view with row/col/measure fields."""
+        dashboard = _sample_dashboard()
+        spec = _make_report_spec(dashboards=[dashboard])
+        ctx = _make_module_context(spec)
+        render_reports(env, spec, tmp_module, ctx)
+        pivot_file = tmp_module / "views" / "academy_student_pivot.xml"
+        assert pivot_file.exists()
+        content = pivot_file.read_text()
+        assert "<pivot" in content
+        assert 'type="row"' in content
+        assert 'type="measure"' in content
+
+    def test_action_view_mode(self, tmp_path):
+        """Model with dashboard -> action view_mode includes graph,pivot."""
+        dashboard = _sample_dashboard()
+        spec = _make_report_spec(dashboards=[dashboard])
+        files, _ = render_module(spec, None, tmp_path)
+        action_xml = (tmp_path / "test_module" / "views" / "academy_student_action.xml").read_text()
+        assert "graph" in action_xml
+        assert "pivot" in action_xml
+
+        # Without dashboard - view_mode should NOT contain graph,pivot
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            spec_no = _make_report_spec(dashboards=[])
+            files2, _ = render_module(spec_no, None, Path(td))
+            action_xml2 = (Path(td) / "test_module" / "views" / "academy_student_action.xml").read_text()
+            assert "graph" not in action_xml2
+            assert "pivot" not in action_xml2
+
+    def test_no_dashboards_noop(self, env, tmp_module):
+        """Spec without dashboards -> no graph/pivot files generated."""
+        spec = _make_report_spec(reports=[], dashboards=[])
+        ctx = _make_module_context(spec)
+        result = render_reports(env, spec, tmp_module, ctx)
+        assert result.success is True
+        assert not (tmp_module / "views" / "academy_student_graph.xml").exists()
+        assert not (tmp_module / "views" / "academy_student_pivot.xml").exists()
+
+
+# ---------------------------------------------------------------------------
+# Phase 31: Full integration with report/dashboard spec
+# ---------------------------------------------------------------------------
+
+
+class TestRenderModuleReportIntegration:
+    def test_full_render_with_reports_and_dashboards(self, tmp_path):
+        """Full render_module with reports and dashboards generates all expected files."""
+        spec = _make_report_spec(
+            reports=[_sample_report()],
+            dashboards=[_sample_dashboard()],
+        )
+        files, warnings = render_module(spec, None, tmp_path)
+        module_dir = tmp_path / "test_module"
+        # Report files
+        assert (module_dir / "data" / "report_student_report_card.xml").exists()
+        assert (module_dir / "data" / "report_student_report_card_template.xml").exists()
+        # Dashboard files
+        assert (module_dir / "views" / "academy_student_graph.xml").exists()
+        assert (module_dir / "views" / "academy_student_pivot.xml").exists()
