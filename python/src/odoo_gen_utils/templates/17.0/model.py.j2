@@ -18,6 +18,9 @@ class {{ model_name | to_class }}(models.Model):
     _parent_name = "parent_id"
     _parent_store = True
 {% endif %}
+{% if model_order is defined and model_order %}
+    _order = "{{ model_order }}"
+{% endif %}
 
 {% if needs_currency_id %}
     currency_id = fields.Many2one(
@@ -37,6 +40,9 @@ class {{ model_name | to_class }}(models.Model):
         ],
 {% if field.required is defined and field.required %}
         required=True,
+{% endif %}
+{% if field.index is defined and field.index %}
+        index=True,
 {% endif %}
 {% if field.default is defined %}
         default="{{ field.default }}",
@@ -93,6 +99,9 @@ class {{ model_name | to_class }}(models.Model):
 {% if field.store is defined and field.store %}
         store=True,
 {% endif %}
+{% if field.index is defined and field.index %}
+        index=True,
+{% endif %}
 {% if field.required is defined and field.required %}
         required=True,
 {% endif %}
@@ -107,6 +116,9 @@ class {{ model_name | to_class }}(models.Model):
 {% if field.store is defined and field.store %}
         store=True,
 {% endif %}
+{% if field.index is defined and field.index %}
+        index=True,
+{% endif %}
 {% if field.help is defined %}
         help="{{ field.help }}",
 {% endif %}
@@ -116,6 +128,9 @@ class {{ model_name | to_class }}(models.Model):
         string="{{ field.string | default(field.name | replace('_', ' ') | title) }}",
 {% if field.required is defined and field.required %}
         required=True,
+{% endif %}
+{% if field.index is defined and field.index %}
+        index=True,
 {% endif %}
 {% if field.default is defined %}
         default="{{ field.default }}",

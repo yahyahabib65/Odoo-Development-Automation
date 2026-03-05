@@ -9,6 +9,8 @@ from odoo.exceptions import UserError, ValidationError
 class {{ wizard_class }}(models.TransientModel):
     _name = "{{ model_name }}.import.wizard"
     _description = "Import {{ model_description }}"
+    _transient_max_hours = {{ transient_max_hours | default(1.0) }}
+    _transient_max_count = {{ transient_max_count | default(0) }}
 
     state = fields.Selection(
         selection=[

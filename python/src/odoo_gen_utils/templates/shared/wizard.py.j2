@@ -5,6 +5,12 @@ from odoo import {{ 'api, ' if needs_api }}fields, models
 class {{ wizard_class }}(models.TransientModel):
     _name = "{{ wizard.name }}"
     _description = "{{ wizard.name | replace('.', ' ') | title }}"
+{% if transient_max_hours is defined and transient_max_hours is not none %}
+    _transient_max_hours = {{ transient_max_hours }}
+{% endif %}
+{% if transient_max_count is defined and transient_max_count is not none %}
+    _transient_max_count = {{ transient_max_count }}
+{% endif %}
 
 {% for field in wizard.fields %}
 {% if field.type == 'Selection' %}

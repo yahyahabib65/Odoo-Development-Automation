@@ -1258,7 +1258,9 @@ def render_wizards(
             wvar = _to_python_var(wizard["name"])
             wxid = _to_xml_id(wizard["name"])
             wctx = {**module_context, "wizard": wizard, "wizard_var": wvar,
-                    "wizard_xml_id": wxid, "wizard_class": _to_class(wizard["name"]), "needs_api": True}
+                    "wizard_xml_id": wxid, "wizard_class": _to_class(wizard["name"]), "needs_api": True,
+                    "transient_max_hours": wizard.get("transient_max_hours"),
+                    "transient_max_count": wizard.get("transient_max_count")}
             created.append(render_template(env, "wizard.py.j2", module_dir / "wizards" / f"{wvar}.py", wctx))
             created.append(render_template(
                 env, "wizard_form.xml.j2", module_dir / "views" / f"{wxid}_wizard_form.xml", wctx))
@@ -1515,6 +1517,8 @@ def render_controllers(
                     "wizard_class": model_class,
                     "model_description": model_description,
                     "export_fields": export_fields,
+                    "transient_max_hours": model.get("transient_max_hours", 1.0),
+                    "transient_max_count": model.get("transient_max_count", 0),
                 }
                 wizard_filename = f"{model_var}_import_wizard"
                 import_wizard_modules.append(wizard_filename)

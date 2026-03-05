@@ -1714,3 +1714,97 @@ class TestRenderImportExport:
         assert init_file.exists()
         content = init_file.read_text()
         assert "academy_course_import_wizard" in content
+
+
+# ---------------------------------------------------------------------------
+# Phase 33: Performance optimization integration tests
+# ---------------------------------------------------------------------------
+
+
+class TestRenderModelsPerformance:
+    """Integration tests for Phase 33 performance preprocessing in rendered output."""
+
+    def test_render_performance_index_in_output(self, tmp_path):
+        """Char search field gets index=True in generated Python code."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "description": "Academy Course",
+            "fields": [
+                {"name": "name", "type": "Char", "required": True},
+                {"name": "qty", "type": "Integer"},
+            ],
+        }])
+        files, _ = render_module(spec, None, tmp_path)
+        model_py = (tmp_path / "test_module" / "models" / "academy_course.py").read_text()
+        # Char field 'name' should have index=True (it's a search field)
+        assert "index=True" in model_py
+
+    def test_render_performance_order_in_output(self, tmp_path):
+        """Model with order spec generates _order attribute."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "description": "Academy Course",
+            "order": "name asc",
+            "fields": [
+                {"name": "name", "type": "Char", "required": True},
+                {"name": "qty", "type": "Integer"},
+            ],
+        }])
+        files, _ = render_module(spec, None, tmp_path)
+        model_py = (tmp_path / "test_module" / "models" / "academy_course.py").read_text()
+        assert '_order = "name asc"' in model_py
+
+    def test_render_performance_sql_constraints_in_output(self, tmp_path):
+        """unique_together generates _sql_constraints in output."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "description": "Academy Course",
+            "unique_together": [
+                {"fields": ["name", "company_id"], "message": "Name must be unique per company."},
+            ],
+            "fields": [
+                {"name": "name", "type": "Char", "required": True},
+                {"name": "company_id", "type": "Many2one", "comodel_name": "res.company"},
+            ],
+        }])
+        files, _ = render_module(spec, None, tmp_path)
+        model_py = (tmp_path / "test_module" / "models" / "academy_course.py").read_text()
+        assert "_sql_constraints" in model_py
+        assert "unique_name_company_id" in model_py
+        assert "UNIQUE(name, company_id)" in model_py
+
+    def test_render_transient_cleanup_in_output(self, tmp_path):
+        """Wizard with transient attrs renders _transient_max_hours."""
+        spec = _make_spec(
+            models=[{
+                "name": "academy.course",
+                "description": "Academy Course",
+                "fields": [{"name": "name", "type": "Char", "required": True}],
+            }],
+            wizards=[{
+                "name": "academy.confirm.wizard",
+                "target_model": "academy.course",
+                "transient_max_hours": 2.0,
+                "transient_max_count": 500,
+                "fields": [
+                    {"name": "reason", "type": "Char"},
+                ],
+            }],
+        )
+        files, _ = render_module(spec, None, tmp_path)
+        wizard_py = (tmp_path / "test_module" / "wizards" / "academy_confirm_wizard.py").read_text()
+        assert "_transient_max_hours = 2.0" in wizard_py
+        assert "_transient_max_count = 500" in wizard_py
+
+    def test_render_import_wizard_transient_defaults(self, tmp_path):
+        """Import wizard always renders cleanup attributes with defaults."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "description": "Academy Course",
+            "import_export": True,
+            "fields": [{"name": "name", "type": "Char", "required": True}],
+        }])
+        files, _ = render_module(spec, None, tmp_path)
+        wizard_py = (tmp_path / "test_module" / "wizards" / "academy_course_import_wizard.py").read_text()
+        assert "_transient_max_hours = 1.0" in wizard_py
+        assert "_transient_max_count = 0" in wizard_py
