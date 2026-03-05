@@ -74,7 +74,7 @@
 - [x] **Phase 21: Template Correctness** - Fix mail.thread injection, wizard imports, wizard ACLs, and deprecated name_get (completed 2026-03-05)
 - [x] **Phase 22: Validation & Search Fixes** - Docker exec race condition, GitHub rate limiting, and AST _inherit-only detection (completed 2026-03-05)
 - [x] **Phase 23: Unified Result Type** - Cross-cutting Result[T] type across validation pipeline modules (completed 2026-03-05)
-- [ ] **Phase 24: Code Quality & Decomposition** - Lazy CLI imports, render_module decomposition, Docker path resolution
+- [x] **Phase 24: Code Quality & Decomposition** - Lazy CLI imports, render_module decomposition, Docker path resolution (completed 2026-03-05)
 
 ## Phase Details
 
@@ -141,7 +141,7 @@ Plans:
   2. render_module is decomposed into independently testable stage functions (render_manifest, render_models, render_views, render_security, render_wizards, render_tests, render_static) each under 80 lines
   3. Docker compose file path is resolved via importlib.resources or configuration instead of 5-level parent directory traversal
   4. All decomposed render functions return Result types from Phase 23
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [ ] 24-01-PLAN.md — CLI lazy imports + Docker compose path via importlib.resources
 - [ ] 24-02-PLAN.md — render_module decomposition into 7 stage functions with Result[T]
@@ -162,7 +162,7 @@ Phases 20-22 can execute in parallel (independent). Phase 23 before Phase 24 (de
 | 21. Template Correctness | 2/2 | Complete   | 2026-03-05 | - |
 | 22. Validation & Search Fixes | 2/2 | Complete   | 2026-03-05 | - |
 | 23. Unified Result Type | 2/2 | Complete   | 2026-03-05 | - |
-| 24. Code Quality & Decomposition | 1/2 | In Progress|  | - |
+| 24. Code Quality & Decomposition | 2/2 | Complete   | 2026-03-05 | - |
 
 ---
 *Roadmap created: 2026-03-01*
