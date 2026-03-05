@@ -3578,3 +3578,114 @@ class TestProcessProductionPatterns:
         original = copy.deepcopy(spec)
         _process_production_patterns(spec)
         assert spec == original
+
+    # -- Archival tests (Phase 34, Plan 02) --
+
+    def test_archival_injects_active_field(self):
+        """Spec with archival:true -> model fields contain active Boolean with index=True and default=True."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "archival": True,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        result = _process_production_patterns(spec)
+        model = result["models"][0]
+        active_fields = [f for f in model["fields"] if f["name"] == "active"]
+        assert len(active_fields) == 1
+        active = active_fields[0]
+        assert active["type"] == "Boolean"
+        assert active["default"] is True
+        assert active["index"] is True
+
+    def test_archival_active_field_not_duplicated(self):
+        """Spec with archival:true and existing active field -> no duplicate active field injected."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "archival": True,
+            "fields": [
+                {"name": "name", "type": "Char"},
+                {"name": "active", "type": "Boolean", "default": True},
+            ],
+        }])
+        result = _process_production_patterns(spec)
+        model = result["models"][0]
+        active_fields = [f for f in model["fields"] if f["name"] == "active"]
+        assert len(active_fields) == 1
+
+    def test_archival_injects_wizard(self):
+        """Spec with archival:true -> spec['wizards'] contains archival wizard entry."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "archival": True,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        result = _process_production_patterns(spec)
+        wizards = result.get("wizards", [])
+        archival_wizards = [w for w in wizards if "archive" in w["name"]]
+        assert len(archival_wizards) == 1
+        wiz = archival_wizards[0]
+        assert wiz["name"] == "academy.course.archive.wizard"
+        assert wiz["target_model"] == "academy.course"
+        assert wiz["template"] == "archival_wizard.py.j2"
+        assert wiz["form_template"] == "archival_wizard_form.xml.j2"
+
+    def test_archival_injects_cron(self):
+        """Spec with archival:true -> spec['cron_jobs'] contains cron entry."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "archival": True,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        result = _process_production_patterns(spec)
+        crons = result.get("cron_jobs", [])
+        archival_crons = [c for c in crons if c["method"] == "_cron_archive_old_records"]
+        assert len(archival_crons) == 1
+        cron = archival_crons[0]
+        assert cron["model_name"] == "academy.course"
+
+    def test_archival_sets_flags(self):
+        """archival:true -> model gets is_archival=True; has_create_override stays unchanged."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "archival": True,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        result = _process_production_patterns(spec)
+        model = result["models"][0]
+        assert model["is_archival"] is True
+        # Archival doesn't need create override on its own
+        assert model.get("has_create_override") is not True
+
+    def test_archival_cron_defaults(self):
+        """Injected archival cron has interval_number=1, interval_type='days', doall=False."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "archival": True,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        result = _process_production_patterns(spec)
+        crons = result.get("cron_jobs", [])
+        cron = [c for c in crons if c["method"] == "_cron_archive_old_records"][0]
+        assert cron["interval_number"] == 1
+        assert cron["interval_type"] == "days"
+        assert cron["doall"] is False
+
+    def test_archival_with_bulk_and_cache(self):
+        """archival:true + bulk:true + cacheable:true -> all three flags set correctly."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "archival": True,
+            "bulk": True,
+            "cacheable": True,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        result = _process_production_patterns(spec)
+        model = result["models"][0]
+        assert model["is_archival"] is True
+        assert model["is_bulk"] is True
+        assert model["is_cacheable"] is True
+        # Archival wizard and cron should be present
+        wizards = result.get("wizards", [])
+        crons = result.get("cron_jobs", [])
+        assert any("archive" in w["name"] for w in wizards)
+        assert any(c["method"] == "_cron_archive_old_records" for c in crons)
