@@ -844,3 +844,184 @@ class TestRenderModelsComputedChains:
         assert len(files) > 0
         model_py = (tmp_path / "test_module" / "models" / "test_model.py").read_text()
         assert "class TestModel" in model_py
+
+
+# ---------------------------------------------------------------------------
+# Phase 29: Complex Constraints Integration Tests
+# ---------------------------------------------------------------------------
+
+
+def _make_constraint_spec(
+    models: list[dict] | None = None,
+    constraints: list[dict] | None = None,
+    depends: list[str] | None = None,
+) -> dict:
+    """Spec with constraints section for integration tests."""
+    return {
+        "module_name": "test_constraints",
+        "module_title": "Test Constraints Module",
+        "summary": "Test module for complex constraints",
+        "author": "Test",
+        "website": "https://test.example.com",
+        "license": "LGPL-3",
+        "category": "Education",
+        "odoo_version": "17.0",
+        "depends": depends or ["base"],
+        "application": True,
+        "models": models or [],
+        "wizards": [],
+        "constraints": constraints or [],
+    }
+
+
+class TestRenderModelsComplexConstraints:
+    """Integration tests for end-to-end constraint rendering."""
+
+    def test_temporal_constraint_output(self, tmp_path):
+        """render_models with temporal constraint produces correct Python output."""
+        spec = _make_constraint_spec(
+            models=[{
+                "name": "test_constraints.course",
+                "description": "Course",
+                "fields": [
+                    {"name": "name", "type": "Char", "required": True},
+                    {"name": "start_date", "type": "Date"},
+                    {"name": "end_date", "type": "Date"},
+                ],
+            }],
+            constraints=[{
+                "type": "temporal",
+                "model": "test_constraints.course",
+                "name": "date_order",
+                "fields": ["start_date", "end_date"],
+                "condition": "end_date < start_date",
+                "message": "End date must be after start date.",
+            }],
+        )
+        files, _ = render_module(spec, None, tmp_path)
+        course_py = (
+            tmp_path / "test_constraints" / "models" / "test_constraints_course.py"
+        ).read_text()
+        assert '@api.constrains("start_date", "end_date")' in course_py
+        assert "_check_date_order" in course_py
+        assert "rec.start_date and rec.end_date" in course_py
+        assert "ValidationError" in course_py
+        assert '_("' in course_py
+
+    def test_cross_model_constraint_output(self, tmp_path):
+        """render_models with cross_model constraint produces create/write overrides."""
+        spec = _make_constraint_spec(
+            models=[
+                {
+                    "name": "test_constraints.course",
+                    "description": "Course",
+                    "fields": [
+                        {"name": "name", "type": "Char", "required": True},
+                        {"name": "max_students", "type": "Integer"},
+                    ],
+                },
+                {
+                    "name": "test_constraints.enrollment",
+                    "description": "Enrollment",
+                    "fields": [
+                        {"name": "course_id", "type": "Many2one",
+                         "comodel_name": "test_constraints.course", "required": True},
+                        {"name": "student_name", "type": "Char"},
+                    ],
+                },
+            ],
+            constraints=[{
+                "type": "cross_model",
+                "model": "test_constraints.enrollment",
+                "name": "enrollment_capacity",
+                "trigger_fields": ["course_id"],
+                "related_model": "test_constraints.enrollment",
+                "count_domain_field": "course_id",
+                "capacity_model": "test_constraints.course",
+                "capacity_field": "max_students",
+                "message": "Enrollment count cannot exceed course capacity of %s.",
+            }],
+        )
+        files, _ = render_module(spec, None, tmp_path)
+        enrollment_py = (
+            tmp_path / "test_constraints" / "models" / "test_constraints_enrollment.py"
+        ).read_text()
+        assert "def create(self, vals_list):" in enrollment_py
+        assert "super().create(vals_list)" in enrollment_py
+        assert "_check_enrollment_capacity()" in enrollment_py
+        assert "def write(self, vals):" in enrollment_py
+        assert "if any(f in vals" in enrollment_py
+        assert "search_count" in enrollment_py
+        assert "@api.model_create_multi" in enrollment_py
+
+    def test_capacity_constraint_output(self, tmp_path):
+        """render_models with capacity constraint produces count-based validation."""
+        spec = _make_constraint_spec(
+            models=[{
+                "name": "test_constraints.section",
+                "description": "Section",
+                "fields": [
+                    {"name": "name", "type": "Char", "required": True},
+                    {"name": "student_ids", "type": "One2many",
+                     "comodel_name": "test_constraints.section.student",
+                     "inverse_name": "section_id"},
+                ],
+            }],
+            constraints=[{
+                "type": "capacity",
+                "model": "test_constraints.section",
+                "name": "section_capacity",
+                "count_field": "student_ids",
+                "max_value": 30,
+                "count_model": "test_constraints.section.student",
+                "count_domain_field": "section_id",
+                "message": "A section cannot have more than %s students.",
+            }],
+        )
+        files, _ = render_module(spec, None, tmp_path)
+        section_py = (
+            tmp_path / "test_constraints" / "models" / "test_constraints_section.py"
+        ).read_text()
+        assert "def create(self, vals_list):" in section_py
+        assert "def write(self, vals):" in section_py
+        assert "search_count" in section_py
+        assert "30" in section_py
+
+    def test_backward_compat(self, tmp_path):
+        """render_models with spec that has NO constraints section produces identical output."""
+        spec = _make_spec(models=[_make_model()])
+        files, warnings = render_module(spec, None, tmp_path)
+        assert len(files) > 0
+        model_py = (tmp_path / "test_module" / "models" / "test_model.py").read_text()
+        assert "class TestModel" in model_py
+        # No constraint-related output
+        assert "complex_constraints" not in model_py
+        assert "_check_" not in model_py
+        assert "from odoo.tools.translate import _" not in model_py
+
+    def test_imports_validation_error(self, tmp_path):
+        """render_models with any complex constraint includes ValidationError and _ imports."""
+        spec = _make_constraint_spec(
+            models=[{
+                "name": "test_constraints.course",
+                "description": "Course",
+                "fields": [
+                    {"name": "start_date", "type": "Date"},
+                    {"name": "end_date", "type": "Date"},
+                ],
+            }],
+            constraints=[{
+                "type": "temporal",
+                "model": "test_constraints.course",
+                "name": "date_order",
+                "fields": ["start_date", "end_date"],
+                "condition": "end_date < start_date",
+                "message": "End date must be after start date.",
+            }],
+        )
+        files, _ = render_module(spec, None, tmp_path)
+        course_py = (
+            tmp_path / "test_constraints" / "models" / "test_constraints_course.py"
+        ).read_text()
+        assert "from odoo.exceptions import ValidationError" in course_py
+        assert "from odoo.tools.translate import _" in course_py
