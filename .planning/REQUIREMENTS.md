@@ -11,9 +11,9 @@ Requirements for v3.1 Design Flaws & Feature Gaps. Each maps to roadmap phases.
 
 - [x] **SPEC-01**: Renderer auto-detects Monetary field patterns (amount, fee, salary, price, cost, balance) and generates `fields.Monetary` with `currency_id` injection — FLAW-04
 - [x] **SPEC-02**: Spec supports a `relationships` section with through-models for M2M with extra fields, self-referential M2M (with explicit relation/column params), and hierarchical parent_id patterns — FLAW-01
-- [ ] **SPEC-03**: Spec supports `computation_chains` section defining multi-model computed field chains with correct `@api.depends`, `store=True`, and computation order via topological sort — FLAW-02
+- [x] **SPEC-03**: Spec supports `computation_chains` section defining multi-model computed field chains with correct `@api.depends`, `store=True`, and computation order via topological sort — FLAW-02
 - [ ] **SPEC-04**: Spec supports `constraints` section with cross-model validation, temporal constraints, and capacity constraints generating `create()`/`write()` overrides with `ValidationError` — FLAW-03
-- [ ] **SPEC-05**: Spec validation detects circular dependency chains and rejects them with actionable error messages before generation
+- [x] **SPEC-05**: Spec validation detects circular dependency chains and rejects them with actionable error messages before generation
 
 ### Template Generation
 
@@ -82,9 +82,9 @@ Requirements for v3.1 Design Flaws & Feature Gaps. Each maps to roadmap phases.
 |-------------|-------|--------|
 | SPEC-01 | Phase 26 | Complete |
 | SPEC-02 | Phase 27 | Complete |
-| SPEC-03 | Phase 28 | Pending |
+| SPEC-03 | Phase 28 | Complete |
 | SPEC-04 | Phase 29 | Pending |
-| SPEC-05 | Phase 28 | Pending |
+| SPEC-05 | Phase 28 | Complete |
 | TMPL-01 | Phase 31 | Pending |
 | TMPL-02 | Phase 31 | Pending |
 | TMPL-03 | Phase 32 | Pending |

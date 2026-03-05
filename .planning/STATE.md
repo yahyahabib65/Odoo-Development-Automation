@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: Design Flaws & Feature Gaps
 status: completed
-stopped_at: Completed 27-01-PLAN.md (Relationship Patterns)
-last_updated: "2026-03-05T17:40:57.077Z"
-last_activity: 2026-03-05 — Phase 27 Plan 01 executed
+stopped_at: Completed 28-01-PLAN.md
+last_updated: "2026-03-05T18:05:11.327Z"
+last_activity: 2026-03-05 — Phase 28 Plan 01 executed
 progress:
   total_phases: 9
-  completed_phases: 2
-  total_plans: 2
-  completed_plans: 2
-  percent: 22
+  completed_phases: 3
+  total_plans: 3
+  completed_plans: 3
+  percent: 33
 ---
 
 # Project State
@@ -22,16 +22,16 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Compress months of repetitive Odoo module development into days by extending GSD's orchestration with Odoo-specialized agents, knowledge, and validation.
 **Architecture:** GSD extension (not standalone CLI)
-**Current focus:** v3.1 Phase 27 — Relationship Patterns
+**Current focus:** v3.1 Phase 28 — Computed Chains & Cycle Detection
 
 ## Current Position
 
-Phase: 27 of 34 (Relationship Patterns)
+Phase: 28 of 34 (Computed Chains & Cycle Detection)
 Plan: 01 of 01 (complete)
 Status: Plan 01 complete
-Last activity: 2026-03-05 — Phase 27 Plan 01 executed
+Last activity: 2026-03-05 — Phase 28 Plan 01 executed
 
-Progress: [██░░░░░░░░] 22%
+Progress: [███░░░░░░░] 33%
 
 ## Performance Metrics
 
@@ -57,6 +57,7 @@ Progress: [██░░░░░░░░] 22%
 - [Phase 26]: Monetary branch placed before compute branch in templates; 20 keyword patterns for financial field detection; opt-out via monetary:false
 - [Phase 27]: Through-model FK names from model last part; self-M2M relation table named {model_table}_{field_name}_rel; hierarchical detection in _build_model_context(); view_fields excludes internal fields
 - [Phase 27]: Through-model FK names from model last part; self-M2M relation table {model_table}_{field_name}_rel; hierarchical in _build_model_context(); view_fields excludes internal fields
+- [Phase 28]: graphlib.TopologicalSorter for cycle detection + field ordering; cycle validation runs first in render_module(); chain preprocessor is pure function (immutability); computation_chains enriches fields with depends/store/compute
 
 ### Pending Todos
 
@@ -78,11 +79,11 @@ None yet.
 - v2.1 Auto-Fix & Enhancements (2 phases, 5 plans) — 2026-03-04
 - v3.0 Bug Fixes & Tech Debt (6 phases, 11 plans) — 2026-03-05
 
-**Total:** 25 phases, 56 plans, 325+ commits, 494 tests, 18,400+ LOC Python
+**Total:** 25 phases, 56 plans, 325+ commits, 513 tests, 18,400+ LOC Python
 
 ## Session Continuity
 
-Last session: 2026-03-05T17:34:16.065Z
-Stopped at: Completed 27-01-PLAN.md (Relationship Patterns)
+Last session: 2026-03-05T18:05:11.325Z
+Stopped at: Completed 28-01-PLAN.md
 Resume file: None
-Next step: `/gsd:plan-phase 28`
+Next step: `/gsd:plan-phase 29`

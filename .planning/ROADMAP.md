@@ -85,7 +85,7 @@
 
 - [x] **Phase 26: Monetary Field Detection** - Auto-detect monetary patterns and inject currency_id (completed 2026-03-05)
 - [x] **Phase 27: Relationship Patterns** - Through-models, self-referential M2M, hierarchical parent_id (completed 2026-03-05)
-- [ ] **Phase 28: Computed Chains & Cycle Detection** - Multi-model dependency chains with topological sort and circular dependency rejection
+- [x] **Phase 28: Computed Chains & Cycle Detection** - Multi-model dependency chains with topological sort and circular dependency rejection (completed 2026-03-05)
 - [ ] **Phase 29: Complex Constraints** - Cross-model validation, temporal, and capacity constraints
 - [ ] **Phase 30: Scheduled Actions & Render Pipeline** - ir.cron generation and new renderer stage wiring
 - [ ] **Phase 31: Reports & Analytics** - QWeb report templates and graph/pivot dashboard views
@@ -228,7 +228,7 @@ Phases execute in numeric order: 26 -> 27 -> 28 -> 29 -> 30 -> 31 -> 32 -> 33 ->
 | 20-25 | v3.0 | 11/11 | Complete | 2026-03-05 |
 | 26. Monetary Field Detection | 1/1 | Complete    | 2026-03-05 | - |
 | 27. Relationship Patterns | 1/1 | Complete    | 2026-03-05 | - |
-| 28. Computed Chains & Cycle Detection | v3.1 | 0/1 | Planned | - |
+| 28. Computed Chains & Cycle Detection | 1/1 | Complete   | 2026-03-05 | - |
 | 29. Complex Constraints | v3.1 | 0/TBD | Not started | - |
 | 30. Scheduled Actions & Render Pipeline | v3.1 | 0/TBD | Not started | - |
 | 31. Reports & Analytics | v3.1 | 0/TBD | Not started | - |
