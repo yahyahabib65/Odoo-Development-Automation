@@ -122,7 +122,6 @@ Plans:
 
 
 
-
 ### Phase 28: Computed Chains & Cycle Detection
 **Goal**: Spec supports multi-model computed field dependency chains with correct topological ordering, and rejects circular dependencies before generation
 **Depends on**: Phase 27 (relationship awareness needed for cross-model references)
@@ -134,7 +133,7 @@ Plans:
   4. The generated module with multi-model computed chains installs and computes values correctly
 **Plans**: 1 plan
 Plans:
-- [ ] 26-01-PLAN.md — Monetary detection in renderer + template Monetary branch + currency_id injection
+- [ ] 28-01-PLAN.md — Cycle detection, chain preprocessor, topological sort, and integration tests
 
 ### Phase 29: Complex Constraints
 **Goal**: Spec supports cross-model validation, temporal constraints, and capacity constraints that generate create()/write() overrides with ValidationError
@@ -229,7 +228,7 @@ Phases execute in numeric order: 26 -> 27 -> 28 -> 29 -> 30 -> 31 -> 32 -> 33 ->
 | 20-25 | v3.0 | 11/11 | Complete | 2026-03-05 |
 | 26. Monetary Field Detection | 1/1 | Complete    | 2026-03-05 | - |
 | 27. Relationship Patterns | 1/1 | Complete    | 2026-03-05 | - |
-| 28. Computed Chains & Cycle Detection | v3.1 | 0/TBD | Not started | - |
+| 28. Computed Chains & Cycle Detection | v3.1 | 0/1 | Planned | - |
 | 29. Complex Constraints | v3.1 | 0/TBD | Not started | - |
 | 30. Scheduled Actions & Render Pipeline | v3.1 | 0/TBD | Not started | - |
 | 31. Reports & Analytics | v3.1 | 0/TBD | Not started | - |
