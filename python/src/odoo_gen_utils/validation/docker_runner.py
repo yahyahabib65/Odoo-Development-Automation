@@ -14,7 +14,7 @@ import subprocess
 from pathlib import Path
 
 from odoo_gen_utils.validation.log_parser import parse_install_log, parse_test_log
-from odoo_gen_utils.validation.types import InstallResult, TestResult
+from odoo_gen_utils.validation.types import InstallResult, Result, TestResult
 
 logger = logging.getLogger(__name__)
 
@@ -40,15 +40,23 @@ def check_docker_available() -> bool:
 
 
 def get_compose_file() -> Path:
-    """Return the path to docker/docker-compose.yml shipped with the extension.
+    """Return the path to the docker-compose.yml shipped with the package.
 
-    Navigates from validation/ up to the project root's docker/ directory.
+    Resolution order:
+    1. ``ODOO_GEN_COMPOSE_FILE`` environment variable (explicit override).
+    2. ``importlib.resources`` lookup inside ``odoo_gen_utils/data/``.
+
+    Returns:
+        Path to docker-compose.yml.
     """
-    return (
-        Path(__file__).parent.parent.parent.parent.parent
-        / "docker"
-        / "docker-compose.yml"
-    )
+    env_path = os.environ.get("ODOO_GEN_COMPOSE_FILE")
+    if env_path:
+        return Path(env_path)
+
+    from importlib.resources import files
+
+    ref = files("odoo_gen_utils").joinpath("data", "docker-compose.yml")
+    return Path(str(ref))
 
 
 def _run_compose(
@@ -110,7 +118,7 @@ def docker_install_module(
     module_path: Path,
     compose_file: Path | None = None,
     timeout: int = 300,
-) -> InstallResult:
+) -> Result[InstallResult]:
     """Install an Odoo module in an ephemeral Docker environment.
 
     Starts Odoo 17 + PostgreSQL 16 containers, runs module installation,
@@ -122,14 +130,11 @@ def docker_install_module(
         timeout: Timeout in seconds for the install command.
 
     Returns:
-        InstallResult with success status, log output, and error message.
+        Result.ok(InstallResult) on successful execution,
+        Result.fail(message) on infrastructure errors.
     """
     if not check_docker_available():
-        return InstallResult(
-            success=False,
-            log_output="",
-            error_message="Docker not available",
-        )
+        return Result.fail("Docker not available")
 
     if compose_file is None:
         compose_file = get_compose_file()
@@ -141,14 +146,16 @@ def docker_install_module(
     }
 
     try:
-        # Start services and wait for health checks
-        _run_compose(compose_file, ["up", "-d", "--wait"], env, timeout=120)
+        # Start only the database service to avoid a second Odoo process
+        # conflicting with the install runner on the same database.
+        _run_compose(compose_file, ["up", "-d", "--wait", "db"], env, timeout=120)
 
-        # Install the module
+        # Install in a fresh container (no entrypoint server conflict).
         result = _run_compose(
             compose_file,
             [
-                "exec",
+                "run",
+                "--rm",
                 "-T",
                 "odoo",
                 "odoo",
@@ -167,23 +174,17 @@ def docker_install_module(
         combined_output = result.stdout + result.stderr
         success, error_msg = parse_install_log(combined_output)
 
-        return InstallResult(
-            success=success,
-            log_output=combined_output,
-            error_message=error_msg,
+        return Result.ok(
+            InstallResult(
+                success=success,
+                log_output=combined_output,
+                error_message=error_msg,
+            )
         )
     except subprocess.TimeoutExpired:
-        return InstallResult(
-            success=False,
-            log_output="",
-            error_message=f"Timeout after {timeout}s waiting for module install",
-        )
+        return Result.fail(f"Timeout after {timeout}s waiting for module install")
     except Exception as exc:
-        return InstallResult(
-            success=False,
-            log_output="",
-            error_message=str(exc),
-        )
+        return Result.fail(str(exc))
     finally:
         _teardown(compose_file, env)
 
@@ -192,7 +193,7 @@ def docker_run_tests(
     module_path: Path,
     compose_file: Path | None = None,
     timeout: int = 600,
-) -> tuple[TestResult, ...]:
+) -> Result[tuple[TestResult, ...]]:
     """Run Odoo module tests in an ephemeral Docker environment.
 
     Starts Odoo 17 + PostgreSQL 16 containers, runs module tests with
@@ -205,11 +206,11 @@ def docker_run_tests(
         timeout: Timeout in seconds for the test command.
 
     Returns:
-        Tuple of TestResult, one per test found. Empty tuple if Docker
-        is not available or no tests found.
+        Result.ok(test_results) on successful execution,
+        Result.fail(message) on infrastructure errors.
     """
     if not check_docker_available():
-        return ()
+        return Result.fail("Docker not available")
 
     if compose_file is None:
         compose_file = get_compose_file()
@@ -251,12 +252,12 @@ def docker_run_tests(
         )
 
         combined_output = result.stdout + result.stderr
-        return parse_test_log(combined_output)
+        return Result.ok(parse_test_log(combined_output))
     except subprocess.TimeoutExpired:
         logger.warning("Docker test run timed out after %ds", timeout)
-        return ()
-    except Exception:
+        return Result.fail(f"Docker test run timed out after {timeout}s")
+    except Exception as exc:
         logger.warning("Docker test run failed", exc_info=True)
-        return ()
+        return Result.fail(f"Docker test run failed: {exc}")
     finally:
         _teardown(compose_file, env)

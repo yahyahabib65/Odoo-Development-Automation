@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import dataclasses
-from unittest.mock import MagicMock, patch
+from datetime import datetime, timezone, timedelta
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
@@ -11,7 +12,9 @@ from odoo_gen_utils.search.types import IndexEntry, IndexStatus
 from odoo_gen_utils.search.index import (
     DEFAULT_DB_PATH,
     _build_document_text,
+    _check_rate_limit,
     _parse_manifest_safe,
+    _retry_on_rate_limit,
     build_oca_index,
     get_github_token,
     get_index_status,
@@ -353,3 +356,194 @@ class TestBuildOcaIndex:
     def test_raises_system_exit_when_no_token(self) -> None:
         with pytest.raises(SystemExit, match="GitHub token required"):
             build_oca_index("", "/tmp/test_db")
+
+
+# ---------------------------------------------------------------------------
+# _check_rate_limit tests
+# ---------------------------------------------------------------------------
+
+
+class TestCheckRateLimit:
+    """_check_rate_limit sleeps when rate.remaining is low."""
+
+    @patch("odoo_gen_utils.search.index.time")
+    def test_sleeps_when_remaining_low(self, mock_time: MagicMock) -> None:
+        """_check_rate_limit sleeps when rate.remaining < min_remaining."""
+        mock_time.time.return_value = 1000.0
+
+        mock_rate = MagicMock()
+        mock_rate.remaining = 5
+        mock_rate.limit = 5000
+        # Reset is 60 seconds in the future
+        reset_dt = datetime.fromtimestamp(1060.0, tz=timezone.utc)
+        mock_rate.reset = reset_dt
+
+        mock_rate_limit = MagicMock()
+        mock_rate_limit.core = mock_rate
+
+        mock_gh = MagicMock()
+        mock_gh.get_rate_limit.return_value = mock_rate_limit
+
+        _check_rate_limit(mock_gh, min_remaining=10)
+
+        mock_time.sleep.assert_called_once()
+        sleep_seconds = mock_time.sleep.call_args[0][0]
+        assert sleep_seconds > 0
+
+    @patch("odoo_gen_utils.search.index.time")
+    def test_does_nothing_when_remaining_sufficient(self, mock_time: MagicMock) -> None:
+        """_check_rate_limit does nothing when rate.remaining >= min_remaining."""
+        mock_rate = MagicMock()
+        mock_rate.remaining = 100
+        mock_rate.limit = 5000
+
+        mock_rate_limit = MagicMock()
+        mock_rate_limit.core = mock_rate
+
+        mock_gh = MagicMock()
+        mock_gh.get_rate_limit.return_value = mock_rate_limit
+
+        _check_rate_limit(mock_gh, min_remaining=10)
+
+        mock_time.sleep.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# _retry_on_rate_limit tests
+# ---------------------------------------------------------------------------
+
+
+class TestRetryOnRateLimit:
+    """_retry_on_rate_limit retries with exponential backoff on RateLimitExceededException."""
+
+    @patch("odoo_gen_utils.search.index.time")
+    def test_retries_with_exponential_backoff(self, mock_time: MagicMock) -> None:
+        """Retries on RateLimitExceededException with 1s, 2s delays."""
+        from github import RateLimitExceededException
+
+        mock_func = MagicMock()
+        mock_func.side_effect = [
+            RateLimitExceededException(403, {"message": "rate limit"}, None),
+            RateLimitExceededException(403, {"message": "rate limit"}, None),
+            "success_result",
+        ]
+
+        result = _retry_on_rate_limit(mock_func, "arg1", max_retries=3)
+
+        assert result == "success_result"
+        assert mock_func.call_count == 3
+        # Backoff: 2^0=1, 2^1=2
+        sleep_calls = mock_time.sleep.call_args_list
+        assert len(sleep_calls) == 2
+        assert sleep_calls[0] == call(1)
+        assert sleep_calls[1] == call(2)
+
+    @patch("odoo_gen_utils.search.index.time")
+    def test_reraises_after_max_retries(self, mock_time: MagicMock) -> None:
+        """Re-raises RateLimitExceededException after max_retries exhausted."""
+        from github import RateLimitExceededException
+
+        exc = RateLimitExceededException(403, {"message": "rate limit"}, None)
+        mock_func = MagicMock(side_effect=exc)
+
+        with pytest.raises(RateLimitExceededException):
+            _retry_on_rate_limit(mock_func, max_retries=3)
+
+        assert mock_func.call_count == 4  # initial + 3 retries
+
+    @patch("odoo_gen_utils.search.index.time")
+    def test_returns_result_on_success(self, mock_time: MagicMock) -> None:
+        """Returns result immediately on success (no exception)."""
+        mock_func = MagicMock(return_value="immediate_result")
+
+        result = _retry_on_rate_limit(mock_func, "arg1", "arg2", max_retries=3)
+
+        assert result == "immediate_result"
+        mock_func.assert_called_once_with("arg1", "arg2")
+        mock_time.sleep.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# build_oca_index rate limit integration tests
+# ---------------------------------------------------------------------------
+
+
+class TestBuildOcaIndexRateLimit:
+    """build_oca_index calls _check_rate_limit periodically during crawl."""
+
+    @patch("odoo_gen_utils.search.index._check_rate_limit")
+    @patch("odoo_gen_utils.search.index.chromadb")
+    @patch("odoo_gen_utils.search.index.Github")
+    def test_calls_check_rate_limit_every_10_repos(
+        self,
+        mock_github_cls: MagicMock,
+        mock_chromadb: MagicMock,
+        mock_check_rl: MagicMock,
+    ) -> None:
+        """build_oca_index calls _check_rate_limit at least once for 15+ repos."""
+        # Create 15 repos with no 17.0 branch (simplest mock)
+        repos = []
+        for i in range(15):
+            repo = MagicMock()
+            repo.name = f"repo-{i}"
+            from github import GithubException
+            repo.get_branch.side_effect = GithubException(404, {"message": "Not found"}, None)
+            repos.append(repo)
+
+        mock_org = MagicMock()
+        mock_org.get_repos.return_value = repos
+        mock_gh = MagicMock()
+        mock_gh.get_organization.return_value = mock_org
+        mock_github_cls.return_value = mock_gh
+
+        mock_collection = MagicMock()
+        mock_client = MagicMock()
+        mock_client.get_or_create_collection.return_value = mock_collection
+        mock_chromadb.PersistentClient.return_value = mock_client
+
+        build_oca_index("fake-token", "/tmp/test_db")
+
+        # _check_rate_limit should have been called at idx=10 (at least once)
+        assert mock_check_rl.call_count >= 1
+
+    @patch("odoo_gen_utils.search.index._check_rate_limit")
+    @patch("odoo_gen_utils.search.index.chromadb")
+    @patch("odoo_gen_utils.search.index.Github")
+    def test_retries_get_branch_on_rate_limit(
+        self,
+        mock_github_cls: MagicMock,
+        mock_chromadb: MagicMock,
+        mock_check_rl: MagicMock,
+    ) -> None:
+        """build_oca_index catches RateLimitExceededException on get_branch and retries."""
+        from github import RateLimitExceededException
+
+        repo = MagicMock()
+        repo.name = "test-repo"
+        repo.html_url = "https://github.com/OCA/test-repo"
+        repo.stargazers_count = 5
+        repo.pushed_at = "2026-01-01"
+        # First call raises rate limit, second succeeds
+        branch = MagicMock()
+        branch.name = "17.0"
+        repo.get_branch.side_effect = [
+            RateLimitExceededException(403, {"message": "rate limit"}, None),
+            branch,
+        ]
+        repo.get_contents.return_value = []
+
+        mock_org = MagicMock()
+        mock_org.get_repos.return_value = [repo]
+        mock_gh = MagicMock()
+        mock_gh.get_organization.return_value = mock_org
+        mock_github_cls.return_value = mock_gh
+
+        mock_collection = MagicMock()
+        mock_client = MagicMock()
+        mock_client.get_or_create_collection.return_value = mock_collection
+        mock_chromadb.PersistentClient.return_value = mock_client
+
+        build_oca_index("fake-token", "/tmp/test_db")
+
+        # get_branch should have been called twice (original + retry)
+        assert repo.get_branch.call_count == 2

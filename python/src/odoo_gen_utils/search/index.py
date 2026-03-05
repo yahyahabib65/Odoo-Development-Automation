@@ -8,8 +8,10 @@ ChromaDB vector database for semantic search.
 from __future__ import annotations
 
 import ast
+import logging
 import os
 import subprocess
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
@@ -20,15 +22,79 @@ except ImportError:  # pragma: no cover
     chromadb = None  # type: ignore[assignment]
 
 try:
-    from github import Github, GithubException
+    from github import Github, GithubException, RateLimitExceededException
 except ImportError:  # pragma: no cover
     Github = None  # type: ignore[assignment,misc]
     GithubException = Exception  # type: ignore[assignment,misc]
+    RateLimitExceededException = Exception  # type: ignore[assignment,misc]
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from odoo_gen_utils.search.types import IndexStatus
 
 DEFAULT_DB_PATH = Path.home() / ".local" / "share" / "odoo-gen" / "chromadb"
+
+
+def _check_rate_limit(gh: object, min_remaining: int = 10) -> None:
+    """Check GitHub API rate limit and sleep until reset if remaining is low.
+
+    Calls ``gh.get_rate_limit().core`` to inspect the current rate limit.
+    If ``remaining < min_remaining``, sleeps until the reset timestamp plus
+    one second of buffer.
+
+    Args:
+        gh: Authenticated PyGithub Github instance.
+        min_remaining: Minimum remaining requests before sleeping. Default 10.
+    """
+    rate = gh.get_rate_limit().core  # type: ignore[union-attr]
+    if rate.remaining < min_remaining:
+        reset_timestamp = rate.reset.timestamp()
+        now = time.time()
+        sleep_seconds = max(reset_timestamp - now + 1, 1)
+        logger.info(
+            "Rate limit low (%d/%d remaining). Sleeping %.0f seconds until reset.",
+            rate.remaining,
+            rate.limit,
+            sleep_seconds,
+        )
+        time.sleep(sleep_seconds)
+
+
+def _retry_on_rate_limit(func: Callable, *args: object, max_retries: int = 3, **kwargs: object) -> object:
+    """Retry a function call on RateLimitExceededException with exponential backoff.
+
+    Attempts ``func(*args, **kwargs)`` up to ``max_retries + 1`` times. On each
+    RateLimitExceededException, sleeps for ``2 ** attempt`` seconds before retrying.
+    Re-raises the exception if all retries are exhausted.
+
+    Args:
+        func: Callable to invoke.
+        *args: Positional arguments passed to func.
+        max_retries: Maximum number of retry attempts. Default 3.
+        **kwargs: Keyword arguments passed to func.
+
+    Returns:
+        The return value of func on success.
+
+    Raises:
+        RateLimitExceededException: If all retries are exhausted.
+    """
+    for attempt in range(max_retries + 1):
+        try:
+            return func(*args, **kwargs)
+        except RateLimitExceededException:
+            if attempt >= max_retries:
+                raise
+            sleep_seconds = 2 ** attempt
+            logger.warning(
+                "Rate limit exceeded (attempt %d/%d). Retrying in %d seconds.",
+                attempt + 1,
+                max_retries,
+                sleep_seconds,
+            )
+            time.sleep(sleep_seconds)
+    return None  # pragma: no cover — unreachable
 
 
 def get_github_token() -> str | None:
@@ -144,9 +210,22 @@ def build_oca_index(
     module_count = 0
 
     for idx, repo in enumerate(repos):
+        # Check rate limit every 10 repos
+        if idx % 10 == 0 and idx > 0:
+            _check_rate_limit(gh)
+
         # Try to get 17.0 branch; skip repo if not found
         try:
             repo.get_branch("17.0")
+        except RateLimitExceededException:
+            # Rate limit hit on get_branch -- wait and retry once
+            _check_rate_limit(gh)
+            try:
+                repo.get_branch("17.0")
+            except (GithubException, Exception):
+                if progress_callback:
+                    progress_callback(idx + 1, total_repos)
+                continue
         except (GithubException, Exception):
             if progress_callback:
                 progress_callback(idx + 1, total_repos)

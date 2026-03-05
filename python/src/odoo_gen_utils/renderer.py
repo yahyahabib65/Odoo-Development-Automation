@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, Any
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
+from odoo_gen_utils.validation.types import Result
+
 if TYPE_CHECKING:
     from odoo_gen_utils.verifier import EnvironmentVerifier, VerificationWarning
 
@@ -212,10 +214,32 @@ def _build_model_context(spec: dict[str, Any], model: dict[str, Any]) -> dict[st
         for f in fields
     )
 
-    # Phase 12: mail.thread auto-inheritance (TMPL-01)
+    # Phase 12 + 21: mail.thread auto-inheritance (TMPL-01)
+    # Smart injection: skip line items, honor chatter flag, avoid duplicates on in-module parents
     explicit_inherit = model.get("inherit")
     inherit_list = [explicit_inherit] if explicit_inherit else []
-    if "mail" in spec.get("depends", []):
+
+    # Collect all model names in this module for line item & parent detection
+    module_model_names = {m["name"] for m in spec.get("models", [])}
+
+    # Detect if this model is a line item (has required Many2one _id to in-module model)
+    is_line_item = any(
+        f.get("type") == "Many2one"
+        and f.get("required")
+        and f.get("comodel_name") in module_model_names
+        and f.get("name", "").endswith("_id")
+        for f in fields
+    )
+
+    # Read explicit chatter flag: None=auto, True=force, False=skip
+    chatter = model.get("chatter")
+    if chatter is None:
+        chatter = not is_line_item
+
+    # Detect if parent (explicit_inherit) is another model in the same module
+    parent_is_in_module = explicit_inherit in module_model_names if explicit_inherit else False
+
+    if chatter and "mail" in spec.get("depends", []) and not parent_is_in_module:
         for mixin in ("mail.thread", "mail.activity.mixin"):
             if mixin not in inherit_list:
                 inherit_list.append(mixin)
@@ -327,107 +351,325 @@ def _compute_view_files(spec: dict[str, Any]) -> list[str]:
     return view_files
 
 
-def render_module(
+def render_manifest(
+    env: Environment,
     spec: dict[str, Any],
-    template_dir: Path,
-    output_dir: Path,
-    verifier: "EnvironmentVerifier | None" = None,
-) -> "tuple[list[Path], list[VerificationWarning]]":
-    """Render a complete Odoo module from a specification dictionary.
-
-    Produces the full OCA directory structure:
-        __manifest__.py, __init__.py, models/, views/, security/,
-        tests/, demo/, static/description/, README.rst,
-        data/ (sequences.xml + data.xml), wizards/ (if spec has wizards)
-
-    When ``odoo_version`` is present in *spec*, templates are loaded from the
-    corresponding versioned directory (e.g. ``templates/18.0/``) with a fallback
-    to ``templates/shared/``.  The *template_dir* parameter is still accepted for
-    backward compatibility but is ignored when the spec contains ``odoo_version``.
+    module_dir: Path,
+    module_context: dict[str, Any],
+) -> Result[list[Path]]:
+    """Render __manifest__.py, root __init__.py, and models/__init__.py.
 
     Args:
-        spec: Module specification dictionary with module_name, models, etc.
-        template_dir: Path to Jinja2 template files.
-        output_dir: Root directory where the module will be created.
-        verifier: Optional EnvironmentVerifier for inline MCP-backed verification.
-            When None (default), verification is skipped and warnings is always [].
+        env: Configured Jinja2 Environment.
+        spec: Full module specification dictionary.
+        module_dir: Path to the module directory.
+        module_context: Shared module-level template context.
 
     Returns:
-        Tuple of (created_files, verification_warnings).
-        verification_warnings is empty when verifier is None or Odoo is unavailable.
+        Result containing list of created file Paths on success.
     """
-    version = spec.get("odoo_version", "17.0")
-    env = create_versioned_renderer(version)
-    module_name = spec["module_name"]
-    module_dir = output_dir / module_name
-    created_files: list[Path] = []
-    all_warnings: list = []
-
-    # --- Artifact state tracking (OBS-01) ---
     try:
-        from odoo_gen_utils.artifact_state import (
-            ArtifactKind,
-            ArtifactStatus,
-            ModuleState,
-            save_state,
+        created: list[Path] = []
+        created.append(
+            render_template(env, "manifest.py.j2", module_dir / "__manifest__.py", module_context)
         )
-        _state: ModuleState | None = ModuleState(module_name=module_name)
-    except Exception:
-        _state = None
+        created.append(
+            render_template(env, "init_root.py.j2", module_dir / "__init__.py", module_context)
+        )
+        created.append(
+            render_template(env, "init_models.py.j2", module_dir / "models" / "__init__.py", module_context)
+        )
+        return Result.ok(created)
+    except Exception as exc:
+        return Result.fail(f"render_manifest failed: {exc}")
 
+
+def render_models(
+    env: Environment,
+    spec: dict[str, Any],
+    module_dir: Path,
+    module_context: dict[str, Any],
+    verifier: "EnvironmentVerifier | None" = None,
+    warnings_out: list | None = None,
+) -> Result[list[Path]]:
+    """Render per-model .py files, views, and action files.
+
+    Args:
+        env: Configured Jinja2 Environment.
+        spec: Full module specification dictionary.
+        module_dir: Path to the module directory.
+        module_context: Shared module-level template context.
+        verifier: Optional EnvironmentVerifier for inline verification.
+        warnings_out: Optional mutable list to collect verification warnings into.
+
+    Returns:
+        Result containing list of created file Paths on success.
+    """
+    try:
+        models = spec.get("models", [])
+        created: list[Path] = []
+
+        for model in models:
+            model_ctx = _build_model_context(spec, model)
+            model_var = _to_python_var(model["name"])
+
+            if verifier is not None:
+                model_result = verifier.verify_model_spec(model)
+                if model_result.success and warnings_out is not None:
+                    warnings_out.extend(model_result.data or [])
+
+            created.append(
+                render_template(env, "model.py.j2", module_dir / "models" / f"{model_var}.py", model_ctx)
+            )
+            created.append(
+                render_template(env, "view_form.xml.j2", module_dir / "views" / f"{model_var}_views.xml", model_ctx)
+            )
+
+            if verifier is not None:
+                field_names = [f.get("name", "") for f in model.get("fields", [])]
+                view_result = verifier.verify_view_spec(model.get("name", ""), field_names)
+                if view_result.success and warnings_out is not None:
+                    warnings_out.extend(view_result.data or [])
+
+            created.append(
+                render_template(env, "action.xml.j2", module_dir / "views" / f"{model_var}_action.xml", model_ctx)
+            )
+
+        return Result.ok(created)
+    except Exception as exc:
+        return Result.fail(f"render_models failed: {exc}")
+
+
+def render_views(
+    env: Environment,
+    spec: dict[str, Any],
+    module_dir: Path,
+    module_context: dict[str, Any],
+) -> Result[list[Path]]:
+    """Render views/menu.xml for all models.
+
+    Args:
+        env: Configured Jinja2 Environment.
+        spec: Full module specification dictionary.
+        module_dir: Path to the module directory.
+        module_context: Shared module-level template context.
+
+    Returns:
+        Result containing list of created file Paths on success.
+    """
+    try:
+        created: list[Path] = []
+        created.append(
+            render_template(env, "menu.xml.j2", module_dir / "views" / "menu.xml", module_context)
+        )
+        return Result.ok(created)
+    except Exception as exc:
+        return Result.fail(f"render_views failed: {exc}")
+
+
+def render_security(
+    env: Environment,
+    spec: dict[str, Any],
+    module_dir: Path,
+    module_context: dict[str, Any],
+) -> Result[list[Path]]:
+    """Render security files: security.xml, ir.model.access.csv, optional record_rules.xml.
+
+    Args:
+        env: Configured Jinja2 Environment.
+        spec: Full module specification dictionary.
+        module_dir: Path to the module directory.
+        module_context: Shared module-level template context.
+
+    Returns:
+        Result containing list of created file Paths on success.
+    """
+    try:
+        models = spec.get("models", [])
+        created: list[Path] = []
+        created.append(
+            render_template(env, "security_group.xml.j2", module_dir / "security" / "security.xml", module_context)
+        )
+        created.append(
+            render_template(env, "access_csv.j2", module_dir / "security" / "ir.model.access.csv", module_context)
+        )
+        has_company = any(
+            any(f.get("name") == "company_id" and f.get("type") == "Many2one" for f in m.get("fields", []))
+            for m in models
+        )
+        if has_company:
+            enriched = [
+                {**m, "has_company_field": any(
+                    f.get("name") == "company_id" and f.get("type") == "Many2one" for f in m.get("fields", [])
+                )}
+                for m in models
+            ]
+            created.append(render_template(
+                env, "record_rules.xml.j2", module_dir / "security" / "record_rules.xml",
+                {**module_context, "models": enriched},
+            ))
+        return Result.ok(created)
+    except Exception as exc:
+        return Result.fail(f"render_security failed: {exc}")
+
+
+def render_wizards(
+    env: Environment,
+    spec: dict[str, Any],
+    module_dir: Path,
+    module_context: dict[str, Any],
+) -> Result[list[Path]]:
+    """Render wizard files: wizards/__init__.py, per-wizard .py, per-wizard form XML.
+
+    Args:
+        env: Configured Jinja2 Environment.
+        spec: Full module specification dictionary.
+        module_dir: Path to the module directory.
+        module_context: Shared module-level template context.
+
+    Returns:
+        Result containing list of created file Paths on success (empty if no wizards).
+    """
+    try:
+        spec_wizards = spec.get("wizards", [])
+        if not spec_wizards:
+            return Result.ok([])
+        created: list[Path] = []
+        created.append(
+            render_template(env, "init_wizards.py.j2", module_dir / "wizards" / "__init__.py", {**module_context})
+        )
+        for wizard in spec_wizards:
+            wvar = _to_python_var(wizard["name"])
+            wxid = _to_xml_id(wizard["name"])
+            wctx = {**module_context, "wizard": wizard, "wizard_var": wvar,
+                    "wizard_xml_id": wxid, "wizard_class": _to_class(wizard["name"]), "needs_api": True}
+            created.append(render_template(env, "wizard.py.j2", module_dir / "wizards" / f"{wvar}.py", wctx))
+            created.append(render_template(
+                env, "wizard_form.xml.j2", module_dir / "views" / f"{wxid}_wizard_form.xml", wctx))
+        return Result.ok(created)
+    except Exception as exc:
+        return Result.fail(f"render_wizards failed: {exc}")
+
+
+def render_tests(
+    env: Environment,
+    spec: dict[str, Any],
+    module_dir: Path,
+    module_context: dict[str, Any],
+) -> Result[list[Path]]:
+    """Render tests/__init__.py and per-model test files.
+
+    Args:
+        env: Configured Jinja2 Environment.
+        spec: Full module specification dictionary.
+        module_dir: Path to the module directory.
+        module_context: Shared module-level template context.
+
+    Returns:
+        Result containing list of created file Paths on success.
+    """
+    try:
+        created: list[Path] = []
+        created.append(
+            render_template(env, "init_tests.py.j2", module_dir / "tests" / "__init__.py", module_context)
+        )
+        for model in spec.get("models", []):
+            model_ctx = _build_model_context(spec, model)
+            model_var = _to_python_var(model["name"])
+            created.append(
+                render_template(env, "test_model.py.j2", module_dir / "tests" / f"test_{model_var}.py", model_ctx)
+            )
+        return Result.ok(created)
+    except Exception as exc:
+        return Result.fail(f"render_tests failed: {exc}")
+
+
+def render_static(
+    env: Environment,
+    spec: dict[str, Any],
+    module_dir: Path,
+    module_context: dict[str, Any],
+) -> Result[list[Path]]:
+    """Render data.xml, sequences.xml, demo data, static/index.html, and README.rst.
+
+    Args:
+        env: Configured Jinja2 Environment.
+        spec: Full module specification dictionary.
+        module_dir: Path to the module directory.
+        module_context: Shared module-level template context.
+
+    Returns:
+        Result containing list of created file Paths on success.
+    """
+    try:
+        models = spec.get("models", [])
+        created: list[Path] = []
+        # data/data.xml stub
+        data_xml_path = module_dir / "data" / "data.xml"
+        data_xml_path.parent.mkdir(parents=True, exist_ok=True)
+        data_xml_path.write_text(
+            '<?xml version="1.0" encoding="utf-8"?>\n<odoo>\n'
+            "    <!-- Static data records go here -->\n</odoo>\n",
+            encoding="utf-8",
+        )
+        created.append(data_xml_path)
+        # sequences.xml if needed
+        seq_models = [
+            m for m in models
+            if any(f.get("type") == "Char" and f.get("name") in SEQUENCE_FIELD_NAMES and f.get("required")
+                   for f in m.get("fields", []))
+        ]
+        if seq_models:
+            seq_ctx = {
+                **module_context,
+                "sequence_models": [
+                    {"model": m, "model_var": _to_python_var(m["name"]),
+                     "sequence_fields": [f for f in m.get("fields", [])
+                                         if f.get("type") == "Char" and f.get("name") in SEQUENCE_FIELD_NAMES
+                                         and f.get("required")]}
+                    for m in seq_models
+                ],
+            }
+            created.append(render_template(env, "sequences.xml.j2", module_dir / "data" / "sequences.xml", seq_ctx))
+        # demo data
+        created.append(render_template(env, "demo_data.xml.j2", module_dir / "demo" / "demo_data.xml", module_context))
+        # static/description/index.html
+        static_dir = module_dir / "static" / "description"
+        static_dir.mkdir(parents=True, exist_ok=True)
+        index_html = static_dir / "index.html"
+        index_html.write_text(
+            '<!DOCTYPE html>\n<html>\n<head><title>Module Description</title></head>\n'
+            '<body><p>See README.rst for module documentation.</p></body>\n</html>\n',
+            encoding="utf-8",
+        )
+        created.append(index_html)
+        # README.rst
+        created.append(render_template(env, "readme.rst.j2", module_dir / "README.rst", module_context))
+        return Result.ok(created)
+    except Exception as exc:
+        return Result.fail(f"render_static failed: {exc}")
+
+
+def _build_module_context(spec: dict[str, Any], module_name: str) -> dict[str, Any]:
+    """Build the shared module-level template context from the spec."""
     models = spec.get("models", [])
     spec_wizards = spec.get("wizards", [])
-    has_wizards = bool(spec_wizards)
-
-    # Detect sequence fields across all models
-    models_with_sequences = [
-        m for m in models
-        if any(
-            f.get("type") == "Char"
-            and f.get("name") in SEQUENCE_FIELD_NAMES
-            and f.get("required")
-            for f in m.get("fields", [])
-        )
-    ]
-    has_sequences = bool(models_with_sequences)
-
-    # Detect models with company_id field (Phase 6 record rules)
-    models_with_company_field = [
-        m for m in models
-        if any(
-            f.get("name") == "company_id" and f.get("type") == "Many2one"
-            for f in m.get("fields", [])
-        )
-    ]
-    has_company_modules = bool(models_with_company_field)
-
-    # Enrich model dicts with has_company_field for template access
-    enriched_models = []
-    for m in models:
-        m_copy = dict(m)
-        m_copy["has_company_field"] = any(
-            f.get("name") == "company_id" and f.get("type") == "Many2one"
-            for f in m.get("fields", [])
-        )
-        enriched_models.append(m_copy)
-
-    # Compute data files for manifest (canonical order)
+    has_seq = any(
+        any(f.get("type") == "Char" and f.get("name") in SEQUENCE_FIELD_NAMES and f.get("required")
+            for f in m.get("fields", []))
+        for m in models
+    )
+    has_company = any(
+        any(f.get("name") == "company_id" and f.get("type") == "Many2one" for f in m.get("fields", []))
+        for m in models
+    )
     data_files: list[str] = []
-    if has_sequences:
+    if has_seq:
         data_files.append("data/sequences.xml")
     data_files.append("data/data.xml")
-
-    # Compute wizard view files for manifest
-    wizard_view_files: list[str] = []
-    for wizard in spec_wizards:
-        wizard_xml_id = _to_xml_id(wizard["name"])
-        wizard_view_files.append(f"views/{wizard_xml_id}_wizard_form.xml")
-
-    # Compute manifest file list with canonical ordering
-    all_manifest_files = _compute_manifest_data(spec, data_files, wizard_view_files, has_company_modules=has_company_modules)
-
-    # -- Shared context for module-level templates --
-    module_context = {
+    wiz_files = [f"views/{_to_xml_id(w['name'])}_wizard_form.xml" for w in spec_wizards]
+    manifest_files = _compute_manifest_data(spec, data_files, wiz_files, has_company_modules=has_company)
+    return {
         "module_name": module_name,
         "module_title": spec.get("module_title", module_name.replace("_", " ").title()),
         "module_technical_name": module_name,
@@ -441,261 +683,87 @@ def render_module(
         "application": spec.get("application", True),
         "models": models,
         "view_files": _compute_view_files(spec),
-        "manifest_files": all_manifest_files,
-        "has_wizards": has_wizards,
+        "manifest_files": manifest_files,
+        "has_wizards": bool(spec_wizards),
         "spec_wizards": spec_wizards,
     }
 
-    # 1. __manifest__.py (uses updated manifest_files with canonical ordering)
-    created_files.append(
-        render_template(env, "manifest.py.j2", module_dir / "__manifest__.py", module_context)
-    )
-    if _state is not None:
+
+def _track_artifacts(state: Any, spec: dict[str, Any], module_dir: Path) -> Any:
+    """Track artifact state transitions for all generated files."""
+    try:
+        from odoo_gen_utils.artifact_state import ArtifactKind, ArtifactStatus
+    except Exception:
+        return state
+    transitions = [("MANIFEST", "__manifest__", "__manifest__.py")]
+    for model in spec.get("models", []):
+        mv = _to_python_var(model["name"])
+        transitions.append(("MODEL", model["name"], f"models/{mv}.py"))
+        transitions.append(("VIEW", model["name"], f"views/{mv}_views.xml"))
+        transitions.append(("TEST", model["name"], f"tests/test_{mv}.py"))
+    transitions.append(("SECURITY", "ir.model.access.csv", "security/ir.model.access.csv"))
+    for kind_name, art_name, file_path in transitions:
         try:
-            _state = _state.transition(
-                kind=ArtifactKind.MANIFEST.value,
-                name="__manifest__",
-                file_path="__manifest__.py",
-                new_status=ArtifactStatus.GENERATED.value,
-            )
+            kind = getattr(ArtifactKind, kind_name, None)
+            if kind is not None:
+                state = state.transition(
+                    kind=kind.value, name=art_name, file_path=file_path,
+                    new_status=ArtifactStatus.GENERATED.value,
+                )
         except Exception:
-            pass  # State tracking must never block generation
+            pass
+    return state
 
-    # 2. Root __init__.py (conditionally imports wizards)
-    created_files.append(
-        render_template(env, "init_root.py.j2", module_dir / "__init__.py", module_context)
-    )
 
-    # 3. models/__init__.py
-    created_files.append(
-        render_template(env, "init_models.py.j2", module_dir / "models" / "__init__.py", module_context)
-    )
+def render_module(
+    spec: dict[str, Any],
+    template_dir: Path,
+    output_dir: Path,
+    verifier: "EnvironmentVerifier | None" = None,
+) -> "tuple[list[Path], list[VerificationWarning]]":
+    """Orchestrate rendering of a complete Odoo module via 7 stage functions.
 
-    # 4. Per-model files
-    for model in models:
-        model_ctx = _build_model_context(spec, model)
-        model_var = _to_python_var(model["name"])
+    Args:
+        spec: Module specification dictionary with module_name, models, etc.
+        template_dir: Path to Jinja2 template files (kept for backward compat).
+        output_dir: Root directory where the module will be created.
+        verifier: Optional EnvironmentVerifier for inline MCP-backed verification.
 
-        # Inline environment verification (MCP-03): verify inherit and comodel targets.
-        if verifier is not None:
-            all_warnings.extend(verifier.verify_model_spec(model))
+    Returns:
+        Tuple of (created_files, verification_warnings).
+    """
+    env = create_versioned_renderer(spec.get("odoo_version", "17.0"))
+    module_name = spec["module_name"]
+    module_dir = output_dir / module_name
+    ctx = _build_module_context(spec, module_name)
+    all_warnings: list = []
 
-        # models/<model_var>.py
-        created_files.append(
-            render_template(env, "model.py.j2", module_dir / "models" / f"{model_var}.py", model_ctx)
-        )
-        if _state is not None:
-            try:
-                _state = _state.transition(
-                    kind=ArtifactKind.MODEL.value,
-                    name=model["name"],
-                    file_path=str(created_files[-1].relative_to(module_dir)),
-                    new_status=ArtifactStatus.GENERATED.value,
-                )
-            except Exception:
-                pass  # State tracking must never block generation
+    try:
+        from odoo_gen_utils.artifact_state import ModuleState, save_state
+        _state: ModuleState | None = ModuleState(module_name=module_name)
+    except Exception:
+        _state = None
 
-        # views/<model_var>_views.xml (form + tree + search combined)
-        created_files.append(
-            render_template(env, "view_form.xml.j2", module_dir / "views" / f"{model_var}_views.xml", model_ctx)
-        )
-        if _state is not None:
-            try:
-                _state = _state.transition(
-                    kind=ArtifactKind.VIEW.value,
-                    name=model["name"],
-                    file_path=str(created_files[-1].relative_to(module_dir)),
-                    new_status=ArtifactStatus.GENERATED.value,
-                )
-            except Exception:
-                pass  # State tracking must never block generation
+    created_files: list[Path] = []
+    stages = [
+        lambda: render_manifest(env, spec, module_dir, ctx),
+        lambda: render_models(env, spec, module_dir, ctx, verifier=verifier, warnings_out=all_warnings),
+        lambda: render_views(env, spec, module_dir, ctx),
+        lambda: render_security(env, spec, module_dir, ctx),
+        lambda: render_wizards(env, spec, module_dir, ctx),
+        lambda: render_tests(env, spec, module_dir, ctx),
+        lambda: render_static(env, spec, module_dir, ctx),
+    ]
+    for stage_fn in stages:
+        result = stage_fn()
+        if not result.success:
+            break
+        created_files.extend(result.data or [])
 
-        # Inline environment verification (MCP-04): verify view field references.
-        if verifier is not None:
-            field_names = [f.get("name", "") for f in model.get("fields", [])]
-            all_warnings.extend(verifier.verify_view_spec(model.get("name", ""), field_names))
-
-        # views/<model_var>_action.xml
-        created_files.append(
-            render_template(env, "action.xml.j2", module_dir / "views" / f"{model_var}_action.xml", model_ctx)
-        )
-
-    # 5. views/menu.xml (single menu file for all models)
-    created_files.append(
-        render_template(env, "menu.xml.j2", module_dir / "views" / "menu.xml", module_context)
-    )
-
-    # 6. security/security.xml
-    created_files.append(
-        render_template(env, "security_group.xml.j2", module_dir / "security" / "security.xml", module_context)
-    )
-
-    # 7. security/ir.model.access.csv
-    created_files.append(
-        render_template(env, "access_csv.j2", module_dir / "security" / "ir.model.access.csv", module_context)
-    )
     if _state is not None:
-        try:
-            _state = _state.transition(
-                kind=ArtifactKind.SECURITY.value,
-                name="ir.model.access.csv",
-                file_path="security/ir.model.access.csv",
-                new_status=ArtifactStatus.GENERATED.value,
-            )
-        except Exception:
-            pass  # State tracking must never block generation
-
-    # 7b. security/record_rules.xml (if any model has company_id field)
-    if has_company_modules:
-        record_rules_ctx = {
-            **module_context,
-            "models": enriched_models,
-        }
-        created_files.append(
-            render_template(
-                env,
-                "record_rules.xml.j2",
-                module_dir / "security" / "record_rules.xml",
-                record_rules_ctx,
-            )
-        )
-
-    # 8. data/data.xml (always emit as stub)
-    data_xml_path = module_dir / "data" / "data.xml"
-    data_xml_path.parent.mkdir(parents=True, exist_ok=True)
-    data_xml_path.write_text(
-        '<?xml version="1.0" encoding="utf-8"?>\n'
-        "<odoo>\n"
-        "    <!-- Static data records go here -->\n"
-        "</odoo>\n",
-        encoding="utf-8",
-    )
-    created_files.append(data_xml_path)
-
-    # 9. data/sequences.xml (if any model has sequence fields)
-    if has_sequences:
-        # Build sequences context: all sequence models + their sequence fields
-        sequences_ctx = {
-            **module_context,
-            "sequence_models": [
-                {
-                    "model": m,
-                    "model_var": _to_python_var(m["name"]),
-                    "sequence_fields": [
-                        f for f in m.get("fields", [])
-                        if f.get("type") == "Char"
-                        and f.get("name") in SEQUENCE_FIELD_NAMES
-                        and f.get("required")
-                    ],
-                }
-                for m in models_with_sequences
-            ],
-        }
-        created_files.append(
-            render_template(
-                env,
-                "sequences.xml.j2",
-                module_dir / "data" / "sequences.xml",
-                sequences_ctx,
-            )
-        )
-
-    # 10. Wizard files (if spec has wizards)
-    if has_wizards:
-        # wizards/__init__.py
-        wizards_ctx = {**module_context}
-        created_files.append(
-            render_template(
-                env,
-                "init_wizards.py.j2",
-                module_dir / "wizards" / "__init__.py",
-                wizards_ctx,
-            )
-        )
-
-        # Per-wizard files
-        for wizard in spec_wizards:
-            wizard_var = _to_python_var(wizard["name"])
-            wizard_xml_id = _to_xml_id(wizard["name"])
-            wizard_ctx = {
-                **module_context,
-                "wizard": wizard,
-                "wizard_var": wizard_var,
-                "wizard_xml_id": wizard_xml_id,
-                "wizard_class": _to_class(wizard["name"]),
-            }
-
-            # wizards/<wizard_var>.py
-            created_files.append(
-                render_template(
-                    env,
-                    "wizard.py.j2",
-                    module_dir / "wizards" / f"{wizard_var}.py",
-                    wizard_ctx,
-                )
-            )
-
-            # views/<wizard_xml_id>_wizard_form.xml
-            created_files.append(
-                render_template(
-                    env,
-                    "wizard_form.xml.j2",
-                    module_dir / "views" / f"{wizard_xml_id}_wizard_form.xml",
-                    wizard_ctx,
-                )
-            )
-
-    # 11. tests/__init__.py
-    created_files.append(
-        render_template(env, "init_tests.py.j2", module_dir / "tests" / "__init__.py", module_context)
-    )
-
-    # 12. Per-model test files
-    for model in models:
-        model_ctx = _build_model_context(spec, model)
-        model_var = _to_python_var(model["name"])
-        created_files.append(
-            render_template(
-                env, "test_model.py.j2", module_dir / "tests" / f"test_{model_var}.py", model_ctx
-            )
-        )
-        if _state is not None:
-            try:
-                _state = _state.transition(
-                    kind=ArtifactKind.TEST.value,
-                    name=model["name"],
-                    file_path=str(created_files[-1].relative_to(module_dir)),
-                    new_status=ArtifactStatus.GENERATED.value,
-                )
-            except Exception:
-                pass  # State tracking must never block generation
-
-    # 13. demo/demo_data.xml
-    created_files.append(
-        render_template(env, "demo_data.xml.j2", module_dir / "demo" / "demo_data.xml", module_context)
-    )
-
-    # 14. static/description/index.html
-    static_dir = module_dir / "static" / "description"
-    static_dir.mkdir(parents=True, exist_ok=True)
-    index_html = static_dir / "index.html"
-    index_html.write_text(
-        '<!DOCTYPE html>\n<html>\n<head><title>Module Description</title></head>\n'
-        '<body><p>See README.rst for module documentation.</p></body>\n</html>\n',
-        encoding="utf-8",
-    )
-    created_files.append(index_html)
-
-    # 15. README.rst
-    created_files.append(
-        render_template(env, "readme.rst.j2", module_dir / "README.rst", module_context)
-    )
-
-    # --- Save artifact state (OBS-01) ---
-    if _state is not None:
+        _state = _track_artifacts(_state, spec, module_dir)
         try:
             save_state(_state, module_dir)
         except Exception:
-            pass  # State tracking must never block generation
-
+            pass
     return created_files, all_warnings

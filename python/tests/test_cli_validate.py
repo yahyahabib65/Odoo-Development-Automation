@@ -12,6 +12,7 @@ from click.testing import CliRunner
 from odoo_gen_utils.cli import main
 from odoo_gen_utils.validation.types import (
     InstallResult,
+    Result,
     TestResult,
     ValidationReport,
     Violation,
@@ -50,10 +51,10 @@ class TestValidateHelp:
 class TestValidatePylintOnly:
     """Tests for --pylint-only mode."""
 
-    @patch("odoo_gen_utils.cli.run_pylint_odoo")
-    @patch("odoo_gen_utils.cli.check_docker_available")
-    @patch("odoo_gen_utils.cli.docker_install_module")
-    @patch("odoo_gen_utils.cli.docker_run_tests")
+    @patch("odoo_gen_utils.validation.run_pylint_odoo")
+    @patch("odoo_gen_utils.validation.check_docker_available")
+    @patch("odoo_gen_utils.validation.docker_install_module")
+    @patch("odoo_gen_utils.validation.docker_run_tests")
     def test_validate_pylint_only(
         self,
         mock_docker_tests: MagicMock,
@@ -64,7 +65,7 @@ class TestValidatePylintOnly:
         module_dir: Path,
     ) -> None:
         """With --pylint-only, only pylint runner is called, no Docker."""
-        mock_pylint.return_value = ()
+        mock_pylint.return_value = Result.ok(())
 
         result = runner.invoke(main, ["validate", str(module_dir), "--pylint-only"])
 
@@ -78,8 +79,8 @@ class TestValidatePylintOnly:
 class TestValidateJsonOutput:
     """Tests for --json output."""
 
-    @patch("odoo_gen_utils.cli.run_pylint_odoo")
-    @patch("odoo_gen_utils.cli.check_docker_available")
+    @patch("odoo_gen_utils.validation.run_pylint_odoo")
+    @patch("odoo_gen_utils.validation.check_docker_available")
     def test_validate_json_output(
         self,
         mock_docker_check: MagicMock,
@@ -88,7 +89,7 @@ class TestValidateJsonOutput:
         module_dir: Path,
     ) -> None:
         """With --json, output is valid JSON with expected keys."""
-        mock_pylint.return_value = ()
+        mock_pylint.return_value = Result.ok(())
         mock_docker_check.return_value = False
 
         result = runner.invoke(main, ["validate", str(module_dir), "--json"])
@@ -122,11 +123,11 @@ class TestValidateMissingManifest:
 class TestValidateFullPipeline:
     """Tests for full validation pipeline."""
 
-    @patch("odoo_gen_utils.cli.diagnose_errors")
-    @patch("odoo_gen_utils.cli.docker_run_tests")
-    @patch("odoo_gen_utils.cli.docker_install_module")
-    @patch("odoo_gen_utils.cli.check_docker_available")
-    @patch("odoo_gen_utils.cli.run_pylint_odoo")
+    @patch("odoo_gen_utils.validation.diagnose_errors")
+    @patch("odoo_gen_utils.validation.docker_run_tests")
+    @patch("odoo_gen_utils.validation.docker_install_module")
+    @patch("odoo_gen_utils.validation.check_docker_available")
+    @patch("odoo_gen_utils.validation.run_pylint_odoo")
     def test_validate_full_pipeline(
         self,
         mock_pylint: MagicMock,
@@ -138,14 +139,14 @@ class TestValidateFullPipeline:
         module_dir: Path,
     ) -> None:
         """Without flags, calls pylint + docker install + docker tests + diagnosis + report."""
-        mock_pylint.return_value = ()
+        mock_pylint.return_value = Result.ok(())
         mock_docker_check.return_value = True
-        mock_docker_install.return_value = InstallResult(
+        mock_docker_install.return_value = Result.ok(InstallResult(
             success=True, log_output="modules loaded", error_message=""
-        )
-        mock_docker_tests.return_value = (
+        ))
+        mock_docker_tests.return_value = Result.ok((
             TestResult(test_name="test_create", passed=True),
-        )
+        ))
         mock_diagnose.return_value = ()
 
         result = runner.invoke(main, ["validate", str(module_dir)])
@@ -160,8 +161,8 @@ class TestValidateFullPipeline:
 class TestValidateDockerUnavailable:
     """Tests for Docker-unavailable graceful degradation."""
 
-    @patch("odoo_gen_utils.cli.check_docker_available")
-    @patch("odoo_gen_utils.cli.run_pylint_odoo")
+    @patch("odoo_gen_utils.validation.check_docker_available")
+    @patch("odoo_gen_utils.validation.run_pylint_odoo")
     def test_validate_docker_unavailable(
         self,
         mock_pylint: MagicMock,
@@ -170,7 +171,7 @@ class TestValidateDockerUnavailable:
         module_dir: Path,
     ) -> None:
         """When Docker not available, pylint runs but Docker steps show Skipped."""
-        mock_pylint.return_value = ()
+        mock_pylint.return_value = Result.ok(())
         mock_docker_check.return_value = False
 
         result = runner.invoke(main, ["validate", str(module_dir)])
@@ -183,8 +184,8 @@ class TestValidateDockerUnavailable:
 class TestValidateExitCodes:
     """Tests for exit codes."""
 
-    @patch("odoo_gen_utils.cli.check_docker_available")
-    @patch("odoo_gen_utils.cli.run_pylint_odoo")
+    @patch("odoo_gen_utils.validation.check_docker_available")
+    @patch("odoo_gen_utils.validation.run_pylint_odoo")
     def test_validate_exit_code_clean(
         self,
         mock_pylint: MagicMock,
@@ -193,14 +194,14 @@ class TestValidateExitCodes:
         module_dir: Path,
     ) -> None:
         """When no violations and all pass, exit code 0."""
-        mock_pylint.return_value = ()
+        mock_pylint.return_value = Result.ok(())
         mock_docker_check.return_value = False
 
         result = runner.invoke(main, ["validate", str(module_dir)])
         assert result.exit_code == 0
 
-    @patch("odoo_gen_utils.cli.check_docker_available")
-    @patch("odoo_gen_utils.cli.run_pylint_odoo")
+    @patch("odoo_gen_utils.validation.check_docker_available")
+    @patch("odoo_gen_utils.validation.run_pylint_odoo")
     def test_validate_exit_code_violations(
         self,
         mock_pylint: MagicMock,
@@ -209,7 +210,7 @@ class TestValidateExitCodes:
         module_dir: Path,
     ) -> None:
         """When violations found, exit code 1."""
-        mock_pylint.return_value = (
+        mock_pylint.return_value = Result.ok((
             Violation(
                 file="models/sale.py",
                 line=10,
@@ -219,7 +220,7 @@ class TestValidateExitCodes:
                 severity="convention",
                 message="Missing README",
             ),
-        )
+        ))
         mock_docker_check.return_value = False
 
         result = runner.invoke(main, ["validate", str(module_dir)])

@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Generic, TypeVar
+
+T = TypeVar("T")
 
 
 @dataclass(frozen=True)
@@ -48,3 +51,25 @@ class ValidationReport:
     test_results: tuple[TestResult, ...] = ()
     diagnosis: tuple[str, ...] = ()
     docker_available: bool = True
+
+
+@dataclass(frozen=True)
+class Result(Generic[T]):
+    """Unified result type wrapping success/failure with typed data.
+
+    Use Result.ok(data) for success and Result.fail(*errors) for failure.
+    """
+
+    success: bool
+    data: T | None = None
+    errors: tuple[str, ...] = ()
+
+    @staticmethod
+    def ok(data: T) -> Result[T]:
+        """Create a successful result with the given data."""
+        return Result(success=True, data=data)
+
+    @staticmethod
+    def fail(*errors: str) -> Result[T]:
+        """Create a failed result with one or more error messages."""
+        return Result(success=False, data=None, errors=tuple(errors))

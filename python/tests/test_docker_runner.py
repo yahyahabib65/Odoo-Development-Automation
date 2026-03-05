@@ -12,7 +12,7 @@ from odoo_gen_utils.validation.docker_runner import (
     docker_run_tests,
     get_compose_file,
 )
-from odoo_gen_utils.validation.types import InstallResult, TestResult
+from odoo_gen_utils.validation.types import InstallResult, Result, TestResult
 
 
 # --- check_docker_available tests ---
@@ -68,8 +68,8 @@ class TestDockerInstallModuleSuccess:
         mock_teardown: MagicMock,
     ) -> None:
         mock_available.return_value = True
-        # First call: docker compose up
-        # Second call: docker compose exec (install)
+        # First call: start db only (not full stack)
+        # Second call: run --rm (not exec) for install
         success_log = (
             "2026-03-02 10:00:00,000 1 INFO test_db "
             "odoo.modules.loading: 1 modules loaded, 0 modules updated, 0 tests\n"
@@ -77,16 +77,84 @@ class TestDockerInstallModuleSuccess:
             "odoo.modules.loading: Modules loaded.\n"
         )
         mock_run.side_effect = [
-            MagicMock(stdout="", stderr="", returncode=0),  # up
-            MagicMock(stdout=success_log, stderr="", returncode=0),  # exec
+            MagicMock(stdout="", stderr="", returncode=0),  # up -d --wait db
+            MagicMock(stdout=success_log, stderr="", returncode=0),  # run --rm
         ]
 
         module_path = Path("/tmp/test_mod")
         result = docker_install_module(module_path, compose_file=Path("/tmp/compose.yml"))
 
-        assert isinstance(result, InstallResult)
+        assert isinstance(result, Result)
         assert result.success is True
-        assert result.error_message == ""
+        assert isinstance(result.data, InstallResult)
+        assert result.data.success is True
+        assert result.data.error_message == ""
+
+
+class TestDockerInstallUsesRunNotExec:
+    """docker_install_module uses 'run --rm' pattern, not 'exec'."""
+
+    @patch("odoo_gen_utils.validation.docker_runner._teardown")
+    @patch("odoo_gen_utils.validation.docker_runner._run_compose")
+    @patch("odoo_gen_utils.validation.docker_runner.check_docker_available")
+    def test_first_call_starts_db_only(
+        self,
+        mock_available: MagicMock,
+        mock_run: MagicMock,
+        mock_teardown: MagicMock,
+    ) -> None:
+        mock_available.return_value = True
+        success_log = (
+            "2026-03-02 10:00:00,000 1 INFO test_db "
+            "odoo.modules.loading: Modules loaded.\n"
+        )
+        mock_run.side_effect = [
+            MagicMock(stdout="", stderr="", returncode=0),
+            MagicMock(stdout=success_log, stderr="", returncode=0),
+        ]
+
+        docker_install_module(Path("/tmp/test_mod"), compose_file=Path("/tmp/compose.yml"))
+
+        # First call must start only db service
+        first_call_args = mock_run.call_args_list[0]
+        assert "db" in first_call_args[0][1], (
+            f"First _run_compose call should include 'db' for db-only startup, "
+            f"got args: {first_call_args[0][1]}"
+        )
+
+    @patch("odoo_gen_utils.validation.docker_runner._teardown")
+    @patch("odoo_gen_utils.validation.docker_runner._run_compose")
+    @patch("odoo_gen_utils.validation.docker_runner.check_docker_available")
+    def test_second_call_uses_run_rm_not_exec(
+        self,
+        mock_available: MagicMock,
+        mock_run: MagicMock,
+        mock_teardown: MagicMock,
+    ) -> None:
+        mock_available.return_value = True
+        success_log = (
+            "2026-03-02 10:00:00,000 1 INFO test_db "
+            "odoo.modules.loading: Modules loaded.\n"
+        )
+        mock_run.side_effect = [
+            MagicMock(stdout="", stderr="", returncode=0),
+            MagicMock(stdout=success_log, stderr="", returncode=0),
+        ]
+
+        docker_install_module(Path("/tmp/test_mod"), compose_file=Path("/tmp/compose.yml"))
+
+        # Second call must use 'run --rm', not 'exec'
+        second_call_args = mock_run.call_args_list[1]
+        install_args = second_call_args[0][1]
+        assert "run" in install_args, (
+            f"Second _run_compose call should use 'run', got args: {install_args}"
+        )
+        assert "--rm" in install_args, (
+            f"Second _run_compose call should include '--rm', got args: {install_args}"
+        )
+        assert "exec" not in install_args, (
+            f"Second _run_compose call should NOT use 'exec', got args: {install_args}"
+        )
 
 
 class TestDockerInstallModuleFailure:
@@ -114,9 +182,11 @@ class TestDockerInstallModuleFailure:
         module_path = Path("/tmp/test_mod")
         result = docker_install_module(module_path, compose_file=Path("/tmp/compose.yml"))
 
-        assert isinstance(result, InstallResult)
-        assert result.success is False
-        assert result.error_message != ""
+        assert isinstance(result, Result)
+        assert result.success is True  # Result wraps InstallResult; install failure is in .data
+        assert isinstance(result.data, InstallResult)
+        assert result.data.success is False
+        assert result.data.error_message != ""
 
 
 class TestDockerInstallTeardown:
@@ -139,6 +209,7 @@ class TestDockerInstallTeardown:
 
         # Teardown must be called even though run raised
         mock_teardown.assert_called_once()
+        assert isinstance(result, Result)
         assert result.success is False
 
 
@@ -172,11 +243,13 @@ class TestDockerRunTestsSuccess:
         ]
 
         module_path = Path("/tmp/test_mod")
-        results = docker_run_tests(module_path, compose_file=Path("/tmp/compose.yml"))
+        result = docker_run_tests(module_path, compose_file=Path("/tmp/compose.yml"))
 
-        assert len(results) == 2
-        assert all(isinstance(r, TestResult) for r in results)
-        assert all(r.passed is True for r in results)
+        assert isinstance(result, Result)
+        assert result.success is True
+        assert len(result.data) == 2
+        assert all(isinstance(r, TestResult) for r in result.data)
+        assert all(r.passed is True for r in result.data)
 
 
 class TestDockerRunTestsFailure:
@@ -207,10 +280,12 @@ class TestDockerRunTestsFailure:
         ]
 
         module_path = Path("/tmp/test_mod")
-        results = docker_run_tests(module_path, compose_file=Path("/tmp/compose.yml"))
+        result = docker_run_tests(module_path, compose_file=Path("/tmp/compose.yml"))
 
-        passed = [r for r in results if r.passed]
-        failed = [r for r in results if not r.passed]
+        assert isinstance(result, Result)
+        assert result.success is True
+        passed = [r for r in result.data if r.passed]
+        failed = [r for r in result.data if not r.passed]
         assert len(passed) == 1
         assert len(failed) == 1
 
@@ -231,9 +306,11 @@ class TestDockerRunTestsTeardown:
         mock_run.side_effect = Exception("Test exec failed")
 
         module_path = Path("/tmp/test_mod")
-        results = docker_run_tests(module_path, compose_file=Path("/tmp/compose.yml"))
+        result = docker_run_tests(module_path, compose_file=Path("/tmp/compose.yml"))
 
         mock_teardown.assert_called_once()
+        assert isinstance(result, Result)
+        assert result.success is False
 
 
 # --- Docker not available tests ---
@@ -248,9 +325,9 @@ class TestDockerNotAvailableInstall:
 
         result = docker_install_module(Path("/tmp/test_mod"))
 
-        assert isinstance(result, InstallResult)
+        assert isinstance(result, Result)
         assert result.success is False
-        assert "Docker not available" in result.error_message
+        assert "Docker not available" in result.errors
 
 
 class TestDockerNotAvailableTests:
@@ -260,9 +337,11 @@ class TestDockerNotAvailableTests:
     def test_docker_not_available_tests(self, mock_available: MagicMock) -> None:
         mock_available.return_value = False
 
-        results = docker_run_tests(Path("/tmp/test_mod"))
+        result = docker_run_tests(Path("/tmp/test_mod"))
 
-        assert results == ()
+        assert isinstance(result, Result)
+        assert result.success is False
+        assert "Docker not available" in result.errors
 
 
 # --- Timeout test ---
@@ -286,7 +365,7 @@ class TestDockerTimeout:
         module_path = Path("/tmp/test_mod")
         result = docker_install_module(module_path, compose_file=Path("/tmp/compose.yml"))
 
-        assert isinstance(result, InstallResult)
+        assert isinstance(result, Result)
         assert result.success is False
-        assert "Timeout" in result.error_message or "timeout" in result.error_message.lower()
+        assert any("timeout" in e.lower() for e in result.errors)
         mock_teardown.assert_called_once()

@@ -178,3 +178,69 @@ class TestValidationReport:
         report = ValidationReport(module_name="test")
         with pytest.raises(dataclasses.FrozenInstanceError):
             report.module_name = "other"  # type: ignore[misc]
+
+
+class TestResult_:
+    """Tests for the Result[T] generic type."""
+
+    def test_result_ok_creates_success(self) -> None:
+        """Result.ok(data) creates Result with success=True, data=data, errors=()."""
+        from odoo_gen_utils.validation.types import Result
+
+        r = Result.ok("hello")
+        assert r.success is True
+        assert r.data == "hello"
+        assert r.errors == ()
+
+    def test_result_fail_creates_failure(self) -> None:
+        """Result.fail('msg') creates Result with success=False, data=None, errors=('msg',)."""
+        from odoo_gen_utils.validation.types import Result
+
+        r = Result.fail("something went wrong")
+        assert r.success is False
+        assert r.data is None
+        assert r.errors == ("something went wrong",)
+
+    def test_result_fail_multiple_errors(self) -> None:
+        """Result.fail('a', 'b') stores multiple errors as tuple."""
+        from odoo_gen_utils.validation.types import Result
+
+        r = Result.fail("a", "b")
+        assert r.errors == ("a", "b")
+        assert r.success is False
+
+    def test_result_is_frozen(self) -> None:
+        """Result is frozen -- assigning to .success raises FrozenInstanceError."""
+        from odoo_gen_utils.validation.types import Result
+
+        r = Result.ok(42)
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            r.success = False  # type: ignore[misc]
+
+    def test_result_generic_type_annotation(self) -> None:
+        """Result[tuple[Violation, ...]] type annotation works."""
+        from odoo_gen_utils.validation.types import Result
+
+        v = Violation(
+            file="m.py", line=1, column=0, rule_code="C0001",
+            symbol="test", severity="convention", message="msg",
+        )
+        r: Result[tuple[Violation, ...]] = Result.ok((v,))
+        assert r.success is True
+        assert len(r.data) == 1  # type: ignore[arg-type]
+
+    def test_result_errors_default_empty_tuple(self) -> None:
+        """Result with no errors has empty tuple (not None)."""
+        from odoo_gen_utils.validation.types import Result
+
+        r = Result.ok("data")
+        assert r.errors == ()
+        assert isinstance(r.errors, tuple)
+
+    def test_result_ok_none_is_valid(self) -> None:
+        """Result.ok(None) is valid (success=True, data=None)."""
+        from odoo_gen_utils.validation.types import Result
+
+        r = Result.ok(None)
+        assert r.success is True
+        assert r.data is None
