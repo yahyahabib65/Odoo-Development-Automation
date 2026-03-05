@@ -114,7 +114,10 @@ Plans:
   1. docker_install_module uses `docker compose run --rm` instead of `docker compose exec`, eliminating serialization race conditions from concurrent Odoo processes
   2. GitHub API calls check X-RateLimit-Remaining header, sleep until reset when exhausted, and retry with exponential backoff on 403/429 responses
   3. AST analyzer detects models with _inherit but no _name and records them in ModuleAnalysis.inherited_models as model extensions
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 22-01-PLAN.md — Fix docker_install_module to use run --rm pattern (VALD-01)
+- [ ] 22-02-PLAN.md — GitHub rate limit handling + _inherit-only AST detection (SRCH-01, SRCH-02)
 
 ### Phase 23: Unified Result Type
 **Goal**: Validation pipeline has consistent error handling through a shared Result[T] type
@@ -151,7 +154,7 @@ Phases 20-22 can execute in parallel (independent). Phase 23 before Phase 24 (de
 | 18-19 | v2.1 | 5/5 | Complete | 2026-03-04 |
 | 20. Auto-Fix AST Migration | 2/2 | Complete    | 2026-03-05 | - |
 | 21. Template Correctness | 2/2 | Complete   | 2026-03-05 | - |
-| 22. Validation & Search Fixes | v3.0 | 0/? | Not started | - |
+| 22. Validation & Search Fixes | v3.0 | 0/2 | Planned | - |
 | 23. Unified Result Type | v3.0 | 0/? | Not started | - |
 | 24. Code Quality & Decomposition | v3.0 | 0/? | Not started | - |
 
