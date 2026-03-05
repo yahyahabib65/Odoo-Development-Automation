@@ -128,7 +128,9 @@ Plans:
   4. New render stages (`render_reports`, `render_controllers`, `render_cron`) are wired into the pipeline, each returning `Result[list[Path]]` and updating manifest data
 **Plans**: 1 plan
 Plans:
-- [ ] 26-01-PLAN.md — Monetary detection in renderer + template Monetary branch + currency_id injection
+- [ ] 30-01-PLAN.md — Cron XML generation, render stage wiring, model method stubs, and pipeline expansion to 10 stages
+
+
 
 ### Phase 31: Reports & Analytics
 **Goal**: Generator produces QWeb report templates with print buttons and graph/pivot dashboard views with configurable measures
@@ -199,7 +201,7 @@ Phases execute in numeric order: 26 -> 27 -> 28 -> 29 -> 30 -> 31 -> 32 -> 33 ->
 | 27. Relationship Patterns | 1/1 | Complete    | 2026-03-05 | - |
 | 28. Computed Chains & Cycle Detection | 1/1 | Complete    | 2026-03-05 | - |
 | 29. Complex Constraints | v3.1 | 0/1 | Not started | - |
-| 30. Scheduled Actions & Render Pipeline | v3.1 | 0/TBD | Not started | - |
+| 30. Scheduled Actions & Render Pipeline | v3.1 | 0/1 | Not started | - |
 | 31. Reports & Analytics | v3.1 | 0/TBD | Not started | - |
 | 32. Controllers & Import/Export | v3.1 | 0/TBD | Not started | - |
 | 33. Database Performance | v3.1 | 0/TBD | Not started | - |
