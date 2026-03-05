@@ -42,6 +42,7 @@ class ModuleAnalysis:
     data_files: tuple[str, ...]
     has_wizards: bool
     has_tests: bool
+    inherited_models: tuple[str, ...] = ()
 
 
 # Odoo field type names that appear as fields.X(...) calls
@@ -109,6 +110,60 @@ def _extract_models_from_file(filepath: Path) -> list[tuple[str, dict[str, str]]
 
         if model_name is not None:
             results.append((model_name, fields_map))
+
+    return results
+
+
+def _extract_inherit_only(filepath: Path) -> list[str]:
+    """Extract _inherit-only model extensions from a Python file via AST.
+
+    Scans class bodies for ``_inherit = 'model.name'`` or ``_inherit = [...]``
+    assignments where NO ``_name`` assignment is present. These represent model
+    extensions (adding fields/methods to existing models) rather than new models.
+
+    Args:
+        filepath: Path to a Python file in models/ directory.
+
+    Returns:
+        List of inherited model name strings.
+    """
+    try:
+        source = filepath.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=str(filepath))
+    except (SyntaxError, UnicodeDecodeError):
+        return []
+
+    results: list[str] = []
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef):
+            continue
+
+        has_name = False
+        inherit_values: list[str] = []
+
+        for item in node.body:
+            if not isinstance(item, ast.Assign):
+                continue
+            if len(item.targets) != 1 or not isinstance(item.targets[0], ast.Name):
+                continue
+
+            target_id = item.targets[0].id
+
+            if target_id == "_name" and isinstance(item.value, ast.Constant) and isinstance(item.value.value, str):
+                has_name = True
+
+            if target_id == "_inherit":
+                # _inherit can be a string constant or a list of strings
+                if isinstance(item.value, ast.Constant) and isinstance(item.value.value, str):
+                    inherit_values.append(item.value.value)
+                elif isinstance(item.value, ast.List):
+                    for elt in item.value.elts:
+                        if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
+                            inherit_values.append(elt.value)
+
+        if inherit_values and not has_name:
+            results.extend(inherit_values)
 
     return results
 
@@ -244,6 +299,8 @@ def analyze_module(module_path: Path) -> ModuleAnalysis:
     all_model_fields: dict[str, tuple[str, ...]] = {}
     all_field_types: dict[str, dict[str, str]] = {}
 
+    all_inherited: list[str] = []
+
     models_dir = module_path / "models"
     if models_dir.is_dir():
         for py_file in models_dir.glob("*.py"):
@@ -253,6 +310,7 @@ def analyze_module(module_path: Path) -> ModuleAnalysis:
                 all_model_names.append(model_name)
                 all_model_fields[model_name] = tuple(fields_map.keys())
                 all_field_types[model_name] = dict(fields_map)
+            all_inherited.extend(_extract_inherit_only(py_file))
 
     # Extract view types from views/*.xml
     raw_view_types = _extract_view_types(module_path / "views")
@@ -279,6 +337,7 @@ def analyze_module(module_path: Path) -> ModuleAnalysis:
         data_files=tuple(data_files),
         has_wizards=(module_path / "wizards").is_dir(),
         has_tests=(module_path / "tests").is_dir(),
+        inherited_models=tuple(all_inherited),
     )
 
 
@@ -315,6 +374,13 @@ def format_analysis_text(analysis: ModuleAnalysis) -> str:
             for field_name in fields_list:
                 ftype = types_map.get(field_name, "?")
                 lines.append(f"    - {field_name} ({ftype})")
+        lines.append("")
+
+    # Inherited Models (extensions)
+    if analysis.inherited_models:
+        lines.append("Inherited Models (extensions):")
+        for model in analysis.inherited_models:
+            lines.append(f"  - {model}")
         lines.append("")
 
     # Views

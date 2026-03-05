@@ -309,6 +309,60 @@ class TestAnalyzeModule:
         analysis = analyze_module(mod)
         assert analysis.has_tests is False
 
+    def test_analyze_detects_inherit_only_models(self, tmp_path: Path) -> None:
+        """analyze_module() detects _inherit-only model extensions."""
+        mod = self._create_module(tmp_path)
+        models_dir = mod / "models"
+        (models_dir / "res_partner.py").write_text(textwrap.dedent("""\
+            from odoo import fields, models
+
+
+            class ResPartnerExt(models.Model):
+                _inherit = 'res.partner'
+
+                custom_field = fields.Char(string='Custom')
+        """))
+
+        analysis = analyze_module(mod)
+        assert "res.partner" in analysis.inherited_models
+
+    def test_analyze_detects_inherit_list(self, tmp_path: Path) -> None:
+        """analyze_module() detects _inherit as a list of model names."""
+        mod = self._create_module(tmp_path)
+        models_dir = mod / "models"
+        (models_dir / "mail_mixin.py").write_text(textwrap.dedent("""\
+            from odoo import models
+
+
+            class MailMixin(models.Model):
+                _inherit = ['mail.thread', 'mail.activity.mixin']
+        """))
+
+        analysis = analyze_module(mod)
+        assert "mail.thread" in analysis.inherited_models
+        assert "mail.activity.mixin" in analysis.inherited_models
+
+    def test_analyze_ignores_named_inherit(self, tmp_path: Path) -> None:
+        """analyze_module() does NOT put models with _name and _inherit in inherited_models."""
+        mod = self._create_module(tmp_path)
+        models_dir = mod / "models"
+        (models_dir / "custom_model.py").write_text(textwrap.dedent("""\
+            from odoo import fields, models
+
+
+            class CustomModel(models.Model):
+                _name = 'custom.model'
+                _inherit = 'sale.order'
+
+                extra_field = fields.Char()
+        """))
+
+        analysis = analyze_module(mod)
+        # sale.order should NOT be in inherited_models (it's a new model with _name)
+        assert "sale.order" not in analysis.inherited_models
+        # custom.model should be in model_names
+        assert "custom.model" in analysis.model_names
+
 
 # ---------------------------------------------------------------------------
 # setup_companion_dir tests
@@ -405,6 +459,22 @@ class TestModuleAnalysis:
         assert hasattr(analysis, "has_wizards")
         assert hasattr(analysis, "has_tests")
 
+    def test_inherited_models_default_empty(self) -> None:
+        """ModuleAnalysis.inherited_models defaults to empty tuple."""
+        analysis = ModuleAnalysis(
+            module_name="test_module",
+            manifest={},
+            model_names=(),
+            model_fields={},
+            field_types={},
+            view_types={},
+            security_groups=(),
+            data_files=(),
+            has_wizards=False,
+            has_tests=False,
+        )
+        assert analysis.inherited_models == ()
+
 
 # ---------------------------------------------------------------------------
 # format_analysis_text tests
@@ -432,3 +502,24 @@ class TestFormatAnalysisText:
         text = format_analysis_text(analysis)
         assert "sale_order_type" in text
         assert "sale.order.type" in text
+
+    def test_includes_inherited_models(self) -> None:
+        """format_analysis_text() includes inherited models when present."""
+        analysis = ModuleAnalysis(
+            module_name="sale_ext",
+            manifest={"name": "Sale Extension"},
+            model_names=(),
+            model_fields={},
+            field_types={},
+            view_types={},
+            security_groups=(),
+            data_files=(),
+            has_wizards=False,
+            has_tests=False,
+            inherited_models=("res.partner", "sale.order"),
+        )
+
+        text = format_analysis_text(analysis)
+        assert "Inherited Models" in text
+        assert "res.partner" in text
+        assert "sale.order" in text
