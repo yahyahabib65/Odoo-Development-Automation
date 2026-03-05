@@ -168,19 +168,23 @@ def test_golden_path_render(rendered_module: Path) -> None:
 def test_golden_path_docker_install(rendered_module: Path) -> None:
     """Docker-install the rendered hr_training module in Odoo 17.0.
 
+    Unwraps Result[InstallResult] before checking InstallResult fields.
     Asserts that InstallResult.success is True and no ImportError appears
     in the installation log output. This validates that the generated module
     is syntactically correct and Odoo can load it.
     """
     result = docker_install_module(rendered_module)
 
-    assert result.success is True, (
-        f"Module install failed: {result.error_message}\n"
-        f"Log output (last 500 chars): {result.log_output[-500:]}"
+    assert result.success, f"docker_install_module failed: {result.errors}"
+    install = result.data
+
+    assert install.success is True, (
+        f"Module install failed: {install.error_message}\n"
+        f"Log output (last 500 chars): {install.log_output[-500:]}"
     )
-    assert "ImportError" not in result.log_output, (
+    assert "ImportError" not in install.log_output, (
         "ImportError found in install log -- generated module has broken imports:\n"
-        f"{result.log_output[-500:]}"
+        f"{install.log_output[-500:]}"
     )
 
 
@@ -188,14 +192,18 @@ def test_golden_path_docker_install(rendered_module: Path) -> None:
 def test_golden_path_docker_tests(rendered_module: Path) -> None:
     """Run the rendered module's own Odoo tests inside Docker.
 
+    Unwraps Result[tuple[TestResult, ...]] before iterating TestResult fields.
     Asserts that at least one TestResult is returned, all tests pass,
     and all test names are non-empty (proving the tests actually ran).
     """
-    results = docker_run_tests(rendered_module)
+    result = docker_run_tests(rendered_module)
 
-    assert len(results) > 0, "Expected at least 1 test result from docker_run_tests"
+    assert result.success, f"docker_run_tests failed: {result.errors}"
+    test_results = result.data
 
-    failed = [r for r in results if not r.passed]
+    assert len(test_results) > 0, "Expected at least 1 test result from docker_run_tests"
+
+    failed = [r for r in test_results if not r.passed]
     assert not failed, (
         f"{len(failed)} test(s) failed:\n"
         + "\n".join(
@@ -203,7 +211,7 @@ def test_golden_path_docker_tests(rendered_module: Path) -> None:
         )
     )
 
-    empty_names = [r for r in results if not r.test_name]
+    empty_names = [r for r in test_results if not r.test_name]
     assert not empty_names, (
         f"{len(empty_names)} test result(s) have empty test names -- "
         "tests may not have actually executed"
