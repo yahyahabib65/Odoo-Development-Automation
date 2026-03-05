@@ -18,6 +18,7 @@ from odoo_gen_utils.renderer import (
     _process_computation_chains,
     _process_constraints,
     _process_performance,
+    _process_production_patterns,
     _topologically_sort_fields,
     _validate_no_cycles,
     get_template_dir,
@@ -3421,3 +3422,159 @@ class TestProcessPerformance:
         # Only valid fields should be in model_order
         if model.get("model_order"):
             assert "nonexistent" not in model["model_order"]
+
+
+class TestProcessProductionPatterns:
+    """Unit tests for _process_production_patterns() preprocessor."""
+
+    def test_bulk_flag_sets_create_override(self):
+        """Spec with model having bulk:true -> model gets has_create_override=True and is_bulk=True."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "bulk": True,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        result = _process_production_patterns(spec)
+        model = result["models"][0]
+        assert model["is_bulk"] is True
+        assert model["has_create_override"] is True
+
+    def test_bulk_without_existing_constraints(self):
+        """bulk:true model without constraints still gets has_create_override=True."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "bulk": True,
+            "fields": [
+                {"name": "name", "type": "Char"},
+                {"name": "value", "type": "Integer"},
+            ],
+        }])
+        result = _process_production_patterns(spec)
+        model = result["models"][0]
+        assert model["has_create_override"] is True
+        assert model["is_bulk"] is True
+        # No constraints should exist
+        assert model.get("create_constraints", []) == []
+
+    def test_bulk_with_constraints_merges(self):
+        """bulk:true model WITH constraints keeps both is_bulk=True and existing create_constraints."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "bulk": True,
+            "has_create_override": True,
+            "create_constraints": [{"name": "capacity", "type": "capacity"}],
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        result = _process_production_patterns(spec)
+        model = result["models"][0]
+        assert model["is_bulk"] is True
+        assert model["has_create_override"] is True
+        assert len(model["create_constraints"]) == 1
+
+    def test_cacheable_flag_sets_overrides(self):
+        """cacheable:true -> has_create_override, has_write_override, is_cacheable, needs_tools."""
+        spec = _make_spec(models=[{
+            "name": "academy.category",
+            "cacheable": True,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        result = _process_production_patterns(spec)
+        model = result["models"][0]
+        assert model["has_create_override"] is True
+        assert model["has_write_override"] is True
+        assert model["is_cacheable"] is True
+        assert model["needs_tools"] is True
+
+    def test_cacheable_with_explicit_cache_key(self):
+        """cacheable with cache_key -> cache_lookup_field uses that field."""
+        spec = _make_spec(models=[{
+            "name": "academy.category",
+            "cacheable": True,
+            "cache_key": "code",
+            "fields": [
+                {"name": "name", "type": "Char"},
+                {"name": "code", "type": "Char"},
+            ],
+        }])
+        result = _process_production_patterns(spec)
+        model = result["models"][0]
+        assert model["cache_lookup_field"] == "code"
+
+    def test_cacheable_default_lookup_field(self):
+        """cacheable:true without cache_key -> cache_lookup_field defaults to first unique Char field or 'name'."""
+        # With a unique Char field
+        spec = _make_spec(models=[{
+            "name": "academy.category",
+            "cacheable": True,
+            "fields": [
+                {"name": "code", "type": "Char", "unique": True},
+                {"name": "label", "type": "Char"},
+            ],
+        }])
+        result = _process_production_patterns(spec)
+        model = result["models"][0]
+        assert model["cache_lookup_field"] == "code"
+
+        # Without unique Char field -> defaults to "name"
+        spec2 = _make_spec(models=[{
+            "name": "academy.category",
+            "cacheable": True,
+            "fields": [
+                {"name": "label", "type": "Char"},
+                {"name": "value", "type": "Integer"},
+            ],
+        }])
+        result2 = _process_production_patterns(spec2)
+        model2 = result2["models"][0]
+        assert model2["cache_lookup_field"] == "name"
+
+    def test_tools_import_flag(self):
+        """cacheable:true -> needs_tools=True on model."""
+        spec = _make_spec(models=[{
+            "name": "academy.category",
+            "cacheable": True,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        result = _process_production_patterns(spec)
+        model = result["models"][0]
+        assert model["needs_tools"] is True
+
+    def test_cache_with_constraints_merges(self):
+        """cacheable:true + constraints -> single has_write_override=True with both behaviors."""
+        spec = _make_spec(models=[{
+            "name": "academy.category",
+            "cacheable": True,
+            "has_write_override": True,
+            "write_constraints": [{"name": "check_dates", "write_trigger_fields": ["date_start"]}],
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        result = _process_production_patterns(spec)
+        model = result["models"][0]
+        assert model["has_write_override"] is True
+        assert model["is_cacheable"] is True
+        assert len(model["write_constraints"]) == 1
+
+    def test_no_production_flags_passthrough(self):
+        """Model without bulk/cacheable passes through unchanged."""
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        result = _process_production_patterns(spec)
+        model = result["models"][0]
+        assert model.get("is_bulk") is not True
+        assert model.get("is_cacheable") is not True
+        assert model.get("needs_tools") is not True
+
+    def test_pure_function(self):
+        """Input spec is not mutated."""
+        import copy
+        spec = _make_spec(models=[{
+            "name": "academy.course",
+            "bulk": True,
+            "cacheable": True,
+            "fields": [{"name": "name", "type": "Char"}],
+        }])
+        original = copy.deepcopy(spec)
+        _process_production_patterns(spec)
+        assert spec == original

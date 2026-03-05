@@ -435,6 +435,70 @@ def _process_performance(spec: dict[str, Any]) -> dict[str, Any]:
     return {**spec, "models": new_models}
 
 
+def _process_production_patterns(spec: dict[str, Any]) -> dict[str, Any]:
+    """Enrich models with bulk create and ORM cache production patterns.
+
+    Analyzes:
+    1. bulk:true -> is_bulk=True, has_create_override=True
+    2. cacheable:true -> is_cacheable=True, needs_tools=True,
+       has_create_override=True, has_write_override=True,
+       cache_lookup_field (from cache_key or first unique Char or "name")
+
+    Preserves existing has_create_override/has_write_override from Phase 29
+    constraints (OR them, don't replace).
+
+    Pure function -- does NOT mutate the input spec.
+    """
+    models = spec.get("models", [])
+    if not models:
+        return spec
+
+    new_models = []
+    for model in models:
+        new_model = {**model}
+
+        is_bulk = bool(model.get("bulk"))
+        is_cacheable = bool(model.get("cacheable"))
+
+        if not is_bulk and not is_cacheable:
+            new_models.append(new_model)
+            continue
+
+        if is_bulk:
+            new_model["is_bulk"] = True
+            new_model["has_create_override"] = True
+
+        if is_cacheable:
+            new_model["is_cacheable"] = True
+            new_model["needs_tools"] = True
+            new_model["has_create_override"] = True
+            new_model["has_write_override"] = True
+
+            # Determine cache lookup field
+            cache_key = model.get("cache_key")
+            if cache_key:
+                new_model["cache_lookup_field"] = cache_key
+            else:
+                # Find first unique Char field
+                fields = model.get("fields", [])
+                unique_char = next(
+                    (f["name"] for f in fields
+                     if f.get("type") == "Char" and f.get("unique")),
+                    None,
+                )
+                new_model["cache_lookup_field"] = unique_char or "name"
+
+        # Preserve existing override flags from Phase 29 (OR, don't replace)
+        if model.get("has_create_override"):
+            new_model["has_create_override"] = True
+        if model.get("has_write_override"):
+            new_model["has_write_override"] = True
+
+        new_models.append(new_model)
+
+    return {**spec, "models": new_models}
+
+
 def _enrich_model_performance(model: dict[str, Any]) -> dict[str, Any]:
     """Enrich a single model dict with performance attributes.
 
@@ -921,15 +985,22 @@ def _build_model_context(spec: dict[str, Any], model: dict[str, Any]) -> dict[st
         for d in spec.get("dashboards", [])
     )
 
+    # Phase 34: production pattern keys
+    is_bulk = model.get("is_bulk", False)
+    is_cacheable = model.get("is_cacheable", False)
+    cache_lookup_field = model.get("cache_lookup_field", "name")
+    needs_tools = model.get("needs_tools", False)
+
     # Phase 12: conditional api import (TMPL-02)
     # Phase 29: also need api when temporal constraints exist (@api.constrains)
     # or create/write overrides exist (@api.model_create_multi)
     # Phase 30: also need api when cron methods exist (@api.model)
+    # Phase 34: also need api when bulk or cacheable (for @api.model_create_multi)
     has_temporal = any(c.get("type") == "temporal" for c in complex_constraints)
     needs_api = bool(
         computed_fields or onchange_fields or constrained_fields
         or sequence_fields or has_temporal or has_create_override
-        or cron_methods
+        or cron_methods or is_bulk or is_cacheable
     )
 
     return {
@@ -991,6 +1062,11 @@ def _build_model_context(spec: dict[str, Any], model: dict[str, Any]) -> dict[st
         "is_transient": model.get("transient", False),
         "transient_max_hours": model.get("transient_max_hours"),
         "transient_max_count": model.get("transient_max_count"),
+        # Phase 34 keys
+        "is_bulk": is_bulk,
+        "is_cacheable": is_cacheable,
+        "cache_lookup_field": cache_lookup_field,
+        "needs_tools": needs_tools,
     }
 
 
@@ -1668,6 +1744,8 @@ def render_module(
     spec = _process_constraints(spec)
     # Phase 33: performance optimization (index, store, sql_constraints, transient config)
     spec = _process_performance(spec)
+    # Phase 34: production patterns (bulk create, ORM cache)
+    spec = _process_production_patterns(spec)
     module_name = spec["module_name"]
     module_dir = output_dir / module_name
     ctx = _build_module_context(spec, module_name)
