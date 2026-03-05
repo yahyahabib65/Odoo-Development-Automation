@@ -103,7 +103,9 @@
   1. A spec with a field named "amount" or "total_price" renders as `fields.Monetary` (not `fields.Float`) in the generated model
   2. When any field is detected as monetary, a `currency_id` Many2one to `res.currency` is auto-injected into the model if not already present
   3. The generated module installs without `AssertionError: unknown currency_field None`
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 26-01-PLAN.md — Monetary detection in renderer + template Monetary branch + currency_id injection
 
 ### Phase 27: Relationship Patterns
 **Goal**: Spec supports rich relationship declarations that generate through-models for M2M with extra fields, self-referential M2M with explicit relation/column params, and hierarchical parent_id with parent_path
@@ -114,7 +116,9 @@
   2. A spec declaring a self-referential M2M (e.g., prerequisite courses) generates correct `relation`, `column1`, `column2` parameters to avoid ambiguous table names
   3. A spec declaring `hierarchical: true` on a model generates `parent_id`, `child_ids`, and `parent_path` fields with `_parent_name` and `_parent_store = True`
   4. Through-models get their own security ACL entries and are included in `__init__.py`
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 26-01-PLAN.md — Monetary detection in renderer + template Monetary branch + currency_id injection
 
 ### Phase 28: Computed Chains & Cycle Detection
 **Goal**: Spec supports multi-model computed field dependency chains with correct topological ordering, and rejects circular dependencies before generation
@@ -125,7 +129,9 @@
   2. Computed fields render in topologically sorted order so downstream fields reference already-defined upstream fields
   3. A spec containing a circular dependency chain (A depends on B depends on A) is rejected with an actionable error message naming the cycle participants before any files are generated
   4. The generated module with multi-model computed chains installs and computes values correctly
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 26-01-PLAN.md — Monetary detection in renderer + template Monetary branch + currency_id injection
 
 ### Phase 29: Complex Constraints
 **Goal**: Spec supports cross-model validation, temporal constraints, and capacity constraints that generate create()/write() overrides with ValidationError
@@ -136,7 +142,9 @@
   2. A spec with a temporal constraint (e.g., "end_date must be after start_date") generates a `@api.constrains` method with the date comparison
   3. A spec with a capacity constraint (e.g., "max 30 students per section") generates validation logic that counts related records before allowing creation
   4. All generated constraint methods include proper `_()` translated error messages
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 26-01-PLAN.md — Monetary detection in renderer + template Monetary branch + currency_id injection
 
 ### Phase 30: Scheduled Actions & Render Pipeline
 **Goal**: Generator produces ir.cron XML records with model method stubs, and new render stages are wired into the renderer pipeline
@@ -147,7 +155,9 @@
   2. The target model gets an `@api.model` stub method matching the cron's method reference
   3. Generated crons default to `doall="False"` (preventing server overload on missed executions)
   4. New render stages (`render_reports`, `render_controllers`, `render_cron`) are wired into the pipeline, each returning `Result[list[Path]]` and updating manifest data
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 26-01-PLAN.md — Monetary detection in renderer + template Monetary branch + currency_id injection
 
 ### Phase 31: Reports & Analytics
 **Goal**: Generator produces QWeb report templates with print buttons and graph/pivot dashboard views with configurable measures
@@ -158,7 +168,9 @@
   2. The report's form view gets a print button that triggers the report action
   3. A spec with `dashboards` or analytics entries generates graph view XML with measures/dimensions and pivot view XML with row/column/measure groupings
   4. Dashboard views are accessible via `ir.actions.act_window` with `view_mode` including `graph,pivot`
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 26-01-PLAN.md — Monetary detection in renderer + template Monetary branch + currency_id injection
 
 ### Phase 32: Controllers & Import/Export
 **Goal**: Generator produces HTTP controllers with secure defaults and import/export TransientModel wizards with file upload, validation, and batch processing
@@ -169,7 +181,9 @@
   2. Generated controllers default to `auth='user'` and `csrf=True` (secure by default); JSON routes include proper error handling
   3. A spec with `import_export: true` on a model generates a TransientModel wizard with `fields.Binary` upload, row validation, preview step, and batch `_do_import()` method
   4. The import wizard validates file content type (not just extension) and the export action produces xlsx output
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 26-01-PLAN.md — Monetary detection in renderer + template Monetary branch + currency_id injection
 
 ### Phase 33: Database Performance
 **Goal**: Generated models automatically get index=True on filterable fields, store=True on computed fields used in views, and TransientModels get cleanup configuration
@@ -180,7 +194,9 @@
   2. Multi-field uniqueness constraints generate `_sql_constraints` entries
   3. Computed fields that appear in tree views, search filters, or `_order` automatically get `store=True`
   4. TransientModel classes get `_transient_max_hours` and `_transient_max_count` attributes
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 26-01-PLAN.md — Monetary detection in renderer + template Monetary branch + currency_id injection
 
 ### Phase 34: Production Patterns
 **Goal**: Generated modules support bulk operations, reference data caching, and archival strategies for production-scale usage
@@ -191,7 +207,9 @@
   2. Near-static reference models generate `@tools.ormcache` on lookup methods with cache invalidation in `write()` and `create()`
   3. Models with `archival: true` generate an `active` field, an archival wizard TransientModel, and an `ir.cron` scheduled action for periodic cleanup
   4. Archival crons use batch processing with commit-per-batch to avoid long transactions
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 26-01-PLAN.md — Monetary detection in renderer + template Monetary branch + currency_id injection
 
 ## Progress
 
