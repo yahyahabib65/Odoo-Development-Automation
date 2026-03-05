@@ -80,28 +80,28 @@ Requirements for v3.1 Design Flaws & Feature Gaps. Each maps to roadmap phases.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SPEC-01 | TBD | Pending |
-| SPEC-02 | TBD | Pending |
-| SPEC-03 | TBD | Pending |
-| SPEC-04 | TBD | Pending |
-| SPEC-05 | TBD | Pending |
-| TMPL-01 | TBD | Pending |
-| TMPL-02 | TBD | Pending |
-| TMPL-03 | TBD | Pending |
-| TMPL-04 | TBD | Pending |
-| TMPL-05 | TBD | Pending |
-| TMPL-06 | TBD | Pending |
-| PERF-01 | TBD | Pending |
-| PERF-02 | TBD | Pending |
-| PERF-03 | TBD | Pending |
-| PERF-04 | TBD | Pending |
-| PERF-05 | TBD | Pending |
+| SPEC-01 | Phase 26 | Pending |
+| SPEC-02 | Phase 27 | Pending |
+| SPEC-03 | Phase 28 | Pending |
+| SPEC-04 | Phase 29 | Pending |
+| SPEC-05 | Phase 28 | Pending |
+| TMPL-01 | Phase 31 | Pending |
+| TMPL-02 | Phase 31 | Pending |
+| TMPL-03 | Phase 32 | Pending |
+| TMPL-04 | Phase 32 | Pending |
+| TMPL-05 | Phase 30 | Pending |
+| TMPL-06 | Phase 30 | Pending |
+| PERF-01 | Phase 33 | Pending |
+| PERF-02 | Phase 34 | Pending |
+| PERF-03 | Phase 34 | Pending |
+| PERF-04 | Phase 34 | Pending |
+| PERF-05 | Phase 33 | Pending |
 
 **Coverage:**
 - v3.1 requirements: 16 total
-- Mapped to phases: 0
-- Unmapped: 16 (pending roadmap creation)
+- Mapped to phases: 16
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-05*
-*Last updated: 2026-03-05 after initial definition*
+*Last updated: 2026-03-05 after roadmap creation*

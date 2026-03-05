@@ -8,6 +8,7 @@
 - **v2.0 Environment-Aware Generation** — Phases 15-17 (shipped 2026-03-04)
 - **v2.1 Auto-Fix & Enhancements** — Phases 18-19 (shipped 2026-03-04) | [Archive](milestones/v2.1-ROADMAP.md)
 - **v3.0 Bug Fixes & Tech Debt** — Phases 20-25 (shipped 2026-03-05) | [Archive](milestones/v3.0-ROADMAP.md)
+- **v3.1 Design Flaws & Feature Gaps** — Phases 26-34 (in progress)
 
 ## Phases
 
@@ -78,16 +79,142 @@
 
 </details>
 
+### v3.1 Design Flaws & Feature Gaps (In Progress)
+
+**Milestone Goal:** Close foundational design gaps in spec design, template generation, and performance patterns to produce richer, production-grade Odoo modules.
+
+- [ ] **Phase 26: Monetary Field Detection** - Auto-detect monetary patterns and inject currency_id
+- [ ] **Phase 27: Relationship Patterns** - Through-models, self-referential M2M, hierarchical parent_id
+- [ ] **Phase 28: Computed Chains & Cycle Detection** - Multi-model dependency chains with topological sort and circular dependency rejection
+- [ ] **Phase 29: Complex Constraints** - Cross-model validation, temporal, and capacity constraints
+- [ ] **Phase 30: Scheduled Actions & Render Pipeline** - ir.cron generation and new renderer stage wiring
+- [ ] **Phase 31: Reports & Analytics** - QWeb report templates and graph/pivot dashboard views
+- [ ] **Phase 32: Controllers & Import/Export** - HTTP controllers and bulk import/export wizards
+- [ ] **Phase 33: Database Performance** - Index auto-detection, store=True selectivity, transient model config
+- [ ] **Phase 34: Production Patterns** - Bulk operations, reference caching, and archival strategies
+
+## Phase Details
+
+### Phase 26: Monetary Field Detection
+**Goal**: Spec fields matching monetary patterns (amount, fee, salary, price, cost, balance) automatically become fields.Monetary with currency_id companion field injected
+**Depends on**: Nothing (standalone quick win, prevents install-crashing AssertionError)
+**Requirements**: SPEC-01
+**Success Criteria** (what must be TRUE):
+  1. A spec with a field named "amount" or "total_price" renders as `fields.Monetary` (not `fields.Float`) in the generated model
+  2. When any field is detected as monetary, a `currency_id` Many2one to `res.currency` is auto-injected into the model if not already present
+  3. The generated module installs without `AssertionError: unknown currency_field None`
+**Plans**: TBD
+
+### Phase 27: Relationship Patterns
+**Goal**: Spec supports rich relationship declarations that generate through-models for M2M with extra fields, self-referential M2M with explicit relation/column params, and hierarchical parent_id with parent_path
+**Depends on**: Phase 26
+**Requirements**: SPEC-02
+**Success Criteria** (what must be TRUE):
+  1. A spec declaring a M2M relationship with extra fields (e.g., enrollment with grade + date) generates a dedicated through-model with the extra fields and two Many2one links
+  2. A spec declaring a self-referential M2M (e.g., prerequisite courses) generates correct `relation`, `column1`, `column2` parameters to avoid ambiguous table names
+  3. A spec declaring `hierarchical: true` on a model generates `parent_id`, `child_ids`, and `parent_path` fields with `_parent_name` and `_parent_store = True`
+  4. Through-models get their own security ACL entries and are included in `__init__.py`
+**Plans**: TBD
+
+### Phase 28: Computed Chains & Cycle Detection
+**Goal**: Spec supports multi-model computed field dependency chains with correct topological ordering, and rejects circular dependencies before generation
+**Depends on**: Phase 27 (relationship awareness needed for cross-model references)
+**Requirements**: SPEC-03, SPEC-05
+**Success Criteria** (what must be TRUE):
+  1. A spec with `computation_chains` defining fields across models generates `@api.depends` with correct dotted paths (e.g., `line_ids.subtotal`) and `store=True`
+  2. Computed fields render in topologically sorted order so downstream fields reference already-defined upstream fields
+  3. A spec containing a circular dependency chain (A depends on B depends on A) is rejected with an actionable error message naming the cycle participants before any files are generated
+  4. The generated module with multi-model computed chains installs and computes values correctly
+**Plans**: TBD
+
+### Phase 29: Complex Constraints
+**Goal**: Spec supports cross-model validation, temporal constraints, and capacity constraints that generate create()/write() overrides with ValidationError
+**Depends on**: Phase 27 (relationship patterns needed for cross-model references)
+**Requirements**: SPEC-04
+**Success Criteria** (what must be TRUE):
+  1. A spec with a cross-model constraint (e.g., "enrollment count cannot exceed course capacity") generates a `write()` or `create()` override that queries the related model and raises `ValidationError`
+  2. A spec with a temporal constraint (e.g., "end_date must be after start_date") generates a `@api.constrains` method with the date comparison
+  3. A spec with a capacity constraint (e.g., "max 30 students per section") generates validation logic that counts related records before allowing creation
+  4. All generated constraint methods include proper `_()` translated error messages
+**Plans**: TBD
+
+### Phase 30: Scheduled Actions & Render Pipeline
+**Goal**: Generator produces ir.cron XML records with model method stubs, and new render stages are wired into the renderer pipeline
+**Depends on**: Phase 26 (renderer pipeline must be stable before adding stages)
+**Requirements**: TMPL-05, TMPL-06
+**Success Criteria** (what must be TRUE):
+  1. A spec with `cron_jobs` entries generates `data/data.xml` containing `ir.cron` records with correct interval_type, interval_number, model_id reference, and code/method reference
+  2. The target model gets an `@api.model` stub method matching the cron's method reference
+  3. Generated crons default to `doall="False"` (preventing server overload on missed executions)
+  4. New render stages (`render_reports`, `render_controllers`, `render_cron`) are wired into the pipeline, each returning `Result[list[Path]]` and updating manifest data
+**Plans**: TBD
+
+### Phase 31: Reports & Analytics
+**Goal**: Generator produces QWeb report templates with print buttons and graph/pivot dashboard views with configurable measures
+**Depends on**: Phase 30 (render_reports stage must exist in pipeline)
+**Requirements**: TMPL-01, TMPL-02
+**Success Criteria** (what must be TRUE):
+  1. A spec with `reports` entries generates `ir.actions.report` XML, a QWeb template with `t-foreach`/`t-field` data binding, and an optional paper format record
+  2. The report's form view gets a print button that triggers the report action
+  3. A spec with `dashboards` or analytics entries generates graph view XML with measures/dimensions and pivot view XML with row/column/measure groupings
+  4. Dashboard views are accessible via `ir.actions.act_window` with `view_mode` including `graph,pivot`
+**Plans**: TBD
+
+### Phase 32: Controllers & Import/Export
+**Goal**: Generator produces HTTP controllers with secure defaults and import/export TransientModel wizards with file upload, validation, and batch processing
+**Depends on**: Phase 30 (render_controllers stage must exist in pipeline)
+**Requirements**: TMPL-03, TMPL-04
+**Success Criteria** (what must be TRUE):
+  1. A spec with `controllers` entries generates `controllers/main.py` with `@http.route` decorators, and `controllers/__init__.py` is created and imported from the module root
+  2. Generated controllers default to `auth='user'` and `csrf=True` (secure by default); JSON routes include proper error handling
+  3. A spec with `import_export: true` on a model generates a TransientModel wizard with `fields.Binary` upload, row validation, preview step, and batch `_do_import()` method
+  4. The import wizard validates file content type (not just extension) and the export action produces xlsx output
+**Plans**: TBD
+
+### Phase 33: Database Performance
+**Goal**: Generated models automatically get index=True on filterable fields, store=True on computed fields used in views, and TransientModels get cleanup configuration
+**Depends on**: Phase 28 (store=True depends on computed chain awareness)
+**Requirements**: PERF-01, PERF-05
+**Success Criteria** (what must be TRUE):
+  1. Fields referenced in search view filters, record rule domains, or `_order` automatically get `index=True` in the generated model
+  2. Multi-field uniqueness constraints generate `_sql_constraints` entries
+  3. Computed fields that appear in tree views, search filters, or `_order` automatically get `store=True`
+  4. TransientModel classes get `_transient_max_hours` and `_transient_max_count` attributes
+**Plans**: TBD
+
+### Phase 34: Production Patterns
+**Goal**: Generated modules support bulk operations, reference data caching, and archival strategies for production-scale usage
+**Depends on**: Phase 30 (archival uses cron infrastructure), Phase 33 (performance context keys)
+**Requirements**: PERF-02, PERF-03, PERF-04
+**Success Criteria** (what must be TRUE):
+  1. Models with `bulk: true` in spec generate `@api.model_create_multi` on `create()` with batched post-processing
+  2. Near-static reference models generate `@tools.ormcache` on lookup methods with cache invalidation in `write()` and `create()`
+  3. Models with `archival: true` generate an `active` field, an archival wizard TransientModel, and an `ir.cron` scheduled action for periodic cleanup
+  4. Archival crons use batch processing with commit-per-batch to avoid long transactions
+**Plans**: TBD
+
 ## Progress
 
-| Milestone | Phases | Plans | Status | Shipped |
-|-----------|--------|-------|--------|---------|
-| v1.0 MVP | 1-9 | 26 | Complete | 2026-03-03 |
-| v1.1 Tech Debt | 10-11 | - | Complete | 2026-03-03 |
-| v1.2 Template Quality | 12-14 | 4 | Complete | 2026-03-04 |
-| v2.0 Env-Aware | 15-17 | 6 | Complete | 2026-03-04 |
-| v2.1 Auto-Fix | 18-19 | 5 | Complete | 2026-03-04 |
-| v3.0 Bug Fixes | 20-25 | 11 | Complete | 2026-03-05 |
+**Execution Order:**
+Phases execute in numeric order: 26 -> 27 -> 28 -> 29 -> 30 -> 31 -> 32 -> 33 -> 34
+
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 1-9 | v1.0 | 26/26 | Complete | 2026-03-03 |
+| 10-11 | v1.1 | - | Complete | 2026-03-03 |
+| 12-14 | v1.2 | 4/4 | Complete | 2026-03-04 |
+| 15-17 | v2.0 | 6/6 | Complete | 2026-03-04 |
+| 18-19 | v2.1 | 5/5 | Complete | 2026-03-04 |
+| 20-25 | v3.0 | 11/11 | Complete | 2026-03-05 |
+| 26. Monetary Field Detection | v3.1 | 0/TBD | Not started | - |
+| 27. Relationship Patterns | v3.1 | 0/TBD | Not started | - |
+| 28. Computed Chains & Cycle Detection | v3.1 | 0/TBD | Not started | - |
+| 29. Complex Constraints | v3.1 | 0/TBD | Not started | - |
+| 30. Scheduled Actions & Render Pipeline | v3.1 | 0/TBD | Not started | - |
+| 31. Reports & Analytics | v3.1 | 0/TBD | Not started | - |
+| 32. Controllers & Import/Export | v3.1 | 0/TBD | Not started | - |
+| 33. Database Performance | v3.1 | 0/TBD | Not started | - |
+| 34. Production Patterns | v3.1 | 0/TBD | Not started | - |
 
 ---
 *Roadmap created: 2026-03-01*
@@ -97,3 +224,4 @@
 *v2.0 shipped: 2026-03-04*
 *v2.1 shipped: 2026-03-04*
 *v3.0 shipped: 2026-03-05*
+*v3.1 roadmap created: 2026-03-05*
