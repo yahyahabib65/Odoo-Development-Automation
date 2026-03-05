@@ -1504,3 +1504,200 @@ class TestDockerFixLoopIterations:
         )
         assert "Iteration cap (3) reached" in remaining
         assert "manual review" in remaining.lower()
+
+
+# ---------------------------------------------------------------------------
+# Multi-line test cases for AST-based fixers
+# ---------------------------------------------------------------------------
+
+
+class TestFixW8113MultiLine:
+    """W8113: redundant string= removal on multi-line field definitions."""
+
+    def test_removes_string_on_own_line(self, tmp_path: Path):
+        """string="Name" on its own line in a multi-line field def is removed."""
+        src = textwrap.dedent('''\
+            from odoo import fields, models
+
+            class TestModel(models.Model):
+                _name = "test.model"
+                name = fields.Char(
+                    string="Name",
+                    required=True,
+                )
+        ''')
+        mod = tmp_path / "mod"
+        model_file = mod / "models" / "test_model.py"
+        model_file.parent.mkdir(parents=True)
+        model_file.write_text(src, encoding="utf-8")
+
+        v = Violation(
+            file="models/test_model.py", line=6, column=0,
+            rule_code="W8113", symbol="redundant-string",
+            severity="warning", message='Redundant string= on field "name"',
+        )
+        result = fix_pylint_violation(v, mod)
+        assert result is True
+
+        content = model_file.read_text(encoding="utf-8")
+        assert "string=" not in content
+        assert "required=True" in content
+        # No double blank lines left
+        assert "\n\n\n" not in content
+
+    def test_removes_string_as_last_kwarg(self, tmp_path: Path):
+        """string="Name" as last keyword (no trailing comma) is removed, preceding comma cleaned."""
+        src = textwrap.dedent('''\
+            from odoo import fields, models
+
+            class TestModel(models.Model):
+                _name = "test.model"
+                name = fields.Char(
+                    required=True,
+                    string="Name"
+                )
+        ''')
+        mod = tmp_path / "mod"
+        model_file = mod / "models" / "test_model.py"
+        model_file.parent.mkdir(parents=True)
+        model_file.write_text(src, encoding="utf-8")
+
+        v = Violation(
+            file="models/test_model.py", line=7, column=0,
+            rule_code="W8113", symbol="redundant-string",
+            severity="warning", message='Redundant string= on field "name"',
+        )
+        result = fix_pylint_violation(v, mod)
+        assert result is True
+
+        content = model_file.read_text(encoding="utf-8")
+        assert "string=" not in content
+        assert "required=True" in content
+        # Closing paren should still be there
+        assert ")" in content
+
+
+class TestFixW8111MultiLine:
+    """W8111: renamed parameter on multi-line field definitions."""
+
+    def test_renames_param_on_own_line(self, tmp_path: Path):
+        """track_visibility="always" on own line is renamed to tracking="always"."""
+        src = textwrap.dedent('''\
+            from odoo import fields, models
+
+            class TestModel(models.Model):
+                _name = "test.model"
+                state = fields.Selection(
+                    selection=[("draft", "Draft")],
+                    track_visibility="always",
+                    required=True,
+                )
+        ''')
+        mod = tmp_path / "mod"
+        model_file = mod / "models" / "test_model.py"
+        model_file.parent.mkdir(parents=True)
+        model_file.write_text(src, encoding="utf-8")
+
+        v = Violation(
+            file="models/test_model.py", line=7, column=0,
+            rule_code="W8111", symbol="renamed-field-parameter",
+            severity="warning",
+            message='"track_visibility" has been renamed to "tracking"',
+        )
+        result = fix_pylint_violation(v, mod)
+        assert result is True
+
+        content = model_file.read_text(encoding="utf-8")
+        assert "tracking=" in content
+        assert "track_visibility" not in content
+        assert "required=True" in content
+
+    def test_removes_param_on_own_line(self, tmp_path: Path):
+        """oldname="old_field" on own line is removed entirely (None mapping)."""
+        src = textwrap.dedent('''\
+            from odoo import fields, models
+
+            class TestModel(models.Model):
+                _name = "test.model"
+                name = fields.Char(
+                    required=True,
+                    oldname="old_field",
+                    help="A field",
+                )
+        ''')
+        mod = tmp_path / "mod"
+        model_file = mod / "models" / "test_model.py"
+        model_file.parent.mkdir(parents=True)
+        model_file.write_text(src, encoding="utf-8")
+
+        v = Violation(
+            file="models/test_model.py", line=7, column=0,
+            rule_code="W8111", symbol="renamed-field-parameter",
+            severity="warning",
+            message='"oldname" has been renamed to None',
+        )
+        result = fix_pylint_violation(v, mod)
+        assert result is True
+
+        content = model_file.read_text(encoding="utf-8")
+        assert "oldname" not in content
+        assert "required=True" in content
+        assert 'help="A field"' in content
+
+
+class TestFixC8116MultiLineValue:
+    """C8116: superfluous manifest key with multi-line values."""
+
+    def test_removes_key_with_list_value(self, tmp_path: Path):
+        """Manifest key with multi-line list value is fully removed."""
+        src = textwrap.dedent('''\
+            {
+                "name": "Test",
+                "data": [
+                    "file1.xml",
+                    "file2.xml",
+                ],
+                "license": "LGPL-3",
+            }
+        ''')
+        mod = tmp_path / "mod"
+        manifest = mod / "__manifest__.py"
+        manifest.parent.mkdir(parents=True)
+        manifest.write_text(src, encoding="utf-8")
+
+        v = Violation(
+            file="__manifest__.py", line=3, column=0,
+            rule_code="C8116", symbol="superfluous-manifest-key",
+            severity="convention",
+            message='Deprecated key "data" in manifest file',
+        )
+        result = fix_pylint_violation(v, mod)
+        assert result is True
+
+        content = manifest.read_text(encoding="utf-8")
+        assert '"data"' not in content
+        assert "file1.xml" not in content
+        assert "file2.xml" not in content
+        assert '"license": "LGPL-3"' in content
+
+    def test_removes_key_with_multiline_string(self, tmp_path: Path):
+        """Manifest key with multi-line string value is fully removed."""
+        # Use a triple-quoted string as the value
+        src = '{\n    "name": "Test",\n    "description": "A very\\nlong\\nstring",\n    "license": "LGPL-3",\n}\n'
+        mod = tmp_path / "mod"
+        manifest = mod / "__manifest__.py"
+        manifest.parent.mkdir(parents=True)
+        manifest.write_text(src, encoding="utf-8")
+
+        v = Violation(
+            file="__manifest__.py", line=3, column=0,
+            rule_code="C8116", symbol="superfluous-manifest-key",
+            severity="convention",
+            message='Deprecated key "description" in manifest file',
+        )
+        result = fix_pylint_violation(v, mod)
+        assert result is True
+
+        content = manifest.read_text(encoding="utf-8")
+        assert '"description"' not in content
+        assert '"license": "LGPL-3"' in content
