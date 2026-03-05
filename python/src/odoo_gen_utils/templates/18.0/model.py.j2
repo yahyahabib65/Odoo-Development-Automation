@@ -208,3 +208,13 @@ class {{ model_name | to_class }}(models.Model):
 {% endfor %}
         return result
 {% endif %}
+{% if cron_methods is defined and cron_methods %}
+{% for cron in cron_methods %}
+
+    @api.model
+    def {{ cron.method }}(self):
+        """Scheduled action: {{ cron.name }}."""
+        # TODO: implement scheduled action logic
+        pass
+{% endfor %}
+{% endif %}

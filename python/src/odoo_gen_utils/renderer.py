@@ -763,13 +763,21 @@ def _build_model_context(spec: dict[str, Any], model: dict[str, Any]) -> dict[st
     # Phase 27: view_fields excludes internal fields (e.g. parent_path)
     view_fields = [f for f in fields if not f.get("internal")]
 
+    # Phase 30: cron methods targeting this model
+    cron_methods = [
+        c for c in spec.get("cron_jobs", [])
+        if c.get("model_name") == model["name"]
+    ]
+
     # Phase 12: conditional api import (TMPL-02)
     # Phase 29: also need api when temporal constraints exist (@api.constrains)
     # or create/write overrides exist (@api.model_create_multi)
+    # Phase 30: also need api when cron methods exist (@api.model)
     has_temporal = any(c.get("type") == "temporal" for c in complex_constraints)
     needs_api = bool(
         computed_fields or onchange_fields or constrained_fields
         or sequence_fields or has_temporal or has_create_override
+        or cron_methods
     )
 
     return {
@@ -821,6 +829,8 @@ def _build_model_context(spec: dict[str, Any], model: dict[str, Any]) -> dict[st
         "has_create_override": has_create_override,
         "has_write_override": has_write_override,
         "needs_translate": needs_translate,
+        # Phase 30 keys
+        "cron_methods": cron_methods,
     }
 
 
@@ -1187,6 +1197,55 @@ def render_static(
         return Result.fail(f"render_static failed: {exc}")
 
 
+def render_cron(
+    env: Environment,
+    spec: dict[str, Any],
+    module_dir: Path,
+    module_context: dict[str, Any],
+) -> "Result[list[Path]]":
+    """Render ir.cron scheduled action XML from spec cron_jobs.
+
+    Validates method names are valid Python identifiers.
+    Returns Result.ok([]) when no cron_jobs are present.
+    """
+    cron_jobs = spec.get("cron_jobs")
+    if not cron_jobs:
+        return Result.ok([])
+    # Validate method names
+    for cron in cron_jobs:
+        method = cron.get("method", "")
+        if not method.isidentifier():
+            return Result.fail(
+                f"Invalid cron method name '{method}': must be a valid Python identifier"
+            )
+    cron_ctx = {**module_context, "cron_jobs": cron_jobs}
+    try:
+        path = render_template(env, "cron_data.xml.j2", module_dir / "data" / "cron_data.xml", cron_ctx)
+        return Result.ok([path])
+    except Exception as exc:
+        return Result.fail(f"render_cron failed: {exc}")
+
+
+def render_reports(
+    env: Environment,
+    spec: dict[str, Any],
+    module_dir: Path,
+    module_context: dict[str, Any],
+) -> "Result[list[Path]]":
+    """Placeholder -- implemented in Phase 31."""
+    return Result.ok([])
+
+
+def render_controllers(
+    env: Environment,
+    spec: dict[str, Any],
+    module_dir: Path,
+    module_context: dict[str, Any],
+) -> "Result[list[Path]]":
+    """Placeholder -- implemented in Phase 32."""
+    return Result.ok([])
+
+
 def _build_module_context(spec: dict[str, Any], module_name: str) -> dict[str, Any]:
     """Build the shared module-level template context from the spec."""
     models = spec.get("models", [])
@@ -1204,6 +1263,9 @@ def _build_module_context(spec: dict[str, Any], module_name: str) -> dict[str, A
     if has_seq:
         data_files.append("data/sequences.xml")
     data_files.append("data/data.xml")
+    # Phase 30: cron data file
+    if spec.get("cron_jobs"):
+        data_files.append("data/cron_data.xml")
     wiz_files = [f"views/{_to_xml_id(w['name'])}_wizard_form.xml" for w in spec_wizards]
     manifest_files = _compute_manifest_data(spec, data_files, wiz_files, has_company_modules=has_company)
     return {
@@ -1258,7 +1320,7 @@ def render_module(
     output_dir: Path,
     verifier: "EnvironmentVerifier | None" = None,
 ) -> "tuple[list[Path], list[VerificationWarning]]":
-    """Orchestrate rendering of a complete Odoo module via 7 stage functions.
+    """Orchestrate rendering of a complete Odoo module via 10 stage functions.
 
     Args:
         spec: Module specification dictionary with module_name, models, etc.
@@ -1298,6 +1360,9 @@ def render_module(
         lambda: render_wizards(env, spec, module_dir, ctx),
         lambda: render_tests(env, spec, module_dir, ctx),
         lambda: render_static(env, spec, module_dir, ctx),
+        lambda: render_cron(env, spec, module_dir, ctx),
+        lambda: render_reports(env, spec, module_dir, ctx),
+        lambda: render_controllers(env, spec, module_dir, ctx),
     ]
     for stage_fn in stages:
         result = stage_fn()
