@@ -29,9 +29,9 @@
 
 ### Code Quality
 
-- [ ] **QUAL-01**: CLI defers heavy imports (chromadb, PyGithub, gitpython, Docker, validation stack) inside command functions, keeping module-level imports to click and stdlib only
+- [x] **QUAL-01**: CLI defers heavy imports (chromadb, PyGithub, gitpython, Docker, validation stack) inside command functions, keeping module-level imports to click and stdlib only
 - [ ] **QUAL-02**: render_module decomposed from 371-line monolith into independently testable stage functions (render_manifest, render_models, render_views, render_security, render_wizards, render_tests, render_static)
-- [ ] **QUAL-03**: Docker compose file path resolved via importlib.resources or configuration instead of 5-level parent directory traversal
+- [x] **QUAL-03**: Docker compose file path resolved via importlib.resources or configuration instead of 5-level parent directory traversal
 
 ## v3.1 Requirements (Deferred)
 
@@ -84,9 +84,9 @@
 | VALD-02 | Phase 23 | Complete |
 | SRCH-01 | Phase 22 | Complete |
 | SRCH-02 | Phase 22 | Complete |
-| QUAL-01 | Phase 24 | Pending |
+| QUAL-01 | Phase 24 | Complete |
 | QUAL-02 | Phase 24 | Pending |
-| QUAL-03 | Phase 24 | Pending |
+| QUAL-03 | Phase 24 | Complete |
 
 **Coverage:**
 - v3.0 requirements: 13 total
