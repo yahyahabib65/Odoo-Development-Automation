@@ -47,11 +47,13 @@ def test_docker_install_real_module() -> None:
     """
     result = docker_install_module(FIXTURE_MODULE)
 
-    print(f"Log output length: {len(result.log_output)} chars")
-    assert result.success is True, f"Module install failed: {result.error_message}"
-    assert result.log_output != "", "Expected non-empty log output from install"
-    assert result.error_message is None or result.error_message == "", (
-        f"Expected no error message, got: {result.error_message}"
+    assert result.success, f"docker_install_module failed: {result.errors}"
+    install = result.data
+    print(f"Log output length: {len(install.log_output)} chars")
+    assert install.success is True, f"Module install failed: {install.error_message}"
+    assert install.log_output != "", "Expected non-empty log output from install"
+    assert install.error_message is None or install.error_message == "", (
+        f"Expected no error message, got: {install.error_message}"
     )
 
 
@@ -62,8 +64,10 @@ def test_docker_run_tests_real_module() -> None:
     Validates that docker_run_tests() returns at least one TestResult with
     passed=True. No mocking used.
     """
-    results = docker_run_tests(FIXTURE_MODULE)
+    result = docker_run_tests(FIXTURE_MODULE)
 
+    assert result.success, f"docker_run_tests failed: {result.errors}"
+    results = result.data
     print(f"Test names found: {[r.test_name for r in results]}")
     assert len(results) > 0, "Expected at least one test result from docker_run_tests"
     assert results[0].passed is True, (
