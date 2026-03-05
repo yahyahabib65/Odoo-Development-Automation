@@ -184,9 +184,10 @@ Plans:
   2. Near-static reference models generate `@tools.ormcache` on lookup methods with cache invalidation in `write()` and `create()`
   3. Models with `archival: true` generate an `active` field, an archival wizard TransientModel, and an `ir.cron` scheduled action for periodic cleanup
   4. Archival crons use batch processing with commit-per-batch to avoid long transactions
-**Plans**: 1 plan
+**Plans**: 2 plans
 Plans:
-- [ ] 31-01-PLAN.md — QWeb report templates, graph/pivot dashboard views, render_reports() implementation
+- [ ] 34-01-PLAN.md — Preprocessor + model template extensions for bulk create and ORM cache patterns
+- [ ] 34-02-PLAN.md — Archival wizard/cron generation with batch processing and active field injection
 
 ## Progress
 
@@ -209,7 +210,7 @@ Phases execute in numeric order: 26 -> 27 -> 28 -> 29 -> 30 -> 31 -> 32 -> 33 ->
 | 31. Reports & Analytics | 1/1 | Complete    | 2026-03-05 | - |
 | 32. Controllers & Import/Export | 2/2 | Complete    | 2026-03-05 | - |
 | 33. Database Performance | 1/1 | Complete    | 2026-03-05 | - |
-| 34. Production Patterns | v3.1 | 0/TBD | Not started | - |
+| 34. Production Patterns | v3.1 | 0/2 | Not started | - |
 
 ---
 *Roadmap created: 2026-03-01*
