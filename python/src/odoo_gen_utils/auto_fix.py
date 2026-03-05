@@ -1386,21 +1386,55 @@ def run_docker_fix_loop(
 # Module-level auto-fix: unused imports (AFIX-02)
 # -------------------------------------------------------------------------
 
-# Known import names to check for usage -- targeted at template patterns
-_IMPORT_USAGE_PATTERNS: dict[str, tuple[str, ...]] = {
-    "api": ("@api.", "api."),
-    "ValidationError": ("ValidationError",),
-    "AccessError": ("AccessError",),
-    "_": ("_(",),
-}
+def _find_all_name_references(tree: ast.Module, exclude_imports: bool = True) -> set[str]:
+    """Collect every ast.Name.id in the module body, excluding import statements.
+
+    This walks the full AST and returns all ``ast.Name`` node identifiers,
+    optionally skipping names that appear on import lines (so we don't count
+    ``from X import foo`` as a *usage* of ``foo``).
+
+    Attribute access like ``api.constrains`` produces an ``ast.Attribute``
+    whose ``value`` is ``ast.Name(id='api')``, so ``api`` is captured.
+    """
+    import_lines: set[int] = set()
+    if exclude_imports:
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                for line_no in range(node.lineno, (node.end_lineno or node.lineno) + 1):
+                    import_lines.add(line_no)
+
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and node.lineno not in import_lines:
+            names.add(node.id)
+    return names
+
+
+def _find_all_in_module(tree: ast.Module) -> set[str]:
+    """Extract names listed in ``__all__`` if defined at module level.
+
+    Returns the set of string constants found in the ``__all__`` list, or an
+    empty set if ``__all__`` is not defined.
+    """
+    all_names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == "__all__":
+                    if isinstance(node.value, (ast.List, ast.Tuple)):
+                        for elt in node.value.elts:
+                            if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
+                                all_names.add(elt.value)
+    return all_names
 
 
 def fix_unused_imports(file_path: Path) -> bool:
     """Detect and remove unused imports in a generated Python file.
 
-    Targeted at common template patterns: unused ValidationError, unused api,
-    unused _. Uses AST to find import statements, then scans file text for
-    usage of each imported name.
+    Uses a full AST body scan to find all name references (``ast.Name``
+    nodes) and compares against imported names.  Any imported name with
+    zero references in the file body is removed.  Star imports are never
+    removed.  Names listed in ``__all__`` are treated as used.
 
     Args:
         file_path: Path to the Python file to check.
@@ -1417,13 +1451,18 @@ def fix_unused_imports(file_path: Path) -> bool:
     except SyntaxError:
         return False
 
+    # Collect all referenced names in the file body (excluding import lines)
+    used_names = _find_all_name_references(tree)
+    # Names in __all__ count as used
+    used_names |= _find_all_in_module(tree)
+
     changes_made = False
     lines = content.split("\n")
 
-    # Process import statements in reverse order to preserve line numbers
-    import_nodes: list[ast.ImportFrom] = []
+    # Gather import nodes (both `import X` and `from X import Y`)
+    import_nodes: list[ast.ImportFrom | ast.Import] = []
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom):
+        if isinstance(node, (ast.ImportFrom, ast.Import)):
             import_nodes.append(node)
 
     # Sort by line number descending so we can modify lines without shifting
@@ -1433,33 +1472,23 @@ def fix_unused_imports(file_path: Path) -> bool:
         if not node.names:
             continue
 
-        line_idx = node.lineno - 1
-        if line_idx < 0 or line_idx >= len(lines):
+        # Skip star imports -- never remove them
+        if any(alias.name == "*" for alias in node.names):
             continue
 
-        original_line = lines[line_idx]
+        start_idx = node.lineno - 1
+        end_idx = (node.end_lineno or node.lineno) - 1
+        if start_idx < 0 or end_idx >= len(lines):
+            continue
 
-        # Build the text after import lines (everything except the import line itself)
-        # to check for usage
-        text_after_import = "\n".join(
-            line for i, line in enumerate(lines) if i != line_idx
-        )
+        original_line = lines[start_idx]
 
         names_to_keep: list[str] = []
         names_to_remove: list[str] = []
 
         for alias in node.names:
             name = alias.asname if alias.asname else alias.name
-
-            # Check usage: look for the name in the rest of the file
-            if name in _IMPORT_USAGE_PATTERNS:
-                patterns = _IMPORT_USAGE_PATTERNS[name]
-                is_used = any(pattern in text_after_import for pattern in patterns)
-            else:
-                # For unknown names, assume used (conservative)
-                is_used = True
-
-            if is_used:
+            if name in used_names:
                 names_to_keep.append(name)
             else:
                 names_to_remove.append(name)
@@ -1470,12 +1499,16 @@ def fix_unused_imports(file_path: Path) -> bool:
         changes_made = True
 
         if not names_to_keep:
-            # Remove the entire import line
-            lines[line_idx] = ""
+            # Remove the entire import line(s) (handles multi-line imports)
+            for idx in range(start_idx, end_idx + 1):
+                lines[idx] = ""
         else:
             # Rebuild the import line with only kept names
-            module = node.module or ""
-            new_import = f"from {module} import {', '.join(names_to_keep)}"
+            module = node.module or "" if isinstance(node, ast.ImportFrom) else ""
+            if isinstance(node, ast.ImportFrom):
+                new_import = f"from {module} import {', '.join(names_to_keep)}"
+            else:
+                new_import = f"import {', '.join(names_to_keep)}"
             # Preserve leading indentation
             leading_space = ""
             for ch in original_line:
@@ -1483,12 +1516,15 @@ def fix_unused_imports(file_path: Path) -> bool:
                     leading_space += ch
                 else:
                     break
-            lines[line_idx] = leading_space + new_import
+            lines[start_idx] = leading_space + new_import
+            # Clear any continuation lines for multi-line imports
+            for idx in range(start_idx + 1, end_idx + 1):
+                lines[idx] = ""
 
     if not changes_made:
         return False
 
-    # Clean up empty lines left by removed imports (remove consecutive blank lines)
+    # Clean up empty lines left by removed imports (collapse consecutive blanks)
     new_lines: list[str] = []
     prev_empty = False
     for line in lines:
