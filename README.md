@@ -1,6 +1,6 @@
 # Odoo Module Automation
 
-An AI-powered extension for the [GSD (Get Shit Done)](https://github.com/get-shit-done/gsd) framework that automates Odoo 17.0 and 18.0 module development end-to-end. Describe a business need in natural language, and the system produces OCA-grade Odoo modules — complete with models, views, security, tests, and i18n.
+An AI-powered extension for the [GSD (Get Shit Done)](https://github.com/gsd-build/get-shit-done) framework that automates Odoo 17.0 and 18.0 module development end-to-end. Describe a business need in natural language, and the system produces OCA-grade Odoo modules — complete with models, views, security, tests, and i18n.
 
 ## How It Works
 
@@ -51,7 +51,7 @@ You: "I need a module to track employee training courses and sessions"
 
 ## Prerequisites
 
-- **[GSD](https://github.com/get-shit-done/gsd)** installed at `~/.claude/get-shit-done/`
+- **[GSD](https://github.com/gsd-build/get-shit-done)** installed at `~/.claude/get-shit-done/`
 - **[uv](https://docs.astral.sh/uv/)** — Python package manager
 - **Python 3.12** (Odoo 17 requires 3.10-3.12; 3.13+ breaks validation)
 - **Docker + Docker Compose v2** (for module validation and dev instance)
